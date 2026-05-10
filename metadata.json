@@ -1,0 +1,6 @@
+{
+  "name": "PNP Patrol Tracking System",
+  "description": "Real-time patrol vehicle monitoring, personnel management, and analytics system for the Philippine National Police.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
