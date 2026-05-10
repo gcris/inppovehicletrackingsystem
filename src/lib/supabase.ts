@@ -24,3 +24,27 @@ export type VehicleLog = {
   network_signal: number;
   captured_at: string;
 };
+
+export type Unit = {
+  id: string;
+  unit_name: string;
+};
+
+export type Personnel = {
+  id: string;
+  rank: string;
+  fullname: string;
+  unit_id: string;
+};
+
+export type Schedule = {
+  id: string;
+  date: string;
+  time_from: string;
+  time_to: string;
+  sector: string;
+  unit_id: string;
+  personnel_id: string;
+  personnel?: Personnel;
+  unit?: Unit;
+};
