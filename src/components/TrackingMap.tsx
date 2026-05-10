@@ -67,9 +67,8 @@ export default function TrackingMap({ vehicles, logs }: MapProps) {
                     <span className="font-black text-lg text-slate-900">{vehicle.plate_number}</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                       isStale ? 'bg-slate-100 text-slate-500' : 
-                      vehicle.load_status === 'Emergency' ? 'bg-red-100 text-red-600' :
-                      vehicle.load_status === 'On Patrol' ? 'bg-green-100 text-green-600' :
-                      'bg-blue-100 text-blue-600'
+                      vehicle.load_status === 'Expired' ? 'bg-amber-100 text-amber-600' :
+                      'bg-green-100 text-green-600'
                     }`}>
                       {isStale ? 'Offline' : vehicle.load_status}
                     </span>

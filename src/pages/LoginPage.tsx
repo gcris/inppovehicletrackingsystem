@@ -33,11 +33,11 @@ export default function LoginPage() {
       <div className="max-w-[440px] w-full">
         {/* Logo Section */}
         <div className="flex flex-col items-center mb-10">
-          <div className="bg-blue-600 p-4 rounded-3xl shadow-xl shadow-blue-200 mb-6 group cursor-default">
-            <Shield className="w-10 h-10 text-white transform group-hover:scale-110 transition-transform" />
+          <div className="w-20 h-20 shadow-xl shadow-blue-200 overflow-hidden rounded-[24px] mb-6 group cursor-default">
+            <img src="/input_file_0.png" alt="INPPO Logo" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform" />
           </div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tighter">PNP PATROL</h1>
-          <p className="text-xs text-slate-400 font-black uppercase tracking-[0.2em] mt-2">Centralized Tracking System</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tighter">INPPO PATROL</h1>
+          <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-2">Ilocos Norte Provincial Office</p>
         </div>
 
         <div className="bg-white rounded-[32px] shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">

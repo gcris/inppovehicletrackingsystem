@@ -32,7 +32,7 @@ create table vehicles (
   created_at timestamptz default now(),
   personnel_id uuid references personnel(id) on delete set null,
   unit_id uuid references unit(id) on delete cascade,
-  load_status text check (load_status in ('Available', 'On Patrol', 'Maintenance', 'Emergency')),
+  load_status text check (load_status in ('Normal', 'Expired')),
   last_load_update timestamptz default now()
 );
 

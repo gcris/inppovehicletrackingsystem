@@ -10,7 +10,7 @@ export type Vehicle = {
   plate_number: string;
   personnel_id: string | null;
   unit_id: string;
-  load_status: 'Available' | 'On Patrol' | 'Maintenance' | 'Emergency';
+  load_status: 'Normal' | 'Expired';
   last_load_update: string;
   last_log?: VehicleLog;
 };

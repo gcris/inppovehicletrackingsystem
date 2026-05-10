@@ -43,8 +43,8 @@ export default function DashboardPage() {
     if (vehiclesRes.data) {
       setData(prev => ({
         ...prev,
-        activeVehicles: vehiclesRes.data.filter(v => v.load_status === 'On Patrol').length,
-        emergencyAlerts: vehiclesRes.data.filter(v => v.load_status === 'Emergency').length
+        activeVehicles: vehiclesRes.data.filter(v => v.load_status === 'Normal').length,
+        emergencyAlerts: vehiclesRes.data.filter(v => v.load_status === 'Expired').length
       }));
     }
 
@@ -99,24 +99,18 @@ export default function DashboardPage() {
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <SummaryCard 
-              label="Active Patrols" 
+              label="Normal Units" 
               value={data.activeVehicles} 
               icon={<Car className="w-5 h-5 text-green-600" />} 
               status="success"
-              sub="Units currently in field"
+              sub="Systems operational"
             />
             <SummaryCard 
-              label="Personnel On-Duty" 
-              value={data.onDutyPersonnel} 
-              icon={<Users className="w-5 h-5 text-blue-600" />} 
-              sub={`Out of ${data.totalPersonnel} total`}
-            />
-            <SummaryCard 
-              label="Emergency Alerts" 
+              label="Expired Units" 
               value={data.emergencyAlerts} 
-              icon={<AlertCircle className="w-5 h-5 text-red-500" />} 
+              icon={<AlertCircle className="w-5 h-5 text-amber-500" />} 
               status={data.emergencyAlerts > 0 ? "danger" : undefined}
-              sub="Requiring backup"
+              sub="Immediate review required"
             />
             <Link to="/map" className="group">
               <div className="h-full bg-blue-600 p-6 rounded-2xl shadow-lg border border-blue-700 flex flex-col justify-between hover:bg-blue-700 transition-all cursor-pointer">
@@ -145,12 +139,12 @@ export default function DashboardPage() {
                   <div key={log.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                        log.vehicles?.load_status === 'Emergency' ? 'bg-red-50 text-red-500' : 'bg-slate-50 text-slate-500'
+                        log.vehicles?.load_status === 'Expired' ? 'bg-amber-50 text-amber-500' : 'bg-slate-50 text-slate-500'
                       }`}>
                         <Car className="w-5 h-5" />
                       </div>
                       <div>
-                        <p className="text-sm font-black text-slate-900">{log.vehicles?.plate_number}</p>
+                        <p className="text-sm font-black text-slate-900 group-hover:text-blue-600 transition-colors">{log.vehicles?.plate_number}</p>
                         <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase">
                           <span className="text-blue-600">{log.speed} km/h</span>
                           <span className="w-1 h-1 rounded-full bg-slate-300"></span>

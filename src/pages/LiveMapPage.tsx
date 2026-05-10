@@ -12,15 +12,14 @@ export default function LiveMapPage() {
         <div>
           <h2 className="font-black text-slate-800 flex items-center gap-2">
             <MapIcon className="w-5 h-5 text-blue-600" />
-            Live Tracking
+            INPPO Provincial Sector Real-time Tracking
           </h2>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">NCR Sector 6 Real-time Monitoring</p>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ilocos Norte Provincial Office Command</p>
         </div>
         
-        <div className="flex items-center gap-4 bg-slate-50 px-4 py-1.5 rounded-full border border-slate-100">
-          <LegendItem color="bg-green-500" label="Patrol" />
-          <LegendItem color="bg-blue-500" label="Available" />
-          <LegendItem color="bg-red-500" label="Emergency" />
+        <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-800 px-4 py-1.5 rounded-full border border-slate-100 dark:border-slate-800">
+          <LegendItem color="bg-green-500" label="Normal" />
+          <LegendItem color="bg-amber-500" label="Expired" />
         </div>
       </div>
       <div className="flex-1 relative mt-2">

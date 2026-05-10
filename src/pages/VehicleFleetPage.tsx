@@ -44,9 +44,8 @@ export default function VehicleFleetPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Emergency': return 'text-red-600 bg-red-100';
-      case 'On Patrol': return 'text-green-600 bg-green-100';
-      case 'Maintenance': return 'text-amber-600 bg-amber-100';
+      case 'Expired': return 'text-amber-600 bg-amber-100';
+      case 'Normal': return 'text-green-600 bg-green-100';
       default: return 'text-blue-600 bg-blue-100';
     }
   };
@@ -55,11 +54,11 @@ export default function VehicleFleetPage() {
     <div className="flex flex-col h-full gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
             <Car className="w-6 h-6 text-blue-600" />
-            Vehicle Fleet
+            INPPO Fleet Assets
           </h1>
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">Monitor plate numbers, unit assignments, and load status</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-1">Registry of Ilocos Norte provincial response vehicles</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -67,23 +66,21 @@ export default function VehicleFleetPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
               type="text" 
-              placeholder="Search plate number..."
+              placeholder="Filter by plate number..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-white border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 w-64 shadow-sm"
+              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl py-2 pl-10 pr-4 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 w-64 shadow-sm"
             />
           </div>
 
           <select 
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="bg-white border border-slate-200 rounded-xl py-2 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm"
+            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl py-2 px-4 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm"
           >
             <option value="all">All Statuses</option>
-            <option value="Available">Available</option>
-            <option value="On Patrol">On Patrol</option>
-            <option value="Emergency">Emergency</option>
-            <option value="Maintenance">Maintenance</option>
+            <option value="Normal">Normal</option>
+            <option value="Expired">Expired</option>
           </select>
 
           <button 
