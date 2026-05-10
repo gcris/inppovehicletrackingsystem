@@ -36,9 +36,10 @@ export function useVehicleRealtime() {
 
     fetchInitialData();
 
-    // Subscribe to real-time updates for vehicle logs
+    // Subscribe to real-time updates for vehicle logs with a unique channel name to avoid collisions
+    const channelId = Math.random().toString(36).slice(2);
     const channel = supabase
-      .channel('vehicle-tracking')
+      .channel(`vehicle-tracking-${channelId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'vehicle_logs' },

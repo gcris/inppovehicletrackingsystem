@@ -7,6 +7,7 @@ import React from 'react';
 import { Routes, Route, NavLink, Navigate, Link } from 'react-router-dom';
 import { useVehicleRealtime } from './hooks/useVehicleRealtime';
 import { AuthProvider, useAuth } from './components/AuthProvider';
+import { Vehicle } from './lib/supabase';
 import LiveMapPage from './pages/LiveMapPage';
 import HistoryPage from './pages/HistoryPage';
 import SchedulePage from './pages/SchedulePage';
@@ -44,8 +45,8 @@ function Layout() {
   const { vehicles, logs } = useVehicleRealtime();
   const { user } = useAuth();
   
-  const activeCount = Object.values(vehicles).filter(v => v.load_status === 'On Patrol').length;
-  const emergencyCount = Object.values(vehicles).filter(v => v.load_status === 'Emergency').length;
+  const activeCount = Object.values(vehicles).filter((v: any) => (v as Vehicle).load_status === 'On Patrol').length;
+  const emergencyCount = Object.values(vehicles).filter((v: any) => (v as Vehicle).load_status === 'Emergency').length;
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900 selection:bg-blue-100 selection:text-blue-900">
