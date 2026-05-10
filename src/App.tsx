@@ -4,8 +4,9 @@
  */
 
 import React from 'react';
-import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
+import { Routes, Route, NavLink, Navigate, Link } from 'react-router-dom';
 import { useVehicleRealtime } from './hooks/useVehicleRealtime';
+import { AuthProvider, useAuth } from './components/AuthProvider';
 import LiveMapPage from './pages/LiveMapPage';
 import HistoryPage from './pages/HistoryPage';
 import SchedulePage from './pages/SchedulePage';
@@ -13,6 +14,10 @@ import PersonnelPage from './pages/PersonnelPage';
 import VehicleFleetPage from './pages/VehicleFleetPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import DashboardPage from './pages/DashboardPage';
+import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import AccountPage from './pages/AccountPage';
 import { 
   Shield, 
   Map as MapIcon, 
@@ -24,11 +29,20 @@ import {
   Bell,
   Search,
   Activity,
-  History as HistoryIcon
+  History as HistoryIcon,
+  User
 } from 'lucide-react';
 
-export default function App() {
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+function Layout() {
   const { vehicles, logs } = useVehicleRealtime();
+  const { user } = useAuth();
   
   const activeCount = Object.values(vehicles).filter(v => v.load_status === 'On Patrol').length;
   const emergencyCount = Object.values(vehicles).filter(v => v.load_status === 'Emergency').length;
@@ -55,16 +69,16 @@ export default function App() {
           <NavItem to="/vehicles" icon={<Car className="w-5 h-5" />} label="Vehicle Fleet" />
           <div className="pt-4 mt-4 border-t border-slate-100">
             <NavItem to="/analytics" icon={<BarChart3 className="w-5 h-5" />} label="Analytics" />
-            <NavItem to="/settings" icon={<Settings className="w-5 h-5" />} label="Unit Settings" />
+            <NavItem to="/account" icon={<User className="w-5 h-5" />} label="My Account" />
           </div>
         </nav>
 
         <div className="p-4 border-t border-slate-100">
           <div className="bg-slate-50 p-4 rounded-xl">
-            <p className="text-xs font-semibold text-slate-500 mb-1">REAL-TIME STATUS</p>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-              <span className="text-xs font-medium text-slate-700 capitalize">Connected to Supabase</span>
+            <p className="text-xs font-semibold text-slate-500 mb-1 leading-none uppercase tracking-tighter">NETWORK STATUS</p>
+            <div className="flex items-center gap-2 mt-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+              <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">Supabase Connected</span>
             </div>
           </div>
         </div>
@@ -73,13 +87,13 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-10">
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-10 shrink-0">
           <div className="relative w-96">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
               type="text" 
               placeholder="Search plate number, officer, or sector..." 
-              className="w-full bg-slate-50 border-none rounded-lg py-2 pl-10 text-sm focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+              className="w-full bg-slate-50 border-none rounded-lg py-2 pl-10 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none transition-all placeholder:text-slate-300"
             />
           </div>
 
@@ -89,13 +103,15 @@ export default function App() {
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
             </button>
             <div className="h-8 w-px bg-slate-200 mx-2"></div>
-            <div className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg transition-colors">
+            <Link to="/account" className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg transition-colors">
               <div className="text-right">
-                <p className="text-sm font-bold leading-none">Cpt. Ricardo Dalisay</p>
-                <p className="text-[10px] text-slate-500 mt-1">Unit Commander</p>
+                <p className="text-sm font-black leading-none">{user?.email?.split('@')[0]}</p>
+                <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Unit Commander</p>
               </div>
-              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs">RD</div>
-            </div>
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-[10px] uppercase shadow-lg shadow-blue-100">
+                {user?.email?.slice(0, 2).toUpperCase()}
+              </div>
+            </Link>
           </div>
         </header>
 
@@ -114,27 +130,49 @@ export default function App() {
           </Routes>
 
           {/* Page Routes */}
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/map" element={<LiveMapPage />} />
-            <Route path="/map/:id/history" element={<HistoryPage />} />
-            <Route path="/schedule" element={<SchedulePage />} />
-            <Route path="/personnel" element={<PersonnelPage />} />
-            <Route path="/vehicles" element={<VehicleFleetPage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="*" element={
-              <div className="flex-1 bg-white rounded-2xl flex flex-col items-center justify-center border-2 border-dashed border-slate-200">
-                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 mb-4">
-                  <Activity className="w-8 h-8" />
+          <div className="flex-1 overflow-hidden">
+            <Routes>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/map" element={<LiveMapPage />} />
+              <Route path="/map/:id/history" element={<HistoryPage />} />
+              <Route path="/schedule" element={<SchedulePage />} />
+              <Route path="/personnel" element={<PersonnelPage />} />
+              <Route path="/vehicles" element={<VehicleFleetPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/account" element={<AccountPage />} />
+              <Route path="*" element={
+                <div className="h-full bg-white rounded-2xl flex flex-col items-center justify-center border-2 border-dashed border-slate-200">
+                  <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 mb-4">
+                    <Shield className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-slate-400 font-black uppercase tracking-widest text-[10px] text-center">Section Not Accessible</h3>
                 </div>
-                <h3 className="text-slate-400 font-bold uppercase tracking-widest text-sm text-center">Feature Under Construction</h3>
-              </div>
-            } />
-          </Routes>
+              } />
+            </Routes>
+          </div>
         </div>
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+        {/* Authenticated Routes */}
+        <Route path="/*" element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        } />
+      </Routes>
+    </AuthProvider>
   );
 }
 
@@ -151,7 +189,7 @@ function NavItem({ to, icon, label }: { to: string, icon: React.ReactNode, label
       {({ isActive }) => (
         <>
           <div className={`${isActive ? 'text-white' : 'text-slate-400'}`}>{icon}</div>
-          <span className="text-sm font-bold tracking-tight">{label}</span>
+          <span className="text-sm font-black tracking-tight">{label}</span>
           {isActive && (
             <div className="ml-auto w-1.5 h-1.5 bg-white rounded-full ring-4 ring-blue-400/50"></div>
           )}
