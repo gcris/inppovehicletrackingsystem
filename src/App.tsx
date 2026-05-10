@@ -4,8 +4,15 @@
  */
 
 import React from 'react';
+import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { useVehicleRealtime } from './hooks/useVehicleRealtime';
-import TrackingMap from './components/TrackingMap';
+import LiveMapPage from './pages/LiveMapPage';
+import HistoryPage from './pages/HistoryPage';
+import SchedulePage from './pages/SchedulePage';
+import PersonnelPage from './pages/PersonnelPage';
+import VehicleFleetPage from './pages/VehicleFleetPage';
+import AnalyticsPage from './pages/AnalyticsPage';
+import DashboardPage from './pages/DashboardPage';
 import { 
   Shield, 
   Map as MapIcon, 
@@ -16,7 +23,8 @@ import {
   Settings,
   Bell,
   Search,
-  Activity
+  Activity,
+  History as HistoryIcon
 } from 'lucide-react';
 
 export default function App() {
@@ -26,28 +34,28 @@ export default function App() {
   const emergencyCount = Object.values(vehicles).filter(v => v.load_status === 'Emergency').length;
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="flex h-screen bg-slate-50 font-sans text-slate-900 selection:bg-blue-100 selection:text-blue-900">
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col">
+      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0">
         <div className="p-6 flex items-center gap-3">
-          <div className="bg-blue-600 p-2 rounded-lg text-white">
+          <div className="bg-blue-600 p-2 rounded-lg text-white shadow-lg shadow-blue-200">
             <Shield className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="font-bold text-sm leading-tight text-slate-900 group-hover:text-blue-600">PNP PATROL</h1>
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Station 6 - Manila</p>
+            <h1 className="font-bold text-sm leading-tight text-slate-900">PNP PATROL</h1>
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold text-shadow-sm">Station 6 - Manila</p>
           </div>
         </div>
 
         <nav className="flex-1 px-4 space-y-1">
-          <NavItem icon={<Activity className="w-5 h-5" />} label="Dashboard" active={false} />
-          <NavItem icon={<MapIcon className="w-5 h-5" />} label="Live Tracking" active={true} />
-          <NavItem icon={<Calendar className="w-5 h-5" />} label="Patrol Schedule" active={false} />
-          <NavItem icon={<Users className="w-5 h-5" />} label="Personnel List" active={false} />
-          <NavItem icon={<Car className="w-5 h-5" />} label="Vehicle Fleet" active={false} />
+          <NavItem to="/dashboard" icon={<Activity className="w-5 h-5" />} label="Dashboard" />
+          <NavItem to="/map" icon={<MapIcon className="w-5 h-5" />} label="Live Tracking" />
+          <NavItem to="/schedule" icon={<Calendar className="w-5 h-5" />} label="Patrol Schedule" />
+          <NavItem to="/personnel" icon={<Users className="w-5 h-5" />} label="Personnel List" />
+          <NavItem to="/vehicles" icon={<Car className="w-5 h-5" />} label="Vehicle Fleet" />
           <div className="pt-4 mt-4 border-t border-slate-100">
-            <NavItem icon={<BarChart3 className="w-5 h-5" />} label="Analytics" active={false} />
-            <NavItem icon={<Settings className="w-5 h-5" />} label="Unit Settings" active={false} />
+            <NavItem to="/analytics" icon={<BarChart3 className="w-5 h-5" />} label="Analytics" />
+            <NavItem to="/settings" icon={<Settings className="w-5 h-5" />} label="Unit Settings" />
           </div>
         </nav>
 
@@ -93,70 +101,78 @@ export default function App() {
 
         {/* Content Area */}
         <div className="flex-1 p-6 overflow-hidden flex flex-col gap-6">
-          {/* Quick Stats */}
-          <div className="grid grid-cols-4 gap-6 shrink-0">
-            <StatCard label="Live Vehicles" value={Object.keys(logs).length} sub="Reporting updates" />
-            <StatCard label="On Patrol" value={activeCount} sub="Active deployments" status="success" />
-            <StatCard label="Emergency Alerts" value={emergencyCount} sub="Priority response" status="danger" />
-            <StatCard label="Active Personnel" value={14} sub="Officers on duty" />
-          </div>
-
-          {/* Map View */}
-          <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-2 flex flex-col">
-            <div className="flex items-center justify-between px-4 py-2 shrink-0">
-              <h2 className="font-bold text-slate-800 flex items-center gap-2">
-                <MapIcon className="w-4 h-4 text-blue-600" />
-                NCR Sector 6 Tracking Map
-              </h2>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
-                  <span className="text-[10px] font-bold text-slate-500">PATROL</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
-                  <span className="text-[10px] font-bold text-slate-500">AVAILABLE</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
-                  <span className="text-[10px] font-bold text-slate-500">EMERGENCY</span>
-                </div>
+          {/* Quick Stats Banner (Visible on Map) */}
+          <Routes>
+            <Route path="/map" element={
+              <div className="grid grid-cols-4 gap-6 shrink-0">
+                <StatCard label="Total Units" value={Object.keys(logs).length} sub="Active logs" />
+                <StatCard label="On Patrol" value={activeCount} sub="Sector coverage" status="success" />
+                <StatCard label="Emergencies" value={emergencyCount} sub="Immediate priority" status="danger" />
+                <StatCard label="Total Reach" value={14} sub="Officers on duty" />
               </div>
-            </div>
-            <div className="flex-1 relative">
-              <TrackingMap vehicles={vehicles} logs={logs} />
-            </div>
-          </div>
+            } />
+          </Routes>
+
+          {/* Page Routes */}
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/map" element={<LiveMapPage />} />
+            <Route path="/map/:id/history" element={<HistoryPage />} />
+            <Route path="/schedule" element={<SchedulePage />} />
+            <Route path="/personnel" element={<PersonnelPage />} />
+            <Route path="/vehicles" element={<VehicleFleetPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="*" element={
+              <div className="flex-1 bg-white rounded-2xl flex flex-col items-center justify-center border-2 border-dashed border-slate-200">
+                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 mb-4">
+                  <Activity className="w-8 h-8" />
+                </div>
+                <h3 className="text-slate-400 font-bold uppercase tracking-widest text-sm text-center">Feature Under Construction</h3>
+              </div>
+            } />
+          </Routes>
         </div>
       </main>
     </div>
   );
 }
 
-function NavItem({ icon, label, active }: { icon: React.ReactNode, label: string, active: boolean }) {
+function NavItem({ to, icon, label }: { to: string, icon: React.ReactNode, label: string }) {
   return (
-    <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all ${
-      active ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-    }`}>
-      {icon}
-      <span className="text-sm font-semibold">{label}</span>
-      {active && <div className="ml-auto w-1 h-4 bg-blue-600 rounded-full"></div>}
-    </div>
+    <NavLink 
+      to={to} 
+      className={({ isActive }) => `flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer transition-all ${
+        isActive 
+          ? 'bg-blue-600 text-white shadow-lg shadow-blue-100 ring-4 ring-blue-50' 
+          : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+      }`}
+    >
+      {({ isActive }) => (
+        <>
+          <div className={`${isActive ? 'text-white' : 'text-slate-400'}`}>{icon}</div>
+          <span className="text-sm font-bold tracking-tight">{label}</span>
+          {isActive && (
+            <div className="ml-auto w-1.5 h-1.5 bg-white rounded-full ring-4 ring-blue-400/50"></div>
+          )}
+        </>
+      )}
+    </NavLink>
   );
 }
 
 function StatCard({ label, value, sub, status }: { label: string, value: number, sub: string, status?: 'success' | 'danger' }) {
   return (
     <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{label}</p>
+      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
       <div className="flex items-end gap-2 mb-1">
-        <h3 className={`text-3xl font-black ${
+        <h3 className={`text-3xl font-black tracking-tighter ${
           status === 'success' ? 'text-green-600' : 
-          status === 'danger' ? 'text-red-600' : 
+          status === 'danger' ? 'text-red-500' : 
           'text-slate-900'
         }`}>{value}</h3>
       </div>
-      <p className="text-[10px] text-slate-400 font-medium uppercase">{sub}</p>
+      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{sub}</p>
     </div>
   );
 }
