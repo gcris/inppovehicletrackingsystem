@@ -85,7 +85,7 @@ export default function VehicleFleetPage() {
 
           <button 
             onClick={fetchVehicles}
-            className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-500 hover:text-blue-600 transition-colors shadow-sm"
+            className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors shadow-sm"
           >
             <RefreshCcw className="w-5 h-5" />
           </button>
@@ -97,46 +97,46 @@ export default function VehicleFleetPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       ) : (
-        <div className="flex-1 overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+        <div className="flex-1 overflow-hidden bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-colors">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50">
-                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Plate Number</th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigned Unit</th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Personnel In-Charge</th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Last Update</th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Action</th>
+                <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Plate Number</th>
+                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Assigned Unit</th>
+                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Personnel In-Charge</th>
+                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Status</th>
+                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Last Update</th>
+                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
                 {filteredVehicles.map((vehicle) => {
                   const isStale = Date.now() - new Date(vehicle.last_load_update).getTime() > 5 * 60 * 1000;
                   
                   return (
-                    <tr key={vehicle.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <tr key={vehicle.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${getStatusColor(vehicle.load_status)}`}>
+                          <div className={`p-2 rounded-lg ${getStatusColor(vehicle.load_status).replace('bg-', 'dark:bg-opacity-20 bg-')}`}>
                             <Car className="w-5 h-5" />
                           </div>
-                          <span className="font-black text-slate-900 text-sm tracking-tight">{vehicle.plate_number}</span>
+                          <span className="font-black text-slate-900 dark:text-white text-sm tracking-tight">{vehicle.plate_number}</span>
                         </div>
                       </td>
                       <td className="p-4">
-                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">{vehicle.unit?.unit_name}</span>
+                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{vehicle.unit?.unit_name}</span>
                       </td>
                       <td className="p-4">
                         <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                          <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-600">
                             <User className="w-3 h-3" />
                           </div>
-                          <span className="text-sm font-bold text-slate-700">{vehicle.personnel?.fullname || 'Not Assigned'}</span>
+                          <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{vehicle.personnel?.fullname || 'Not Assigned'}</span>
                         </div>
                       </td>
                       <td className="p-4">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusColor(vehicle.load_status)}`}>
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusColor(vehicle.load_status).replace('bg-', 'dark:bg-opacity-20 bg-')}`}>
                           {vehicle.load_status}
                         </span>
                       </td>
@@ -157,7 +157,7 @@ export default function VehicleFleetPage() {
                         </div>
                       </td>
                       <td className="p-4 text-center">
-                        <button className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+                        <button className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all">
                           <MoreVertical className="w-4 h-4" />
                         </button>
                       </td>
@@ -170,8 +170,8 @@ export default function VehicleFleetPage() {
           
           {filteredVehicles.length === 0 && (
             <div className="flex-1 flex flex-col items-center justify-center py-20">
-              <Car className="w-12 h-12 text-slate-100 mb-4" />
-              <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">No vehicles found</p>
+              <Car className="w-12 h-12 text-slate-100 dark:text-slate-800 mb-4" />
+              <p className="text-slate-400 dark:text-slate-600 font-bold uppercase tracking-widest text-sm">No vehicles found</p>
             </div>
           )}
         </div>

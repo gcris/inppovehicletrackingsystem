@@ -29,41 +29,41 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-slate-950 flex items-center justify-center p-4 transition-colors">
       <div className="max-w-[440px] w-full">
         {/* Logo Section */}
         <div className="flex flex-col items-center mb-10">
-          <div className="w-20 h-20 shadow-xl shadow-blue-200 overflow-hidden rounded-[24px] mb-6 group cursor-default">
-            <img src="/input_file_0.png" alt="INPPO Logo" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform" />
+          <div className="w-20 h-20 shadow-xl shadow-blue-200 dark:shadow-none overflow-hidden rounded-[24px] mb-6 group cursor-default">
+            <img src="/assets/inppo_logo.png" alt="INPPO Logo" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform" />
           </div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tighter">INPPO PATROL</h1>
-          <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-2">Ilocos Norte Provincial Office</p>
+          <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">INPPO PATROL</h1>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-[0.2em] mt-2">Ilocos Norte Provincial Office</p>
         </div>
 
-        <div className="bg-white rounded-[32px] shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-[32px] shadow-2xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 overflow-hidden transition-colors">
           <div className="p-10">
             <div className="mb-8">
-              <h2 className="text-2xl font-black text-slate-900 mb-2">Welcome Back</h2>
-              <p className="text-sm font-bold text-slate-400">Sign in to access the command center</p>
+              <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Welcome Back</h2>
+              <p className="text-sm font-bold text-slate-400 dark:text-slate-500">Sign in to access the command center</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-6">
               {error && (
-                <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-2xl flex items-start gap-3 animate-in fade-in slide-in-from-top-1">
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 text-red-600 dark:text-red-400 p-4 rounded-2xl flex items-start gap-3 animate-in fade-in slide-in-from-top-1">
                   <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                   <p className="text-xs font-black uppercase leading-relaxed">{error}</p>
                 </div>
               )}
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Work Email</label>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Work Email</label>
                 <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 dark:text-slate-700" />
                   <input
                     required
                     type="email"
                     placeholder="name@pnp.gov.ph"
-                    className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none transition-all placeholder:text-slate-300"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 pl-12 pr-4 text-sm font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
@@ -72,18 +72,18 @@ export default function LoginPage() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between ml-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Security Password</label>
-                  <Link to="/forgot-password" size="sm" className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline">
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Security Password</label>
+                  <Link to="/forgot-password" size="sm" className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest hover:underline">
                     Forgot?
                   </Link>
                 </div>
                 <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 dark:text-slate-700" />
                   <input
                     required
                     type="password"
                     placeholder="••••••••"
-                    className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none transition-all placeholder:text-slate-300"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 pl-12 pr-4 text-sm font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
@@ -93,7 +93,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-700 shadow-lg shadow-blue-200 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2 group"
+                className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-700 shadow-lg shadow-blue-200 dark:shadow-none disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2 group"
               >
                 {loading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -107,8 +107,8 @@ export default function LoginPage() {
             </form>
           </div>
 
-          <div className="bg-slate-50 p-6 border-t border-slate-100 flex items-center justify-center">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center leading-relaxed">
+          <div className="bg-slate-50 dark:bg-slate-800/50 p-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-center">
+            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center leading-relaxed">
               Secured by Department of Information and <br />Communications Technology
             </p>
           </div>

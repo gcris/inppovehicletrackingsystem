@@ -7,14 +7,14 @@ export default function LiveMapPage() {
   const { vehicles, logs } = useVehicleRealtime();
 
   return (
-    <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-2 flex flex-col min-h-0">
-      <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-slate-50">
+    <div className="flex-1 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-2 flex flex-col min-h-0 transition-colors">
+      <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-slate-50 dark:border-slate-800/50">
         <div>
-          <h2 className="font-black text-slate-800 flex items-center gap-2">
+          <h2 className="font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
             <MapIcon className="w-5 h-5 text-blue-600" />
             INPPO Provincial Sector Real-time Tracking
           </h2>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ilocos Norte Provincial Office Command</p>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Ilocos Norte Provincial Office Command</p>
         </div>
         
         <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-800 px-4 py-1.5 rounded-full border border-slate-100 dark:border-slate-800">

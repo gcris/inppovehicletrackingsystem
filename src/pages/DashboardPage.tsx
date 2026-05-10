@@ -77,16 +77,16 @@ export default function DashboardPage() {
     <div className="flex flex-col h-full gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
             <Activity className="w-6 h-6 text-blue-600" />
             Command Dashboard
           </h1>
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">Real-time situational awareness for Station 6</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-1">Real-time situational awareness for Station 6</p>
         </div>
         
-        <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2">
+        <div className="bg-white dark:bg-slate-900 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-2 transition-colors">
           <Clock className="w-4 h-4 text-slate-400" />
-          <span className="text-sm font-bold text-slate-700">{format(new Date(), 'HH:mm')} • {format(new Date(), 'MMM dd, yyyy')}</span>
+          <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{format(new Date(), 'HH:mm')} • {format(new Date(), 'MMM dd, yyyy')}</span>
         </div>
       </div>
 
@@ -127,34 +127,34 @@ export default function DashboardPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Recent Vehicle Activity */}
-            <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="font-black text-slate-800 uppercase tracking-widest text-[10px] flex items-center gap-2">
+            <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-colors">
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <h3 className="font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest text-[10px] flex items-center gap-2">
                   <Navigation className="w-4 h-4 text-blue-600" />
                   Recent Telemetry Updates
                 </h3>
               </div>
-              <div className="divide-y divide-slate-50">
+              <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
                 {data.recentLogs.map((log) => (
-                  <div key={log.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                  <div key={log.id} className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                        log.vehicles?.load_status === 'Expired' ? 'bg-amber-50 text-amber-500' : 'bg-slate-50 text-slate-500'
+                        log.vehicles?.load_status === 'Expired' ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-500' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'
                       }`}>
                         <Car className="w-5 h-5" />
                       </div>
                       <div>
-                        <p className="text-sm font-black text-slate-900 group-hover:text-blue-600 transition-colors">{log.vehicles?.plate_number}</p>
-                        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase">
+                        <p className="text-sm font-black text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">{log.vehicles?.plate_number}</p>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">
                           <span className="text-blue-600">{log.speed} km/h</span>
-                          <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                          <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700"></span>
                           <span>Signal: {log.network_signal}%</span>
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs font-bold text-slate-700">{format(new Date(log.captured_at), 'HH:mm:ss')}</p>
-                      <p className="text-[9px] text-slate-400 font-bold uppercase">Received</p>
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{format(new Date(log.captured_at), 'HH:mm:ss')}</p>
+                      <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">Received</p>
                     </div>
                   </div>
                 ))}
@@ -162,24 +162,24 @@ export default function DashboardPage() {
             </div>
 
             {/* Current Deployment List */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-              <div className="p-4 border-b border-slate-100">
-                <h3 className="font-black text-slate-800 uppercase tracking-widest text-[10px] flex items-center gap-2">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-colors">
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest text-[10px] flex items-center gap-2">
                   <Clock className="w-4 h-4 text-blue-600" />
                   Active Assignments
                 </h3>
               </div>
               <div className="p-4 space-y-4">
                 {data.schedules.slice(0, 5).map((sched) => (
-                  <div key={sched.id} className="flex flex-col gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div key={sched.id} className="flex flex-col gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest leading-none mb-1">{sched.unit?.unit_name}</span>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase leading-none">{sched.time_from.slice(0, 5)} - {sched.time_to.slice(0, 5)}</span>
+                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase leading-none">{sched.time_from.slice(0, 5)} - {sched.time_to.slice(0, 5)}</span>
                     </div>
-                    <p className="text-xs font-black text-slate-800 leading-tight">{sched.personnel?.fullname}</p>
+                    <p className="text-xs font-black text-slate-800 dark:text-slate-200 leading-tight">{sched.personnel?.fullname}</p>
                     <div className="flex items-center gap-2">
                       <Radio className="w-3 h-3 text-slate-400" />
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">{sched.sector}</span>
+                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">{sched.sector}</span>
                     </div>
                   </div>
                 ))}
@@ -200,25 +200,25 @@ export default function DashboardPage() {
 
 function SummaryCard({ label, value, icon, status, sub }: { label: string, value: number, icon: React.ReactNode, status?: 'success' | 'danger', sub: string }) {
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
+    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4 transition-colors">
       <div className="flex items-center justify-between">
-        <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+        <div className="p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
           {icon}
         </div>
         <div className={`w-2 h-2 rounded-full ${
           status === 'danger' && value > 0 ? 'bg-red-500 animate-pulse' :
           status === 'success' ? 'bg-green-500' :
-          'bg-slate-200'
+          'bg-slate-200 dark:bg-slate-700'
         }`}></div>
       </div>
       <div>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">{label}</p>
         <h3 className={`text-3xl font-black tracking-tighter ${
           status === 'success' ? 'text-green-600' : 
           status === 'danger' && value > 0 ? 'text-red-500' : 
-          'text-slate-900'
+          'text-slate-900 dark:text-white'
         }`}>{value}</h3>
-        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">{sub}</p>
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider mt-1">{sub}</p>
       </div>
     </div>
   );

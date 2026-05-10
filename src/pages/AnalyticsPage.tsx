@@ -103,14 +103,14 @@ export default function AnalyticsPage() {
     <div className="flex flex-col h-full gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
             <BarChart3 className="w-6 h-6 text-blue-600" />
             Performance Analytics
           </h1>
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">Deep dive into unit efficiency and fleet health</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-1">Deep dive into unit efficiency and fleet health</p>
         </div>
 
-        <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm text-slate-700 hover:bg-slate-50 shadow-sm transition-all">
+        <button className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm transition-all">
           <Download className="w-4 h-4" />
           Export Report
         </button>
@@ -149,18 +149,18 @@ export default function AnalyticsPage() {
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {/* Patrol Hours Chart */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="font-black text-slate-800 uppercase tracking-wider text-xs">Patrol Hours Distribution (Past 7 Days)</h3>
-                <Shield className="w-4 h-4 text-slate-300" />
+                <h3 className="font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider text-xs">Patrol Hours Distribution (Past 7 Days)</h3>
+                <Shield className="w-4 h-4 text-slate-300 dark:text-slate-700" />
               </div>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={stats.patrolHours}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
-                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
+                    <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
+                    <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }} />
                     <Bar dataKey="hours" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={40} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -168,10 +168,10 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Signal Quality Line Chart */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="font-black text-slate-800 uppercase tracking-wider text-xs">Signal Stability Trends</h3>
-                <Zap className="w-4 h-4 text-slate-300" />
+                <h3 className="font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider text-xs">Signal Stability Trends</h3>
+                <Zap className="w-4 h-4 text-slate-300 dark:text-slate-700" />
               </div>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
@@ -182,10 +182,10 @@ export default function AnalyticsPage() {
                         <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
-                    <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
+                    <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
+                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }} />
                     <Area type="monotone" dataKey="signal" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorSignal)" />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -195,8 +195,8 @@ export default function AnalyticsPage() {
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             {/* Unit Fleet Pie Chart */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm xl:col-span-1">
-              <h3 className="font-black text-slate-800 uppercase tracking-wider text-xs mb-6 px-2">Fleet Composition by Unit</h3>
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm xl:col-span-1 transition-colors">
+              <h3 className="font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider text-xs mb-6 px-2">Fleet Composition by Unit</h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -220,19 +220,19 @@ export default function AnalyticsPage() {
                   <div key={i} className="flex items-center justify-between px-2">
                     <div className="flex items-center gap-2">
                       <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
-                      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">{item.name}</span>
+                      <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">{item.name}</span>
                     </div>
-                    <span className="text-xs font-black text-slate-900">{item.value}</span>
+                    <span className="text-xs font-black text-slate-900 dark:text-white">{item.value}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Simulated Data Activity Log */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm xl:col-span-2">
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm xl:col-span-2 transition-colors">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="font-black text-slate-800 uppercase tracking-wider text-xs">Recent System Activity</h3>
-                <FileText className="w-4 h-4 text-slate-300" />
+                <h3 className="font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider text-xs">Recent System Activity</h3>
+                <FileText className="w-4 h-4 text-slate-300 dark:text-slate-700" />
               </div>
               <div className="space-y-4">
                 <ActivityRow title="Database Sync Completed" time="2 mins ago" type="sync" />
@@ -251,16 +251,16 @@ export default function AnalyticsPage() {
 
 function AnalyticCard({ label, value, icon, trend }: { label: string, value: string | number, icon: React.ReactNode, trend?: string }) {
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
+    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4 transition-colors">
       <div className="flex items-center justify-between">
-        <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+        <div className="p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
           {icon}
         </div>
-        {trend && <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{trend}</span>}
+        {trend && <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{trend}</span>}
       </div>
       <div>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-        <p className="text-3xl font-black text-slate-900 tracking-tighter">{value}</p>
+        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">{label}</p>
+        <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">{value}</p>
       </div>
     </div>
   );
@@ -268,21 +268,21 @@ function AnalyticCard({ label, value, icon, trend }: { label: string, value: str
 
 function ActivityRow({ title, time, type }: { title: string, time: string, type: string }) {
   return (
-    <div className="flex items-center justify-between py-3 border-b border-slate-50 last:border-0">
+    <div className="flex items-center justify-between py-3 border-b border-slate-50 dark:border-slate-800 last:border-0">
       <div className="flex items-center gap-3">
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-          type === 'alert' ? 'bg-red-50 text-red-500' :
-          type === 'sync' ? 'bg-green-50 text-green-500' :
-          'bg-slate-50 text-slate-500'
+          type === 'alert' ? 'bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400' :
+          type === 'sync' ? 'bg-green-50 dark:bg-green-900/20 text-green-500 dark:text-green-400' :
+          'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
         }`}>
           <Zap className="w-4 h-4" />
         </div>
         <div>
-          <p className="text-xs font-bold text-slate-800">{title}</p>
-          <p className="text-[10px] text-slate-400 font-medium">{time}</p>
+          <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{title}</p>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{time}</p>
         </div>
       </div>
-      <ChevronRight className="w-4 h-4 text-slate-300" />
+      <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-700" />
     </div>
   );
 }

@@ -56,7 +56,7 @@ function Layout() {
       <aside className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0 transition-colors duration-300">
         <div className="p-6 flex items-center gap-3">
           <div className="w-10 h-10 shadow-lg shadow-blue-200 dark:shadow-none overflow-hidden rounded-xl">
-            <img src="/input_file_0.png" alt="INPPO Logo" className="w-full h-full object-cover" />
+            <img src="/assets/inppo_logo.png" alt="INPPO Logo" className="w-full h-full object-cover" />
           </div>
           <div>
             <h1 className="font-bold text-[11px] leading-tight text-slate-900 dark:text-white">INPPO PATROL</h1>
