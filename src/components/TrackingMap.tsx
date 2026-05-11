@@ -18,10 +18,20 @@ L.Icon.Default.mergeOptions({
 function ResizeMap({ isFullscreen }: { isFullscreen?: boolean }) {
   const map = useMap();
   useEffect(() => {
-    const timer = setTimeout(() => {
+    // Aggressive resize detection during transition
+    const interval = setInterval(() => {
       map.invalidateSize();
-    }, isFullscreen ? 500 : 100);
-    return () => clearTimeout(timer);
+    }, 100);
+    
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+      map.invalidateSize();
+    }, 600); // Wait for transition to finish (300ms + buffer)
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
   }, [map, isFullscreen]);
   return null;
 }

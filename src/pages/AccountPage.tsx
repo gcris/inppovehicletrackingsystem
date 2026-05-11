@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../components/AuthProvider';
 import { 
   User, 
   Mail, 
@@ -10,24 +11,16 @@ import {
   Clock, 
   BadgeCheck,
   AlertCircle,
-  Loader2
+  Loader2,
+  Building2,
+  Award
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function AccountPage() {
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, profile, isAdmin, loading: authLoading } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      setLoading(false);
-    };
-    fetchUser();
-  }, []);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -35,13 +28,15 @@ export default function AccountPage() {
     navigate('/login');
   };
 
-  if (loading) {
+  if (authLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
       </div>
     );
   }
+
+  const initial = profile?.fullname?.slice(0, 2).toUpperCase() || user?.email?.slice(0, 2).toUpperCase();
 
   return (
     <div className="flex flex-col h-full gap-8 max-w-4xl mx-auto w-full py-8">
@@ -71,25 +66,49 @@ export default function AccountPage() {
             <div className="flex items-center gap-6">
               <div className="relative">
                 <div className="w-24 h-24 rounded-[28px] bg-blue-600 flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-blue-200">
-                  {user?.email?.slice(0, 2).toUpperCase()}
+                  {initial}
                 </div>
                 <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center shadow-md border border-slate-50 dark:border-slate-700">
-                  <BadgeCheck className="w-5 h-5 text-green-500" />
+                  {profile?.is_approved ? (
+                    <BadgeCheck className="w-5 h-5 text-green-500" />
+                  ) : (
+                    <Clock className="w-5 h-5 text-amber-500" />
+                  )}
                 </div>
               </div>
               <div>
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white">{user?.email?.split('@')[0]}</h2>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white">
+                  {profile?.fullname || user?.email?.split('@')[0]}
+                </h2>
                 <div className="flex items-center gap-4 mt-2">
                   <div className="flex items-center gap-1.5 px-2.5 py-1 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-full text-[10px] font-black uppercase tracking-wider">
                     <ShieldCheck className="w-3 h-3" />
-                    Verified Operator
+                    {isAdmin ? 'Central Admin' : 'Verified Operator'}
                   </div>
-                  <span className="text-xs font-bold text-slate-400 dark:text-slate-500">UID: {user?.id.slice(0, 8)}...</span>
+                  <span className="text-xs font-bold text-slate-400 dark:text-slate-500">ID: {profile?.badge_number || user?.id.slice(0, 8)}</span>
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Rank & Serial</label>
+                <div className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border border-slate-100 dark:border-slate-800 transition-colors">
+                  <Award className="w-4 h-4 text-slate-400 dark:text-slate-600" />
+                  <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                    {profile?.rank || 'No Rank Set'}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Assigned Unit</label>
+                <div className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border border-slate-100 dark:border-slate-800 transition-colors">
+                  <Building2 className="w-4 h-4 text-slate-400 dark:text-slate-600" />
+                  <span className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase">
+                    {(profile as any)?.unit?.unit_name || 'Unit Assignment Pending'}
+                  </span>
+                </div>
+              </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Electronic Mail</label>
                 <div className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border border-slate-100 dark:border-slate-800 transition-colors">

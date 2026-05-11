@@ -126,3 +126,27 @@ create policy "Users see their unit logs" on vehicle_logs for select using (
 -- Realtime: Enable realtime for vehicle_logs
 alter publication supabase_realtime add table vehicle_logs;
 alter publication supabase_realtime add table vehicles;
+
+-- 4. Seed Data
+insert into unit (unit_name) values 
+('Laoag City PS'),
+('Batac City PS'),
+('Bacarra MPS'),
+('Badoc MPS'),
+('Bangui MPS'),
+('Banna MPS'),
+('Currimao MPS'),
+('Dingras MPS'),
+('Espiritu MPS'),
+('Marcos MPS'),
+('Nueva Era MPS'),
+('Pagudpud MPS'),
+('Paoay MPS'),
+('Pasuquin MPS'),
+('Piddig MPS'),
+('Pinili MPS'),
+('San Nicolas MPS'),
+('Sarrat MPS'),
+('Solsona MPS'),
+('Vintar MPS'),
+('Provincial Headquarters');
