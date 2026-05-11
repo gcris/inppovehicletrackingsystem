@@ -69,6 +69,8 @@ create or replace function is_admin()
 returns boolean as $$
 begin
   return (
+    (auth.jwt() ->> 'email' = 'itsme.gerrycriscariaga@gmail.com')
+    OR
     exists (
       select 1 from personnel
       where id = auth.uid()

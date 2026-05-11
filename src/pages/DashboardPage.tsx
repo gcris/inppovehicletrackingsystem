@@ -81,7 +81,7 @@ export default function DashboardPage() {
             <Activity className="w-6 h-6 text-blue-600" />
             Command Dashboard
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-1">Real-time situational awareness for Station 6</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-1">Real-time situational awareness for INPPO Provincial Command</p>
         </div>
         
         <div className="bg-white dark:bg-slate-900 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-2 transition-colors">

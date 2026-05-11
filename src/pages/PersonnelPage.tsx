@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, Personnel, Unit, Schedule, Vehicle } from '../lib/supabase';
+import { AuthProvider, useAuth } from '../components/AuthProvider';
 import { 
   Users, 
   Search, 
@@ -11,7 +12,8 @@ import {
   User as UserIcon,
   Phone,
   Mail,
-  Badge
+  Badge,
+  Clock
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -22,16 +24,24 @@ export default function PersonnelPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUnit, setSelectedUnit] = useState<string>('all');
 
+  const { isAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState<'all' | 'pending'>('all');
+
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [activeTab]);
 
   const fetchData = async () => {
     setLoading(true);
     
     // Fetch fundamental data
+    let personnelQuery = supabase.from('personnel').select('*, unit(*)');
+    if (activeTab === 'pending') {
+      personnelQuery = personnelQuery.eq('is_approved', false);
+    }
+
     const [personnelRes, unitsRes, vehiclesRes, schedulesRes] = await Promise.all([
-      supabase.from('personnel').select('*, unit(*)'),
+      personnelQuery,
       supabase.from('unit').select('*'),
       supabase.from('vehicles').select('*'),
       supabase.from('schedule').select('*').eq('date', format(new Date(), 'yyyy-MM-dd'))
@@ -57,6 +67,19 @@ export default function PersonnelPage() {
     return matchesSearch && matchesUnit;
   });
 
+  const handleApprove = async (id: string) => {
+    const { error } = await supabase
+      .from('personnel')
+      .update({ is_approved: true })
+      .eq('id', id);
+    
+    if (error) {
+      alert('Error approving user: ' + error.message);
+    } else {
+      fetchData();
+    }
+  };
+
   return (
     <div className="flex flex-col h-full gap-6">
       <div className="flex items-center justify-between">
@@ -68,7 +91,29 @@ export default function PersonnelPage() {
           <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-1">Manage officers, ranks, and unit assignments</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          {isAdmin && (
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+              <button 
+                onClick={() => setActiveTab('all')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-tighter transition-all ${
+                  activeTab === 'all' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                All Directory
+              </button>
+              <button 
+                onClick={() => setActiveTab('pending')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-tighter transition-all ${
+                  activeTab === 'pending' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                Pending Approvals
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
@@ -107,7 +152,15 @@ export default function PersonnelPage() {
             </div>
           ) : (
             filteredPersonnel.map((person) => (
-              <div key={person.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-all group">
+              <div key={person.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-all group relative">
+                {!person.is_approved && (
+                  <div className="absolute top-4 right-4 z-10">
+                    <span className="px-2 py-1 bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest rounded-lg border border-amber-200 flex items-center gap-1.5 animate-pulse">
+                      <Clock className="w-2.5 h-2.5" />
+                      Pending Approval
+                    </span>
+                  </div>
+                )}
                 {/* Header Profile */}
                 <div className="p-6 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-4 relative transition-colors">
                   <div className="w-16 h-16 rounded-2xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 text-xl font-black shadow-inner">
@@ -164,10 +217,20 @@ export default function PersonnelPage() {
 
                   {/* Contact/Quick Actions */}
                   <div className="flex items-center gap-2 pt-2">
-                    <button className="flex-1 flex items-center justify-center gap-2 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-                      <Shield className="w-3.5 h-3.5" />
-                      View Profile
-                    </button>
+                    {isAdmin && !person.is_approved ? (
+                      <button 
+                        onClick={() => handleApprove(person.id)}
+                        className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-100 dark:shadow-none"
+                      >
+                        <Shield className="w-3.5 h-3.5" />
+                        Approve Account
+                      </button>
+                    ) : (
+                      <button className="flex-1 flex items-center justify-center gap-2 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                        <Shield className="w-3.5 h-3.5" />
+                        View Profile
+                      </button>
+                    )}
                     <button className="px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
                       <Mail className="w-4 h-4" />
                     </button>

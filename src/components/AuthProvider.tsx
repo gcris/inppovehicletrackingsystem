@@ -91,13 +91,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const OWNER_EMAIL = 'itsme.gerrycriscariaga@gmail.com';
+
   const value = {
     user,
     session,
     profile,
     loading,
-    isAdmin: profile?.role === 'admin',
-    isApproved: profile?.is_approved === true,
+    isAdmin: profile?.role === 'admin' || user?.email === OWNER_EMAIL,
+    isApproved: profile?.is_approved === true || user?.email === OWNER_EMAIL,
   };
 
   return (

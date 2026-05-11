@@ -20,7 +20,7 @@ function ResizeMap({ isFullscreen }: { isFullscreen?: boolean }) {
   useEffect(() => {
     const timer = setTimeout(() => {
       map.invalidateSize();
-    }, 400); // Wait for transition
+    }, isFullscreen ? 500 : 100);
     return () => clearTimeout(timer);
   }, [map, isFullscreen]);
   return null;
@@ -67,11 +67,11 @@ export default function TrackingMap({ vehicles, logs }: MapProps) {
   }, [logs]);
 
   return (
-    <div className={`transition-all duration-300 ${
+    <div className={`${
       isFullscreen 
         ? 'fixed inset-0 z-[9999] bg-white dark:bg-slate-900 p-4' 
         : 'h-full w-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm z-0 relative bg-slate-100'
-    }`}>
+    } transition-[width,height,transform] duration-300`}>
       <div className="h-full w-full relative rounded-xl overflow-hidden">
         <MapContainer 
           center={center} 
