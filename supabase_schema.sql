@@ -10,10 +10,13 @@ create table unit (
 );
 
 create table personnel (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key references auth.users(id) on delete cascade,
+  badge_number text unique,
   rank text not null,
   fullname text not null,
-  unit_id uuid references unit(id) on delete cascade
+  unit_id uuid references unit(id) on delete cascade,
+  is_approved boolean default false,
+  role text default 'user' check (role in ('user', 'admin'))
 );
 
 create table schedule (
@@ -61,23 +64,62 @@ alter table schedule enable row level security;
 alter table vehicles enable row level security;
 alter table vehicle_logs enable row level security;
 
--- Policies for Admin (Using a hypothetical 'admin' role or custom claim)
--- Note: Simplified for now. Usually checked via auth.jwt() -> 'role'
-create policy "Admins have full access" on unit for all using (true);
-create policy "Admins have full access" on personnel for all using (true);
-create policy "Admins have full access" on schedule for all using (true);
-create policy "Admins have full access" on vehicles for all using (true);
-create policy "Admins have full access" on vehicle_logs for all using (true);
+-- Helper function to check if user is admin
+create or replace function is_admin()
+returns boolean as $$
+begin
+  return (
+    exists (
+      select 1 from personnel
+      where id = auth.uid()
+      and role = 'admin'
+      and is_approved = true
+    )
+  );
+end;
+$$ language plpgsql security definer;
 
--- Policies for Unit Commanders (Scoped to their unit)
--- Assuming unit_commander has a unit_id in their metadata
-create policy "Commanders manage their unit" 
-on personnel for all 
-using (unit_id = (auth.jwt() ->> 'unit_id')::uuid);
+-- Helper function to get user unit
+create or replace function get_user_unit()
+returns uuid as $$
+begin
+  return (
+    select unit_id from personnel
+    where id = auth.uid()
+    and is_approved = true
+  );
+end;
+$$ language plpgsql security definer;
 
-create policy "Commanders manage their unit schedules" 
-on schedule for all 
-using (unit_id = (auth.jwt() ->> 'unit_id')::uuid);
+-- Unit Policies
+create policy "Admins see all units" on unit for all using (is_admin());
+create policy "Users see their own unit" on unit for select using (id = get_user_unit());
+
+-- Personnel Policies
+create policy "Admins see all personnel" on personnel for all using (is_admin());
+create policy "Users see their unit personnel" on personnel for select using (unit_id = get_user_unit());
+create policy "Users can update their own profile" on personnel for update using (id = auth.uid());
+create policy "Enable insert for registration" on personnel for insert with check (auth.uid() = id);
+
+-- Schedule Policies
+create policy "Admins see all schedules" on schedule for all using (is_admin());
+create policy "Users see their unit schedules" on schedule for select using (unit_id = get_user_unit());
+create policy "Commanders manage their unit schedules" on schedule for all using (unit_id = get_user_unit());
+
+-- Vehicle Policies
+create policy "Admins see all vehicles" on vehicles for all using (is_admin());
+create policy "Users see their unit vehicles" on vehicles for select using (unit_id = get_user_unit());
+create policy "Commanders manage their unit vehicles" on vehicles for all using (unit_id = get_user_unit());
+
+-- Vehicle Logs Policies
+create policy "Admins see all logs" on vehicle_logs for all using (is_admin());
+create policy "Users see their unit logs" on vehicle_logs for select using (
+  exists (
+    select 1 from vehicles v
+    where v.id = vehicle_logs.vehicle_id
+    and v.unit_id = get_user_unit()
+  )
+);
 
 -- Realtime: Enable realtime for vehicle_logs
 alter publication supabase_realtime add table vehicle_logs;

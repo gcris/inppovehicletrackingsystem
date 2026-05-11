@@ -32,9 +32,12 @@ export type Unit = {
 
 export type Personnel = {
   id: string;
+  badge_number: string | null;
   rank: string;
   fullname: string;
   unit_id: string;
+  is_approved: boolean;
+  role: 'user' | 'admin';
 };
 
 export type Schedule = {

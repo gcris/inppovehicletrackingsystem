@@ -2,20 +2,27 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Vehicle, VehicleLog } from '../lib/supabase';
 import { formatDistanceToNow } from 'date-fns';
-import { Signal, Radio, Navigation, History } from 'lucide-react';
+import { Signal, Radio, Navigation, History, Maximize2, Minimize2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+
+// Fix for default marker icons in Leaflet + Vite
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 // Component to handle map resizing
-function ResizeMap() {
+function ResizeMap({ isFullscreen }: { isFullscreen?: boolean }) {
   const map = useMap();
   useEffect(() => {
-    // Small delay to ensure container has settled
     const timer = setTimeout(() => {
       map.invalidateSize();
-    }, 100);
+    }, 400); // Wait for transition
     return () => clearTimeout(timer);
-  }, [map]);
+  }, [map, isFullscreen]);
   return null;
 }
 
@@ -52,90 +59,110 @@ interface MapProps {
 }
 
 export default function TrackingMap({ vehicles, logs }: MapProps) {
-  const center: [number, number] = [14.5995, 120.9842]; // Manila Coordinates
+  const center: [number, number] = [18.1960, 120.5927]; // Ilocos Norte Coordinates
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    console.log('TrackingMap mounted with logs:', Object.keys(logs).length);
+  }, [logs]);
 
   return (
-    <div className="h-full w-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm z-0 relative">
-      <MapContainer 
-        center={center} 
-        zoom={13} 
-        style={{ height: '100%', width: '100%', background: '#f8fafc' }}
-        scrollWheelZoom={true}
-      >
-        <ResizeMap />
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        {Object.entries(logs).map(([vehicleId, log]) => {
-          const vehicle = vehicles[vehicleId];
-          if (!vehicle) return null;
+    <div className={`transition-all duration-300 ${
+      isFullscreen 
+        ? 'fixed inset-0 z-[9999] bg-white dark:bg-slate-900 p-4' 
+        : 'h-full w-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm z-0 relative bg-slate-100'
+    }`}>
+      <div className="h-full w-full relative rounded-xl overflow-hidden">
+        <MapContainer 
+          center={center} 
+          zoom={11} 
+          style={{ height: '100%', width: '100%' }}
+          scrollWheelZoom={true}
+        >
+          <ResizeMap isFullscreen={isFullscreen} />
+          <TileLayer
+            attribution='&copy; CARTO'
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          />
+          {Object.entries(logs).map(([vehicleId, log]) => {
+            const vehicle = vehicles[vehicleId];
+            if (!vehicle) return null;
 
-          const lastUpdated = new Date(log.captured_at);
-          const isStale = Date.now() - lastUpdated.getTime() > 5 * 60 * 1000; // 5 minutes
+            const lastUpdated = new Date(log.captured_at);
+            const isStale = Date.now() - lastUpdated.getTime() > 5 * 60 * 1000; // 5 minutes
 
-          return (
-            <Marker
-              key={vehicleId}
-              position={[log.latitude, log.longitude]}
-              icon={createIcon(vehicle.load_status, isStale)}
-            >
-              <Popup className="custom-popup">
-                <div className="p-3 min-w-[220px]">
-                  <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
-                    <span className="font-black text-lg text-slate-900">{vehicle.plate_number}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                      isStale ? 'bg-slate-100 text-slate-500' : 
-                      vehicle.load_status === 'Expired' ? 'bg-amber-100 text-amber-600' :
-                      'bg-green-100 text-green-600'
-                    }`}>
-                      {isStale ? 'Offline' : vehicle.load_status}
-                    </span>
+            return (
+              <Marker
+                key={vehicleId}
+                position={[log.latitude, log.longitude]}
+                icon={createIcon(vehicle.load_status, isStale)}
+              >
+                <Popup className="custom-popup">
+                  <div className="p-3 min-w-[220px]">
+                    <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
+                      <span className="font-black text-lg text-slate-900">{vehicle.plate_number}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                        isStale ? 'bg-slate-100 text-slate-500' : 
+                        vehicle.load_status === 'Expired' ? 'bg-amber-100 text-amber-600' :
+                        'bg-green-100 text-green-600'
+                      }`}>
+                        {isStale ? 'Offline' : vehicle.load_status}
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-2 text-xs text-slate-500 mb-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Navigation className="w-3 h-3" />
+                          <span>Current Speed</span>
+                        </div>
+                        <span className="font-black text-slate-900">{log.speed} km/h</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Radio className="w-3 h-3" />
+                          <span>Signal Quality</span>
+                        </div>
+                        <span className="font-black text-slate-900">{log.network_signal}%</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Signal className="w-3 h-3" />
+                          <span>Last Update</span>
+                        </div>
+                        <span className="font-bold">{formatDistanceToNow(lastUpdated)} ago</span>
+                      </div>
+                    </div>
+
+                    <Link 
+                      to={`/map/${vehicleId}/history`}
+                      className="flex items-center justify-center gap-2 w-full py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-blue-600 transition-colors"
+                    >
+                      <History className="w-3 h-3" />
+                      View History Replay
+                    </Link>
+
+                    {isStale && (
+                      <div className="mt-3 p-2 bg-amber-50 text-amber-700 text-[10px] leading-tight rounded border border-amber-100 font-medium">
+                        Note: Vehicle signal lost. Showing last known position.
+                      </div>
+                    )}
                   </div>
-                  
-                  <div className="space-y-2 text-xs text-slate-500 mb-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Navigation className="w-3 h-3" />
-                        <span>Current Speed</span>
-                      </div>
-                      <span className="font-black text-slate-900">{log.speed} km/h</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Radio className="w-3 h-3" />
-                        <span>Signal Quality</span>
-                      </div>
-                      <span className="font-black text-slate-900">{log.network_signal}%</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Signal className="w-3 h-3" />
-                        <span>Last Update</span>
-                      </div>
-                      <span className="font-bold">{formatDistanceToNow(lastUpdated)} ago</span>
-                    </div>
-                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
+        </MapContainer>
 
-                  <Link 
-                    to={`/map/${vehicleId}/history`}
-                    className="flex items-center justify-center gap-2 w-full py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-blue-600 transition-colors"
-                  >
-                    <History className="w-3 h-3" />
-                    View History Replay
-                  </Link>
-
-                  {isStale && (
-                    <div className="mt-3 p-2 bg-amber-50 text-amber-700 text-[10px] leading-tight rounded border border-amber-100 font-medium">
-                      Note: Vehicle signal lost. Showing last known position.
-                    </div>
-                  )}
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
-      </MapContainer>
+        {/* Fullscreen Toggle Button */}
+        <button
+          onClick={() => setIsFullscreen(!isFullscreen)}
+          className="absolute top-4 right-4 z-[1000] p-3 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-all hover:scale-110 active:scale-95"
+          title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Map"}
+        >
+          {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+        </button>
+      </div>
     </div>
   );
 }

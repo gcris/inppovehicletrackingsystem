@@ -7,7 +7,7 @@ export default function LiveMapPage() {
   const { vehicles, logs } = useVehicleRealtime();
 
   return (
-    <div className="flex-1 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-2 flex flex-col min-h-0 transition-colors">
+    <div className="h-full flex flex-col bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-2 min-h-0 transition-colors">
       <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-slate-50 dark:border-slate-800/50">
         <div>
           <h2 className="font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">

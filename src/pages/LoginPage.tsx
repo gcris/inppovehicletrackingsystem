@@ -33,8 +33,16 @@ export default function LoginPage() {
       <div className="max-w-[440px] w-full">
         {/* Logo Section */}
         <div className="flex flex-col items-center mb-10">
-          <div className="w-20 h-20 shadow-xl shadow-blue-200 dark:shadow-none overflow-hidden rounded-[24px] mb-6 group cursor-default">
-            <img src="/assets/inppo_logo.png" alt="INPPO Logo" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform" />
+          <div className="w-20 h-20 shadow-xl shadow-blue-200 dark:shadow-none overflow-hidden rounded-[24px] mb-6 group cursor-default bg-blue-600 flex items-center justify-center">
+            <img 
+              src="/assets/inppo_logo.png" 
+              alt="INPPO Logo" 
+              className="w-full h-full object-cover transform group-hover:scale-110 transition-transform" 
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.parentElement!.innerHTML = '<svg class="w-10 h-10 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>';
+              }}
+            />
           </div>
           <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">INPPO PATROL</h1>
           <p className="text-[10px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-[0.2em] mt-2">Ilocos Norte Provincial Office</p>
@@ -107,8 +115,11 @@ export default function LoginPage() {
             </form>
           </div>
 
-          <div className="bg-slate-50 dark:bg-slate-800/50 p-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-center">
+          <div className="bg-slate-50 dark:bg-slate-800/50 p-6 border-t border-slate-100 dark:border-slate-800 flex flex-col items-center justify-center gap-3">
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center leading-relaxed">
+              Don't have an account? <Link to="/register" className="text-blue-600 dark:text-blue-400 hover:underline">Register Official Account</Link>
+            </p>
+            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center leading-relaxed opacity-50">
               Secured by Department of Information and <br />Communications Technology
             </p>
           </div>

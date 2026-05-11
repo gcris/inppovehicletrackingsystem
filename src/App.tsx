@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Routes, Route, NavLink, Navigate, Link } from 'react-router-dom';
+import { supabase } from './lib/supabase';
 import { useVehicleRealtime } from './hooks/useVehicleRealtime';
 import { AuthProvider, useAuth } from './components/AuthProvider';
 import { ThemeProvider, useTheme } from './components/ThemeProvider';
@@ -17,6 +18,7 @@ import VehicleFleetPage from './pages/VehicleFleetPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import AccountPage from './pages/AccountPage';
@@ -32,19 +34,46 @@ import {
   Search,
   Activity,
   History as HistoryIcon,
-  User
+  User,
+  LogOut,
+  AlertCircle
 } from 'lucide-react';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, isApproved } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
+  
+  if (!isApproved) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-8 border border-slate-100 dark:border-slate-800">
+          <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="w-10 h-10 text-amber-600 dark:text-amber-500" />
+          </div>
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Approval Pending</h2>
+          <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium">
+            Your account is currently waiting for administrator approval. 
+            Once approved, you will have access to the system.
+          </p>
+          <button 
+            onClick={() => supabase.auth.signOut()}
+            className="flex items-center justify-center gap-2 w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return <>{children}</>;
 }
 
 function Layout() {
   const { vehicles, logs } = useVehicleRealtime();
-  const { user } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const { theme, toggleTheme } = useTheme();
   
   const normalCount = Object.values(vehicles).filter((v: any) => (v as Vehicle).load_status === 'Normal').length;
@@ -55,8 +84,16 @@ function Layout() {
       {/* Sidebar */}
       <aside className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0 transition-colors duration-300">
         <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 shadow-lg shadow-blue-200 dark:shadow-none overflow-hidden rounded-xl">
-            <img src="/assets/inppo_logo.png" alt="INPPO Logo" className="w-full h-full object-cover" />
+          <div className="w-10 h-10 shadow-lg shadow-blue-200 dark:shadow-none overflow-hidden rounded-xl bg-blue-600 flex items-center justify-center">
+            <img 
+              src="/assets/inppo_logo.png" 
+              alt="INPPO Logo" 
+              className="w-full h-full object-cover" 
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.parentElement!.innerHTML = '<svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>';
+              }}
+            />
           </div>
           <div>
             <h1 className="font-bold text-[11px] leading-tight text-slate-900 dark:text-white">INPPO PATROL</h1>
@@ -119,13 +156,22 @@ function Layout() {
             <div className="h-8 w-px bg-slate-200 dark:border-slate-800 mx-2"></div>
             <Link to="/account" className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 p-1.5 rounded-lg transition-colors">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-black leading-none">{user?.email?.split('@')[0]}</p>
-                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-1 uppercase tracking-wider">Unit Commander</p>
+                <p className="text-sm font-black leading-none">{profile?.fullname || user?.email?.split('@')[0]}</p>
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-1 uppercase tracking-wider">
+                  {profile?.rank ? `${profile.rank}` : (isAdmin ? 'Central Admin' : 'Officer')}
+                </p>
               </div>
               <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-[10px] uppercase shadow-lg shadow-blue-100 dark:shadow-none">
-                {user?.email?.slice(0, 2).toUpperCase()}
+                {profile?.fullname?.slice(0, 2).toUpperCase() || user?.email?.slice(0, 2).toUpperCase()}
               </div>
             </Link>
+            <button 
+              onClick={() => supabase.auth.signOut()}
+              className="p-2 text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-colors"
+              title="Sign Out"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
           </div>
         </header>
 
@@ -177,6 +223,7 @@ export default function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
 
