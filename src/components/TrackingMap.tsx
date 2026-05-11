@@ -1,10 +1,23 @@
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { Vehicle, VehicleLog } from '../lib/supabase';
 import { formatDistanceToNow } from 'date-fns';
 import { Signal, Radio, Navigation, History } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
+
+// Component to handle map resizing
+function ResizeMap() {
+  const map = useMap();
+  useEffect(() => {
+    // Small delay to ensure container has settled
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [map]);
+  return null;
+}
 
 // Custom icons based on load status
 const createIcon = (status: string, isStale: boolean) => {
@@ -42,8 +55,14 @@ export default function TrackingMap({ vehicles, logs }: MapProps) {
   const center: [number, number] = [14.5995, 120.9842]; // Manila Coordinates
 
   return (
-    <div className="h-full w-full rounded-xl overflow-hidden border border-slate-200 shadow-sm z-0">
-      <MapContainer center={center} zoom={13} style={{ height: '100%', width: '100%' }}>
+    <div className="h-full w-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm z-0 relative">
+      <MapContainer 
+        center={center} 
+        zoom={13} 
+        style={{ height: '100%', width: '100%', background: '#f8fafc' }}
+        scrollWheelZoom={true}
+      >
+        <ResizeMap />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

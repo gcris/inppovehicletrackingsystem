@@ -22,7 +22,7 @@ export default function LiveMapPage() {
           <LegendItem color="bg-amber-500" label="Expired" />
         </div>
       </div>
-      <div className="flex-1 relative mt-2">
+      <div className="flex-1 relative mt-2 min-h-[400px]">
         <TrackingMap vehicles={vehicles} logs={logs} />
       </div>
     </div>

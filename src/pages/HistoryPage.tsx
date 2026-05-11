@@ -25,7 +25,21 @@ const getSpeedColor = (speed: number) => {
 
 function ChangeView({ center }: { center: [number, number] }) {
   const map = useMap();
-  map.setView(center, 14);
+  useEffect(() => {
+    map.setView(center, 14);
+    map.invalidateSize();
+  }, [map, center]);
+  return null;
+}
+
+function ResizeMap() {
+  const map = useMap();
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [map]);
   return null;
 }
 
@@ -137,7 +151,12 @@ export default function HistoryPage() {
         {/* Map Area */}
         <div className="flex-[3] bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-2 relative flex flex-col overflow-hidden transition-colors">
           <div className="flex-1 relative rounded-xl overflow-hidden">
-            <MapContainer center={[14.5995, 120.9842]} zoom={14} style={{ height: '100%', width: '100%' }}>
+            <MapContainer 
+              center={[14.5995, 120.9842]} 
+              zoom={14} 
+              style={{ height: '100%', width: '100%', background: '#f8fafc' }}
+            >
+              <ResizeMap />
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               
               {segments.map((seg, i) => (

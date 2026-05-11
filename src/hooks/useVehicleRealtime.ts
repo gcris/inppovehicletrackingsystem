@@ -8,29 +8,34 @@ export function useVehicleRealtime() {
   useEffect(() => {
     // Initial fetch of active vehicles and their latest logs
     const fetchInitialData = async () => {
-      const { data: vehicleData } = await supabase
-        .from('vehicles')
-        .select('*');
-      
-      if (vehicleData) {
-        const vehicleMap = vehicleData.reduce((acc, v) => ({ ...acc, [v.id]: v }), {});
-        setVehicles(vehicleMap);
-      }
+      try {
+        const { data: vehicleData, error: vError } = await supabase
+          .from('vehicles')
+          .select('*');
+        
+        if (vError) throw vError;
+        if (vehicleData) {
+          const vehicleMap = vehicleData.reduce((acc, v) => ({ ...acc, [v.id]: v }), {});
+          setVehicles(vehicleMap);
+        }
 
-      // Fetch latest log for each vehicle
-      const { data: logData } = await supabase
-        .from('vehicle_logs')
-        .select('*')
-        .order('captured_at', { ascending: false });
+        const { data: logData, error: lError } = await supabase
+          .from('vehicle_logs')
+          .select('*')
+          .order('captured_at', { ascending: false });
 
-      if (logData) {
-        const latestLogs: Record<string, VehicleLog> = {};
-        logData.forEach(log => {
-          if (!latestLogs[log.vehicle_id]) {
-            latestLogs[log.vehicle_id] = log;
-          }
-        });
-        setLogs(latestLogs);
+        if (lError) throw lError;
+        if (logData) {
+          const latestLogs: Record<string, VehicleLog> = {};
+          logData.forEach(log => {
+            if (!latestLogs[log.vehicle_id]) {
+              latestLogs[log.vehicle_id] = log;
+            }
+          });
+          setLogs(latestLogs);
+        }
+      } catch (err) {
+        console.error('Error fetching vehicle data:', err);
       }
     };
 

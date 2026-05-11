@@ -23,16 +23,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Initial fetch
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    const initAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Auth session error:', error.message);
+          // If refresh token error, sign out to clear storage
+          if (error.message.includes('Refresh Token')) {
+            await supabase.auth.signOut();
+          }
+        }
+        setSession(session);
+        setUser(session?.user ?? null);
+      } catch (err) {
+        console.error('Fatal auth initialization error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
 
     // Listen for changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth event:', event);
+      if (event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+        setSession(session);
+        setUser(session?.user ?? null);
+      } else if (session) {
+        setSession(session);
+        setUser(session.user);
+      } else {
+        setSession(null);
+        setUser(null);
+      }
       setLoading(false);
     });
 
