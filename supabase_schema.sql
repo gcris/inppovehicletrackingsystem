@@ -79,7 +79,7 @@ begin
     )
   );
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer stable;
 
 -- Helper function to get user unit
 create or replace function get_user_unit()
@@ -91,7 +91,7 @@ begin
     and is_approved = true
   );
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer stable;
 
 -- Unit Policies
 create policy "Admins see all units" on unit for all using (is_admin());

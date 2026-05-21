@@ -98,13 +98,17 @@ export default function TrackingMap({ vehicles, logs }: MapProps) {
             const vehicle = vehicles[vehicleId];
             if (!vehicle) return null;
 
+            const lat = Number(log.latitude);
+            const lng = Number(log.longitude);
+            if (isNaN(lat) || isNaN(lng)) return null;
+
             const lastUpdated = new Date(log.captured_at);
             const isStale = Date.now() - lastUpdated.getTime() > 5 * 60 * 1000; // 5 minutes
 
             return (
               <Marker
                 key={vehicleId}
-                position={[log.latitude, log.longitude]}
+                position={[lat, lng]}
                 icon={createIcon(vehicle.load_status, isStale)}
               >
                 <Popup className="custom-popup">
@@ -145,7 +149,7 @@ export default function TrackingMap({ vehicles, logs }: MapProps) {
                     </div>
 
                     <Link 
-                      to={`/map/${vehicleId}/history`}
+                      to={`/trackingmap/${vehicleId}`}
                       className="flex items-center justify-center gap-2 w-full py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-blue-600 transition-colors"
                     >
                       <History className="w-3 h-3" />

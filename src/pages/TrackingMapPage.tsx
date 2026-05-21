@@ -25,12 +25,14 @@ const getSpeedColor = (speed: number) => {
   return '#3b82f6'; // Blue
 };
 
-function ChangeView({ center }: { center: [number, number] }) {
+function ChangeView({ lat, lng }: { lat: number; lng: number }) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, 14);
-    map.invalidateSize();
-  }, [map, center]);
+    if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
+      map.setView([lat, lng], 14);
+      map.invalidateSize();
+    }
+  }, [map, lat, lng]);
   return null;
 }
 
@@ -77,7 +79,7 @@ const groupLogsBySession = (allLogs: VehicleLog[], thresholdMinutes = 10) => {
   return sessions;
 };
 
-export default function HistoryPage() {
+export default function TrackingMapPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
@@ -87,23 +89,27 @@ export default function HistoryPage() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [threshold, setThreshold] = useState<number>(30); // Default to 30 mins to avoid premature splitting
   
   // Playback state
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Group logs into sessions whenever they change
+  // Group logs into sessions whenever they change or threshold changes
   useEffect(() => {
     if (logs.length > 0) {
-      const grouped = groupLogsBySession(logs);
+      const grouped = groupLogsBySession(logs, threshold);
       setSessions(grouped);
-      setSelectedSessionIndex(0); // Default to first session
+      setSelectedSessionIndex(prev => {
+        if (prev >= 0 && prev < grouped.length) return prev;
+        return 0;
+      });
     } else {
       setSessions([]);
       setSelectedSessionIndex(-1);
     }
-  }, [logs]);
+  }, [logs, threshold]);
 
   // Use logs from the selected session for playback
   const activeLogs = selectedSessionIndex >= 0 ? sessions[selectedSessionIndex] : [];
@@ -151,8 +157,13 @@ export default function HistoryPage() {
 
   const fetchHistory = async (vehicleId: string, dateStr: string) => {
     setLoading(true);
-    const start = startOfDay(new Date(dateStr)).toISOString();
-    const end = endOfDay(new Date(dateStr)).toISOString();
+    
+    // Safely offset to Philippines (UTC+8) operational timeframe to retrieve all logs of the selected date
+    const localStart = new Date(`${dateStr}T00:00:00`);
+    const start = new Date(localStart.getTime()).toISOString();
+    
+    const localEnd = new Date(`${dateStr}T23:59:59.999`);
+    const end = new Date(localEnd.getTime()).toISOString();
 
     const { data, error } = await supabase
       .from('vehicle_logs')
@@ -162,8 +173,17 @@ export default function HistoryPage() {
       .lte('captured_at', end)
       .order('captured_at', { ascending: true });
 
+    if (error) {
+      console.error('Error fetching history logs:', error.message);
+    }
+
     if (data) {
-      setLogs(data);
+      const cleanLogs = data.filter(log => {
+        const lat = Number(log.latitude);
+        const lng = Number(log.longitude);
+        return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
+      });
+      setLogs(cleanLogs);
       setCurrentIndex(0);
     }
     setLoading(false);
@@ -183,7 +203,7 @@ export default function HistoryPage() {
   const currentLog = activeLogs[currentIndex];
 
   return (
-    <div className="flex flex-col h-full gap-6">
+    <div className="flex flex-col gap-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -196,7 +216,7 @@ export default function HistoryPage() {
           <div>
             <h1 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
               <HistoryIcon className="w-5 h-5 text-blue-600" />
-              Patrol Trail Replay
+              Tracking Map / Session Replay
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
               Vehicle: <span className="text-slate-900 dark:text-slate-200 font-bold">{vehicle?.plate_number || 'Loading...'}</span>
@@ -217,7 +237,7 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex gap-6 min-h-0">
+      <div className="flex gap-6 h-[calc(100vh-250px)] min-h-[600px]">
         {/* Map Area */}
         <div className={`${
           isFullscreen 
@@ -246,7 +266,9 @@ export default function HistoryPage() {
                   icon={L.divIcon({
                     className: 'custom-replay-icon',
                     html: `<div class="w-10 h-10 bg-blue-600 rounded-full border-4 border-white dark:border-slate-800 shadow-xl flex items-center justify-center text-white">
-                      <Navigation class="w-5 h-5" style="transform: rotate(${currentIndex > 0 ? '45deg' : '0deg'})" />
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(${currentIndex > 0 ? '45deg' : '0deg'})">
+                        <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+                      </svg>
                     </div>`,
                     iconSize: [40, 40],
                     iconAnchor: [20, 20]
@@ -260,7 +282,7 @@ export default function HistoryPage() {
                   </Popup>
                 </Marker>
               )}
-              {currentLog && <ChangeView center={[currentLog.latitude, currentLog.longitude]} />}
+              {currentLog && <ChangeView lat={currentLog.latitude} lng={currentLog.longitude} />}
             </MapContainer>
 
             {/* Fullscreen Toggle Button */}
@@ -322,10 +344,31 @@ export default function HistoryPage() {
           <div className="flex-1 overflow-y-auto p-4 space-y-6">
             {/* Session Selection */}
             <div className="space-y-3">
-              <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Patrol Sessions</p>
-              {sessions.length > 0 ? (
-                <div className="flex flex-col gap-2">
-                  {sessions.map((session, idx) => (
+              <div className="flex items-start justify-between flex-wrap gap-2">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Patrol Sessions</p>
+                  <p className="text-[9px] text-slate-400 mt-0.5">Split Gap: {threshold} mins</p>
+                </div>
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg shrink-0">
+                  {[10, 20, 30, 60].map(val => (
+                    <button
+                      key={val}
+                      onClick={() => setThreshold(val)}
+                      className={`px-1.5 py-0.5 text-[9px] font-black rounded ${
+                        threshold === val
+                          ? 'bg-blue-600 text-white shadow-sm font-black'
+                          : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      {val}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="max-h-64 overflow-y-auto pr-1 flex flex-col gap-2 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+                {sessions.length > 0 ? (
+                  sessions.map((session, idx) => (
                     <button
                       key={idx}
                       onClick={() => {
@@ -353,13 +396,13 @@ export default function HistoryPage() {
                         {format(new Date(session[0].captured_at), 'HH:mm')} - {format(new Date(session[session.length - 1].captured_at), 'HH:mm')}
                       </div>
                     </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
-                  <p className="text-xs text-slate-400">No logs for this date</p>
-                </div>
-              )}
+                  ))
+                ) : (
+                  <div className="text-center py-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                    <p className="text-xs text-slate-400">No logs for this date</p>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl transition-colors">
@@ -399,7 +442,7 @@ export default function HistoryPage() {
                 Patrol Schedule
               </h3>
               
-              {schedules.length > 0 ? (
+              {schedules?.length > 0 ? (
                 <div className="space-y-3">
                   {schedules.map((schedule) => (
                     <div 
@@ -408,7 +451,7 @@ export default function HistoryPage() {
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                          {schedule.time_from.slice(0, 5)} - {schedule.time_to.slice(0, 5)}
+                          {(schedule.time_from || '').slice(0, 5)} - {(schedule.time_to || '').slice(0, 5)}
                         </span>
                         <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-full border border-slate-100 dark:border-slate-800 transition-colors">
                           {schedule.sector}

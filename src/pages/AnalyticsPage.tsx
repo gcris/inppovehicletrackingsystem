@@ -44,64 +44,71 @@ export default function AnalyticsPage() {
 
   const fetchAnalytics = async () => {
     setLoading(true);
-    
-    // Simulate/Fetch some analytics data
-    const [unitsRes, logsRes, vehiclesRes] = await Promise.all([
-      supabase.from('unit').select('*'),
-      supabase.from('vehicle_logs').select('*').gte('captured_at', subDays(new Date(), 7).toISOString()),
-      supabase.from('vehicles').select('*')
-    ]);
+    try {
+      // Fetch some analytics data
+      const [unitsRes, logsRes, vehiclesRes] = await Promise.all([
+        supabase.from('unit').select('*'),
+        supabase.from('vehicle_logs').select('*').gte('captured_at', subDays(new Date(), 7).toISOString()),
+        supabase.from('vehicles').select('*')
+      ]);
 
-    // 1. Unit Distribution (Pie)
-    if (unitsRes.data && vehiclesRes.data) {
-      const dist = unitsRes.data.map(u => ({
-        name: u.unit_name,
-        value: vehiclesRes.data.filter(v => v.unit_id === u.id).length
-      }));
-      setStats(prev => ({ ...prev, unitDistribution: dist }));
-    }
+      if (unitsRes.error) throw unitsRes.error;
+      if (logsRes.error) throw logsRes.error;
+      if (vehiclesRes.error) throw vehiclesRes.error;
 
-    // 2. Average Speed & Active Alerts
-    if (logsRes.data) {
-      const avg = logsRes.data.reduce((a, b) => a + Number(b.speed), 0) / logsRes.data.length;
-      const signalLogs = logsRes.data
-        .slice(0, 20) // Just sample for visualization
-        .map(l => ({
-          time: format(new Date(l.captured_at), 'HH:mm'),
-          signal: l.network_signal,
-          speed: l.speed
+      // 1. Unit Distribution (Pie)
+      if (unitsRes.data && vehiclesRes.data) {
+        const dist = unitsRes.data.map(u => ({
+          name: u.unit_name,
+          value: vehiclesRes.data.filter(v => v.unit_id === u.id).length
+        })).filter(d => d.value > 0); // Only show units with vehicles
+        setStats(prev => ({ ...prev, unitDistribution: dist }));
+      }
+
+      // 2. Average Speed & Active Alerts
+      if (logsRes.data && logsRes.data.length > 0) {
+        const avg = logsRes.data.reduce((a, b) => a + Number(b.speed || 0), 0) / logsRes.data.length;
+        const signalLogs = logsRes.data
+          .slice(0, 20) // Just sample for visualization
+          .map(l => ({
+            time: format(new Date(l.captured_at), 'HH:mm'),
+            signal: l.network_signal || 0,
+            speed: l.speed || 0
+          }));
+        
+        setStats(prev => ({ 
+          ...prev, 
+          avgSpeed: Number(avg.toFixed(1)),
+          signalLogs: signalLogs,
+          activeAlerts: logsRes.data.filter(l => (l.network_signal || 0) < 20).length
         }));
-      
-      setStats(prev => ({ 
-        ...prev, 
-        avgSpeed: Number(avg.toFixed(1)),
-        signalLogs: signalLogs,
-        activeAlerts: logsRes.data.filter(l => l.network_signal < 20).length
+      }
+
+      // 3. Simulated Patrol Hours
+      setStats(prev => ({
+        ...prev,
+        patrolHours: [
+          { day: 'Mon', hours: 45 },
+          { day: 'Tue', hours: 52 },
+          { day: 'Wed', hours: 48 },
+          { day: 'Thu', hours: 61 },
+          { day: 'Fri', hours: 55 },
+          { day: 'Sat', hours: 32 },
+          { day: 'Sun', hours: 28 },
+        ]
       }));
+    } catch (err: any) {
+      console.error('Error fetching analytics:', err);
+    } finally {
+      setLoading(false);
     }
-
-    // 3. Simulated Patrol Hours
-    setStats(prev => ({
-      ...prev,
-      patrolHours: [
-        { day: 'Mon', hours: 45 },
-        { day: 'Tue', hours: 52 },
-        { day: 'Wed', hours: 48 },
-        { day: 'Thu', hours: 61 },
-        { day: 'Fri', hours: 55 },
-        { day: 'Sat', hours: 32 },
-        { day: 'Sun', hours: 28 },
-      ]
-    }));
-
-    setLoading(false);
   };
 
   const COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
 
   return (
-    <div className="flex flex-col h-full gap-6">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between px-1">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
             <BarChart3 className="w-6 h-6 text-blue-600" />

@@ -26,6 +26,7 @@ export default function PersonnelPage() {
 
   const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<'all' | 'pending'>('all');
+  const [editingPerson, setEditingPerson] = useState<(Personnel & { unit?: Unit }) | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -33,36 +34,43 @@ export default function PersonnelPage() {
 
   const fetchData = async () => {
     setLoading(true);
-    
-    // Fetch fundamental data
-    let personnelQuery = supabase.from('personnel').select('*, unit(*)');
-    if (activeTab === 'pending') {
-      personnelQuery = personnelQuery.eq('is_approved', false);
-    }
+    try {
+      // Fetch fundamental data
+      let personnelQuery = supabase.from('personnel').select('*, unit(*)');
+      if (activeTab === 'pending') {
+        personnelQuery = personnelQuery.eq('is_approved', false);
+      }
 
-    const [personnelRes, unitsRes, vehiclesRes, schedulesRes] = await Promise.all([
-      personnelQuery,
-      supabase.from('unit').select('*'),
-      supabase.from('vehicles').select('*'),
-      supabase.from('schedule').select('*').eq('date', format(new Date(), 'yyyy-MM-dd'))
-    ]);
+      const [personnelRes, unitsRes, vehiclesRes, schedulesRes] = await Promise.all([
+        personnelQuery,
+        supabase.from('unit').select('*'),
+        supabase.from('vehicles').select('*'),
+        supabase.from('schedule').select('*').eq('date', format(new Date(), 'yyyy-MM-dd'))
+      ]);
 
-    if (personnelRes.data) {
-      const enrichedPersonnel = personnelRes.data.map(p => {
-        const pVehicles = vehiclesRes.data?.filter(v => v.personnel_id === p.id) || [];
-        const todaySchedule = schedulesRes.data?.find(s => s.personnel_id === p.id) || null;
-        return { ...p, vehicles: pVehicles, todaySchedule };
-      });
-      setPersonnel(enrichedPersonnel);
+      if (personnelRes.error) throw personnelRes.error;
+      if (unitsRes.error) throw unitsRes.error;
+
+      if (personnelRes.data) {
+        const enrichedPersonnel = personnelRes.data.map(p => {
+          const pVehicles = vehiclesRes.data?.filter(v => v.personnel_id === p.id) || [];
+          const todaySchedule = schedulesRes.data?.find(s => s.personnel_id === p.id) || null;
+          return { ...p, vehicles: pVehicles, todaySchedule };
+        });
+        setPersonnel(enrichedPersonnel);
+      }
+      
+      if (unitsRes.data) setUnits(unitsRes.data);
+    } catch (err: any) {
+      console.error('Error fetching personnel data:', err);
+    } finally {
+      setLoading(false);
     }
-    
-    if (unitsRes.data) setUnits(unitsRes.data);
-    setLoading(false);
   };
 
   const filteredPersonnel = personnel.filter(p => {
-    const matchesSearch = p.fullname.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         p.rank.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (p.fullname || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         (p.rank || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesUnit = selectedUnit === 'all' || p.unit_id === selectedUnit;
     return matchesSearch && matchesUnit;
   });
@@ -80,8 +88,50 @@ export default function PersonnelPage() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this officer? This will also remove their assignments.')) return;
+    
+    try {
+      // First clear assignments in other tables if needed, 
+      // but if we have ON DELETE CASCADE in SQL we don't need to manually do it.
+      // Assuming basic delete for now.
+      const { error } = await supabase
+        .from('personnel')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      fetchData();
+    } catch (err: any) {
+      alert('Error deleting personnel: ' + err.message);
+    }
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPerson) return;
+
+    try {
+      const { error } = await supabase
+        .from('personnel')
+        .update({
+          fullname: editingPerson.fullname,
+          rank: editingPerson.rank,
+          unit_id: editingPerson.unit_id,
+          badge_number: editingPerson.badge_number
+        })
+        .eq('id', editingPerson.id);
+
+      if (error) throw error;
+      setEditingPerson(null);
+      fetchData();
+    } catch (err: any) {
+      alert('Error updating personnel: ' + err.message);
+    }
+  };
+
   return (
-    <div className="flex flex-col h-full gap-6">
+    <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
@@ -145,7 +195,7 @@ export default function PersonnelPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       ) : (
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 overflow-y-auto pr-2">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredPersonnel.length === 0 ? (
             <div className="col-span-full flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 transition-colors">
               <Search className="w-12 h-12 text-slate-200 dark:text-slate-800 mb-4" />
@@ -165,7 +215,7 @@ export default function PersonnelPage() {
                 {/* Header Profile */}
                 <div className="p-6 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-4 relative transition-colors">
                   <div className="w-16 h-16 rounded-2xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 text-xl font-black shadow-inner">
-                    {person.fullname.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    {(person.fullname || 'P').split(' ').map(n => n[0]).join('').slice(0, 2)}
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -227,19 +277,89 @@ export default function PersonnelPage() {
                         Approve Account
                       </button>
                     ) : (
-                      <button className="flex-1 flex items-center justify-center gap-2 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-                        <Shield className="w-3.5 h-3.5" />
-                        View Profile
-                      </button>
+                      <>
+                        <button 
+                          onClick={() => setEditingPerson(person)}
+                          className="flex-1 flex items-center justify-center gap-2 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-bold hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 transition-colors"
+                        >
+                          <Shield className="w-3.5 h-3.5" />
+                          Edit
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(person.id)}
+                          className="flex-1 flex items-center justify-center gap-2 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-bold hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 transition-colors"
+                        >
+                          <Badge className="w-3.5 h-3.5" />
+                          Delete
+                        </button>
+                      </>
                     )}
-                    <button className="px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-                      <Mail className="w-4 h-4" />
-                    </button>
                   </div>
                 </div>
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {/* Edit Overlay */}
+      {editingPerson && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+            <div className="p-8 border-b border-slate-100 dark:border-slate-800">
+              <h2 className="text-xl font-black text-slate-900 dark:text-white">Edit Personnel Info</h2>
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Update officer credentials</p>
+            </div>
+            
+            <form onSubmit={handleUpdate} className="p-8 space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
+                  <input 
+                    type="text" 
+                    value={editingPerson.fullname}
+                    onChange={(e) => setEditingPerson({...editingPerson, fullname: e.target.value})}
+                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Rank</label>
+                  <input 
+                    type="text" 
+                    value={editingPerson.rank}
+                    onChange={(e) => setEditingPerson({...editingPerson, rank: e.target.value})}
+                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Unit Assignment</label>
+                  <select 
+                    value={editingPerson.unit_id}
+                    onChange={(e) => setEditingPerson({...editingPerson, unit_id: e.target.value})}
+                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  >
+                    {units.map(u => <option key={u.id} value={u.id}>{u.unit_name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-4">
+                <button 
+                  type="button"
+                  onClick={() => setEditingPerson(null)}
+                  className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black uppercase tracking-tighter hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-tighter hover:bg-blue-700 shadow-lg shadow-blue-200 dark:shadow-none transition-all"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

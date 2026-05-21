@@ -7,37 +7,41 @@ export function useVehicleRealtime() {
 
   useEffect(() => {
     // Initial fetch of active vehicles and their latest logs
-    const fetchInitialData = async () => {
-      try {
-        const { data: vehicleData, error: vError } = await supabase
-          .from('vehicles')
-          .select('*');
-        
-        if (vError) throw vError;
-        if (vehicleData) {
-          const vehicleMap = vehicleData.reduce((acc, v) => ({ ...acc, [v.id]: v }), {});
-          setVehicles(vehicleMap);
-        }
-
-        const { data: logData, error: lError } = await supabase
-          .from('vehicle_logs')
-          .select('*')
-          .order('captured_at', { ascending: false });
-
-        if (lError) throw lError;
-        if (logData) {
-          const latestLogs: Record<string, VehicleLog> = {};
-          logData.forEach(log => {
-            if (!latestLogs[log.vehicle_id]) {
-              latestLogs[log.vehicle_id] = log;
-            }
-          });
-          setLogs(latestLogs);
-        }
-      } catch (err) {
-        console.error('Error fetching vehicle data:', err);
+  const fetchInitialData = async () => {
+    try {
+      const { data: vehicleData, error: vError } = await supabase
+        .from('vehicles')
+        .select('*');
+      
+      if (vError) throw vError;
+      if (vehicleData) {
+        const vehicleMap = vehicleData.reduce((acc, v) => ({ ...acc, [v.id]: v }), {});
+        setVehicles(vehicleMap);
       }
-    };
+
+      const { data: logData, error: lError } = await supabase
+        .from('vehicle_logs')
+        .select('*')
+        .order('captured_at', { ascending: false })
+        .limit(1000); // Increased limit as guard rails
+
+      if (lError) throw lError;
+      if (logData) {
+        const latestLogs: Record<string, VehicleLog> = {};
+        logData.forEach(log => {
+          // Safeguard against invalid coordinates
+          const lat = Number(log.latitude);
+          const lng = Number(log.longitude);
+          if (!isNaN(lat) && !isNaN(lng) && !latestLogs[log.vehicle_id]) {
+            latestLogs[log.vehicle_id] = log;
+          }
+        });
+        setLogs(latestLogs);
+      }
+    } catch (err) {
+      console.error('Error fetching vehicle data:', err);
+    }
+  };
 
     fetchInitialData();
 
@@ -50,10 +54,14 @@ export function useVehicleRealtime() {
         { event: 'INSERT', schema: 'public', table: 'vehicle_logs' },
         (payload) => {
           const newLog = payload.new as VehicleLog;
-          setLogs(prev => ({
-            ...prev,
-            [newLog.vehicle_id]: newLog
-          }));
+          const lat = Number(newLog.latitude);
+          const lng = Number(newLog.longitude);
+          if (!isNaN(lat) && !isNaN(lng)) {
+            setLogs(prev => ({
+              ...prev,
+              [newLog.vehicle_id]: newLog
+            }));
+          }
         }
       )
       .on(
@@ -70,7 +78,9 @@ export function useVehicleRealtime() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel).catch(err => {
+        console.warn('Realtime channel cleanup warning:', err);
+      });
     };
   }, []);
 

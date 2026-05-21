@@ -11,7 +11,7 @@ import { AuthProvider, useAuth } from './components/AuthProvider';
 import { ThemeProvider, useTheme } from './components/ThemeProvider';
 import { Vehicle } from './lib/supabase';
 import LiveMapPage from './pages/LiveMapPage';
-import HistoryPage from './pages/HistoryPage';
+import TrackingMapPage from './pages/TrackingMapPage';
 import SchedulePage from './pages/SchedulePage';
 import PersonnelPage from './pages/PersonnelPage';
 import VehicleFleetPage from './pages/VehicleFleetPage';
@@ -36,7 +36,8 @@ import {
   History as HistoryIcon,
   User,
   LogOut,
-  AlertCircle
+  AlertCircle,
+  CheckCircle2
 } from 'lucide-react';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -76,8 +77,9 @@ function Layout() {
   const { user, profile, isAdmin } = useAuth();
   const { theme, toggleTheme } = useTheme();
   
-  const normalCount = Object.values(vehicles).filter((v: any) => (v as Vehicle).load_status === 'Normal').length;
-  const expiredCount = Object.values(vehicles).filter((v: any) => (v as Vehicle).load_status === 'Expired').length;
+  const vehiclesList = vehicles ? Object.values(vehicles) : [];
+  const normalCount = vehiclesList.filter((v: any) => (v as Vehicle).load_status === 'Normal').length;
+  const expiredCount = vehiclesList.filter((v: any) => (v as Vehicle).load_status === 'Expired').length;
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 selection:bg-blue-100 dark:selection:bg-blue-900/30 selection:text-blue-900 transition-colors duration-300">
@@ -125,9 +127,9 @@ function Layout() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header */}
-        <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 z-10 shrink-0 transition-colors duration-300">
+        <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 z-20 shrink-0 transition-colors duration-300">
           <div className="relative w-96 font-sans">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
@@ -149,10 +151,48 @@ function Layout() {
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
               )}
             </button>
-            <button className="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
-            </button>
+            
+            <div className="relative group">
+              <button className="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <Bell className="w-5 h-5" />
+                {expiredCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900 animate-bounce"></span>
+                )}
+              </button>
+              
+              <div className="absolute right-0 top-full pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                <div className="w-80 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-4">
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 px-1">Fleet Notifications</h3>
+                  <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                    {expiredCount > 0 ? (
+                      vehiclesList.filter((v: any) => v.load_status === 'Expired').map((v: any) => (
+                        <div key={v.id} className="flex gap-3 p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900/30">
+                          <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                          <div>
+                            <p className="text-xs font-black text-red-900 dark:text-red-400">Status Expired: {v.plate_number}</p>
+                            <p className="text-[10px] text-red-600/70 dark:text-red-500/70 font-bold uppercase mt-0.5">Asset Requires Immediate Review</p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                        <CheckCircle2 className="w-8 h-8 text-green-500 mx-auto mb-3 opacity-50" />
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400">All vehicles are operating within normal parameters.</p>
+                      </div>
+                    )}
+                    
+                    <div className="pt-2">
+                       <p className="text-[10px] font-black text-slate-300 dark:text-slate-700 uppercase tracking-tighter mb-2 text-center">Active Operations Summary</p>
+                       <div className="flex justify-between items-center px-2 py-1 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
+                          <span className="text-[10px] font-bold text-slate-500">Normal Assets</span>
+                          <span className="text-xs font-black text-green-600">{normalCount}</span>
+                       </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="h-8 w-px bg-slate-200 dark:border-slate-800 mx-2"></div>
             <Link to="/account" className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 p-1.5 rounded-lg transition-colors">
               <div className="text-right hidden sm:block">
@@ -176,12 +216,12 @@ function Layout() {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 p-6 overflow-hidden flex flex-col gap-6">
+        <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-6 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
           {/* Quick Stats Banner (Visible on Map) */}
           <Routes>
             <Route path="/map" element={
-              <div className="grid grid-cols-4 gap-6 shrink-0">
-                <StatCard label="Live Units" value={Object.keys(logs).length} sub="Real-time logs" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 shrink-0">
+                <StatCard label="Live Units" value={Object.keys(logs || {}).length} sub="Real-time logs" />
                 <StatCard label="Normal Status" value={normalCount} sub="Operations normal" status="success" />
                 <StatCard label="Expired Status" value={expiredCount} sub="Action required" status="danger" />
                 <StatCard label="Ilocos Norte Reach" value={14} sub="Officers deployed" />
@@ -190,11 +230,11 @@ function Layout() {
           </Routes>
 
           {/* Page Routes */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 min-h-0">
             <Routes>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/map" element={<LiveMapPage />} />
-              <Route path="/map/:id/history" element={<HistoryPage />} />
+              <Route path="/trackingmap/:id" element={<TrackingMapPage />} />
               <Route path="/schedule" element={<SchedulePage />} />
               <Route path="/personnel" element={<PersonnelPage />} />
               <Route path="/vehicles" element={<VehicleFleetPage />} />

@@ -39,7 +39,7 @@ export default function AccountPage() {
   const initial = profile?.fullname?.slice(0, 2).toUpperCase() || user?.email?.slice(0, 2).toUpperCase();
 
   return (
-    <div className="flex flex-col h-full gap-8 max-w-4xl mx-auto w-full py-8">
+    <div className="flex flex-col gap-8 max-w-4xl mx-auto w-full py-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black text-slate-900 dark:text-white flex items-center gap-3">

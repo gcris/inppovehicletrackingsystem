@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, Vehicle, Personnel, Unit } from '../lib/supabase';
+import { useNavigate } from 'react-router-dom';
 import { 
   Car, 
   Search, 
@@ -11,7 +12,11 @@ import {
   RefreshCcw,
   Navigation,
   CheckCircle2,
-  MoreVertical
+  MoreVertical,
+  Trash2,
+  Edit2,
+  Activity,
+  LocateFixed
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -20,24 +25,78 @@ export default function VehicleFleetPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [editingVehicle, setEditingVehicle] = useState<(Vehicle & { personnel?: Personnel; unit?: Unit }) | null>(null);
+  const [personnelList, setPersonnelList] = useState<Personnel[]>([]);
+  const [unitList, setUnitList] = useState<Unit[]>([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchVehicles();
+    fetchSupportData();
   }, []);
+
+  const fetchSupportData = async () => {
+    const [pRes, uRes] = await Promise.all([
+      supabase.from('personnel').select('*'),
+      supabase.from('unit').select('*')
+    ]);
+    if (pRes.data) setPersonnelList(pRes.data);
+    if (uRes.data) setUnitList(uRes.data);
+  };
 
   const fetchVehicles = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('vehicles')
-      .select('*, personnel(*), unit(*)')
-      .order('plate_number', { ascending: true });
+    try {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('*, personnel(*), unit(*)')
+        .order('plate_number', { ascending: true });
 
-    if (data) setVehicles(data);
-    setLoading(false);
+      if (error) throw error;
+      if (data) setVehicles(data);
+    } catch (err: any) {
+      console.error('Error fetching vehicles:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this vehicle?')) return;
+    try {
+      const { error } = await supabase.from('vehicles').delete().eq('id', id);
+      if (error) throw error;
+      fetchVehicles();
+    } catch (err: any) {
+      alert('Error deleting vehicle: ' + err.message);
+    }
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingVehicle) return;
+
+    try {
+      const { error } = await supabase
+        .from('vehicles')
+        .update({
+          plate_number: editingVehicle.plate_number,
+          load_status: editingVehicle.load_status,
+          unit_id: editingVehicle.unit_id,
+          personnel_id: editingVehicle.personnel_id
+        })
+        .eq('id', editingVehicle.id);
+
+      if (error) throw error;
+      setEditingVehicle(null);
+      fetchVehicles();
+    } catch (err: any) {
+      alert('Error updating vehicle: ' + err.message);
+    }
   };
 
   const filteredVehicles = vehicles.filter(v => {
-    const matchesSearch = v.plate_number.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (v.plate_number || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = filterStatus === 'all' || v.load_status === filterStatus;
     return matchesSearch && matchesStatus;
   });
@@ -51,7 +110,7 @@ export default function VehicleFleetPage() {
   };
 
   return (
-    <div className="flex flex-col h-full gap-6">
+    <div className="flex flex-col gap-6 px-1">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
@@ -156,9 +215,27 @@ export default function VehicleFleetPage() {
                           )}
                         </div>
                       </td>
-                      <td className="p-4 text-center">
-                        <button className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all">
-                          <MoreVertical className="w-4 h-4" />
+                      <td className="p-4 flex items-center justify-center gap-2">
+                        <button 
+                          onClick={() => navigate('/trackingmap/' + vehicle.id)}
+                          title="Track Vehicle"
+                          className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                        >
+                          <LocateFixed className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => setEditingVehicle(vehicle)}
+                          title="Edit Vehicle"
+                          className="p-2 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(vehicle.id)}
+                          title="Delete Vehicle"
+                          className="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </td>
                     </tr>
@@ -174,6 +251,84 @@ export default function VehicleFleetPage() {
               <p className="text-slate-400 dark:text-slate-600 font-bold uppercase tracking-widest text-sm">No vehicles found</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Edit Vehicle Overlay */}
+      {editingVehicle && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+            <div className="p-8 border-b border-slate-100 dark:border-slate-800">
+              <h2 className="text-xl font-black text-slate-900 dark:text-white">Edit Fleet Asset</h2>
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Modify vehicle registration & status</p>
+            </div>
+            
+            <form onSubmit={handleUpdate} className="p-8 space-y-5">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Plate Number</label>
+                <input 
+                  type="text" 
+                  value={editingVehicle.plate_number}
+                  onChange={(e) => setEditingVehicle({...editingVehicle, plate_number: e.target.value})}
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Unit Assignment</label>
+                  <select 
+                    value={editingVehicle.unit_id || ''}
+                    onChange={(e) => setEditingVehicle({...editingVehicle, unit_id: e.target.value})}
+                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  >
+                    <option value="">Select Unit</option>
+                    {unitList.map(u => <option key={u.id} value={u.id}>{u.unit_name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Load Status</label>
+                  <select 
+                    value={editingVehicle.load_status}
+                    onChange={(e) => setEditingVehicle({...editingVehicle, load_status: e.target.value as 'Normal' | 'Expired' | 'Maintenance'})}
+                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  >
+                    <option value="Normal">Normal</option>
+                    <option value="Expired">Expired</option>
+                    <option value="Maintenance">Maintenance</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Personnel In-Charge</label>
+                <select 
+                  value={editingVehicle.personnel_id || ''}
+                  onChange={(e) => setEditingVehicle({...editingVehicle, personnel_id: e.target.value})}
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                >
+                  <option value="">No Assignment</option>
+                  {personnelList.map(p => <option key={p.id} value={p.id}>{p.fullname}</option>)}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-3 pt-6">
+                <button 
+                  type="button"
+                  onClick={() => setEditingVehicle(null)}
+                  className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black uppercase tracking-tighter hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-tighter hover:bg-blue-700 shadow-lg shadow-blue-200 dark:shadow-none transition-all"
+                >
+                  Save Asset
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

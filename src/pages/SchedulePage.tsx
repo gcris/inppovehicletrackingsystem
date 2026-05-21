@@ -52,26 +52,39 @@ export default function SchedulePage() {
   }, [selectedDate]);
 
   const fetchInitialData = async () => {
-    const [unitsRes, personnelRes] = await Promise.all([
-      supabase.from('unit').select('*'),
-      supabase.from('personnel').select('*')
-    ]);
+    try {
+      const [unitsRes, personnelRes] = await Promise.all([
+        supabase.from('unit').select('*'),
+        supabase.from('personnel').select('*')
+      ]);
 
-    if (unitsRes.data) setUnits(unitsRes.data);
-    if (personnelRes.data) setPersonnel(personnelRes.data);
+      if (unitsRes.error) throw unitsRes.error;
+      if (personnelRes.error) throw personnelRes.error;
+
+      if (unitsRes.data) setUnits(unitsRes.data);
+      if (personnelRes.data) setPersonnel(personnelRes.data);
+    } catch (err: any) {
+      console.error('Error fetching initial data:', err);
+    }
   };
 
   const fetchSchedules = async () => {
     setLoading(true);
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     
-    const { data } = await supabase
-      .from('schedule')
-      .select('*, personnel(*), unit(*)')
-      .eq('date', dateStr);
+    try {
+      const { data, error } = await supabase
+        .from('schedule')
+        .select('*, personnel(*), unit(*)')
+        .eq('date', dateStr);
 
-    if (data) setSchedules(data);
-    setLoading(false);
+      if (error) throw error;
+      if (data) setSchedules(data);
+    } catch (err: any) {
+      console.error('Error fetching schedules:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const validateAssignment = async () => {
@@ -138,7 +151,7 @@ export default function SchedulePage() {
   };
 
   return (
-    <div className="flex flex-col h-full gap-6">
+    <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
@@ -182,7 +195,7 @@ export default function SchedulePage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       ) : (
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-y-auto pr-2">
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6">
           {schedules.length === 0 ? (
             <div className="col-span-full flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 transition-colors">
               <CalendarIcon className="w-12 h-12 text-slate-200 dark:text-slate-800 mb-4" />

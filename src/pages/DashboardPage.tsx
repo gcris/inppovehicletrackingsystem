@@ -32,49 +32,55 @@ export default function DashboardPage() {
 
   const fetchDashboardData = async () => {
     setLoading(true);
-    
-    const [vehiclesRes, personnelRes, schedulesRes, logsRes] = await Promise.all([
-      supabase.from('vehicles').select('*'),
-      supabase.from('personnel').select('*'),
-      supabase.from('schedule').select('*, personnel(*), unit(*)').eq('date', format(new Date(), 'yyyy-MM-dd')),
-      supabase.from('vehicle_logs').select('*, vehicles(*)').order('captured_at', { ascending: false }).limit(5)
-    ]);
+    try {
+      const [vehiclesRes, personnelRes, schedulesRes, logsRes] = await Promise.all([
+        supabase.from('vehicles').select('*'),
+        supabase.from('personnel').select('*'),
+        supabase.from('schedule').select('*, personnel(*), unit(*)').eq('date', format(new Date(), 'yyyy-MM-dd')),
+        supabase.from('vehicle_logs').select('*, vehicles(*)').order('captured_at', { ascending: false }).limit(5)
+      ]);
 
-    if (vehiclesRes.data) {
-      setData(prev => ({
-        ...prev,
-        activeVehicles: vehiclesRes.data.filter(v => v.load_status === 'Normal').length,
-        emergencyAlerts: vehiclesRes.data.filter(v => v.load_status === 'Expired').length
-      }));
+      if (vehiclesRes.error) throw vehiclesRes.error;
+      if (personnelRes.error) throw personnelRes.error;
+
+      if (vehiclesRes.data) {
+        setData(prev => ({
+          ...prev,
+          activeVehicles: vehiclesRes.data.filter(v => v.load_status === 'Normal').length,
+          emergencyAlerts: vehiclesRes.data.filter(v => v.load_status === 'Expired').length
+        }));
+      }
+
+      if (personnelRes.data) {
+        setData(prev => ({
+          ...prev,
+          totalPersonnel: personnelRes.data.length
+        }));
+      }
+
+      if (schedulesRes.data) {
+        setData(prev => ({
+          ...prev,
+          onDutyPersonnel: schedulesRes.data.length,
+          schedules: schedulesRes.data || []
+        }));
+      }
+
+      if (logsRes.data) {
+        setData(prev => ({
+          ...prev,
+          recentLogs: logsRes.data || []
+        }));
+      }
+    } catch (err: any) {
+      console.error('Error fetching dashboard data:', err);
+    } finally {
+      setLoading(false);
     }
-
-    if (personnelRes.data) {
-      setData(prev => ({
-        ...prev,
-        totalPersonnel: personnelRes.data.length
-      }));
-    }
-
-    if (schedulesRes.data) {
-      setData(prev => ({
-        ...prev,
-        onDutyPersonnel: schedulesRes.data.length,
-        schedules: schedulesRes.data
-      }));
-    }
-
-    if (logsRes.data) {
-      setData(prev => ({
-        ...prev,
-        recentLogs: logsRes.data
-      }));
-    }
-
-    setLoading(false);
   };
 
   return (
-    <div className="flex flex-col h-full gap-6">
+    <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
@@ -95,7 +101,7 @@ export default function DashboardPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto pr-2 space-y-6">
+        <div className="flex-1 space-y-6">
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <SummaryCard 
@@ -135,7 +141,7 @@ export default function DashboardPage() {
                 </h3>
               </div>
               <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                {data.recentLogs.map((log) => (
+                {data.recentLogs?.map((log) => (
                   <div key={log.id} className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
@@ -170,7 +176,7 @@ export default function DashboardPage() {
                 </h3>
               </div>
               <div className="p-4 space-y-4">
-                {data.schedules.slice(0, 5).map((sched) => (
+                {data.schedules?.slice(0, 5).map((sched) => (
                   <div key={sched.id} className="flex flex-col gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest leading-none mb-1">{sched.unit?.unit_name}</span>

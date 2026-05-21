@@ -6,6 +6,7 @@ import { Shield, Lock, Mail, AlertCircle, Loader2, ChevronRight } from 'lucide-r
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -33,7 +34,7 @@ export default function LoginPage() {
       <div className="max-w-[440px] w-full">
         {/* Logo Section */}
         <div className="flex flex-col items-center mb-10">
-          <div className="w-20 h-20 shadow-xl shadow-blue-200 dark:shadow-none overflow-hidden rounded-[24px] mb-6 group cursor-default bg-blue-600 flex items-center justify-center">
+          <div className="w-20 h-20 overflow-hidden rounded-[24px] mb-6 group cursor-default bg-blue-600 flex items-center justify-center">
             <img 
               src="/assets/inppo_logo.png" 
               alt="INPPO Logo" 
@@ -79,11 +80,8 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between ml-1">
+                <div className="ml-1">
                   <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Security Password</label>
-                  <Link to="/forgot-password" size="sm" className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest hover:underline">
-                    Forgot?
-                  </Link>
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 dark:text-slate-700" />
@@ -96,6 +94,24 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between px-1">
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <div className="relative flex items-center justify-center">
+                    <input 
+                      type="checkbox" 
+                      className="peer appearance-none w-4 h-4 rounded-md border-2 border-slate-200 dark:border-slate-800 checked:bg-blue-600 checked:border-blue-600 transition-all cursor-pointer"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                    />
+                    <svg className="absolute w-2.5 h-2.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">Remember Me</span>
+                </label>
+                <Link to="/forgot-password" className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest hover:underline">
+                  Forgot Password?
+                </Link>
               </div>
 
               <button

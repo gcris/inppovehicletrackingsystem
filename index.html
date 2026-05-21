@@ -3,7 +3,49 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <title>INPPO PATROL</title>
+    <script>
+      // Global error listener to recover from transient script-load faults
+      window.addEventListener('error', function(event) {
+        console.error('HTML Global Error Caught:', event.error || event.message);
+        handleStartupError(event.error || event.message);
+      }, true);
+
+      window.addEventListener('unhandledrejection', function(event) {
+        console.error('HTML Global Promise Rejection:', event.reason);
+        handleStartupError(event.reason);
+      });
+
+      function handleStartupError(error) {
+        // If the error indicates a resource loading failure (like transient Vite bundler connection loss)
+        setTimeout(function() {
+          var root = document.getElementById('root');
+          if (root && root.innerHTML === "") {
+            root.innerHTML = `
+              <div style="min-height: 100vh; background-color: #f8fafc; display: flex; align-items: center; justify-content: center; padding: 24px; font-family: system-ui, -apple-system, sans-serif;">
+                <div style="max-width: 440px; width: 100%; background: white; border-radius: 24px; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); border: 1px solid #e2e8f0; padding: 32px; text-align: center;">
+                  <div style="width: 64px; height: 64px; background: #fee2e2; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px;">
+                    <svg style="width: 32px; height: 32px; color: #ef4444;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                  </div>
+                  <h2 style="font-size: 20px; font-weight: 800; color: #01182a; margin-bottom: 8px;">Reconnecting Applet...</h2>
+                  <p style="font-size: 13px; color: #64748b; margin-bottom: 24px; line-height: 1.5;">
+                    The development bundle is updating. Re-establishing secure command link in a moment.
+                  </p>
+                  <button onclick="window.location.reload()" style="width: 100%; border: none; padding: 12px; border-radius: 12px; font-weight: 700; background: #2563eb; color: white; cursor: pointer;">
+                    Retry Connection
+                  </button>
+                </div>
+              </div>
+            `;
+            setTimeout(function() {
+              window.location.reload();
+            }, 1500); // Auto-reload after 1.5 seconds to refresh the session
+          }
+        }, 1000);
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
