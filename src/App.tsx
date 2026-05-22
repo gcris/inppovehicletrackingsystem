@@ -6,7 +6,6 @@
 import React from 'react';
 import { Routes, Route, NavLink, Navigate, Link } from 'react-router-dom';
 import { supabase } from './lib/supabase';
-import { useVehicleRealtime } from './hooks/useVehicleRealtime';
 import { AuthProvider, useAuth } from './components/AuthProvider';
 import { ThemeProvider, useTheme } from './components/ThemeProvider';
 import { Vehicle } from './lib/supabase';
@@ -73,13 +72,30 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function Layout() {
-  const { vehicles, logs } = useVehicleRealtime();
   const { user, profile, isAdmin } = useAuth();
   const { theme, toggleTheme } = useTheme();
   
-  const vehiclesList = vehicles ? Object.values(vehicles) : [];
-  const normalCount = vehiclesList.filter((v: any) => (v as Vehicle).load_status === 'Normal').length;
-  const expiredCount = vehiclesList.filter((v: any) => (v as Vehicle).load_status === 'Expired').length;
+  const [vehiclesList, setVehiclesList] = React.useState<Vehicle[]>([]);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const fetchVehicles = async () => {
+      try {
+        const { data, error } = await supabase.from('vehicles').select('*');
+        if (error) throw error;
+        if (data && isMounted) {
+          setVehiclesList(data);
+        }
+      } catch (err) {
+        console.error('Error fetching layout vehicles:', err);
+      }
+    };
+    fetchVehicles();
+    return () => { isMounted = false; };
+  }, []);
+
+  const normalCount = vehiclesList.filter((v: any) => v.load_status === 'Normal').length;
+  const expiredCount = vehiclesList.filter((v: any) => v.load_status === 'Expired').length;
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 selection:bg-blue-100 dark:selection:bg-blue-900/30 selection:text-blue-900 transition-colors duration-300">
@@ -217,18 +233,6 @@ function Layout() {
 
         {/* Content Area */}
         <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-6 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
-          {/* Quick Stats Banner (Visible on Map) */}
-          <Routes>
-            <Route path="/map" element={
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 shrink-0">
-                <StatCard label="Live Units" value={Object.keys(logs || {}).length} sub="Real-time logs" />
-                <StatCard label="Normal Status" value={normalCount} sub="Operations normal" status="success" />
-                <StatCard label="Expired Status" value={expiredCount} sub="Action required" status="danger" />
-                <StatCard label="Ilocos Norte Reach" value={14} sub="Officers deployed" />
-              </div>
-            } />
-          </Routes>
-
           {/* Page Routes */}
           <div className="flex-1 min-h-0">
             <Routes>
