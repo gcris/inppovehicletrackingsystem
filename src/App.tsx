@@ -232,6 +232,7 @@ function Layout() {
           {/* Page Routes */}
           <div className="flex-1 min-h-0">
             <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/map" element={<LiveMapPage />} />
               <Route path="/trackingmap/:id" element={<TrackingMapPage />} />
