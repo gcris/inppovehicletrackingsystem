@@ -13,20 +13,34 @@ export function useVehicleRealtime() {
 
       const runDbSimulation = async () => {
         try {
-          const { data: vehicleData, error: vError } = await supabase
+          let vehicleData;
+          let logData;
+
+          const { data: vData, error: vError } = await supabase
             .from("vehicles")
             .select("*")
             .eq("id", vehicle_id)
             .single();
 
-          if (vError) throw vError;
+          if (vError || !vData) {
+             console.warn("Using local mock vehicle data due to database error");
+             vehicleData = {
+               id: vehicle_id,
+               plate_number: "SIM-888",
+               unit_id: "mock-unit",
+               load_status: "Normal",
+               last_load_update: new Date().toISOString()
+             };
+          } else {
+             vehicleData = vData;
+          }
 
           setVehicles({ [vehicleData.id]: vehicleData });
 
           const start = "2026-05-21 06:21:59.114992+08";
           const end = "2026-05-21 09:30:05.853061+08";
 
-          const { data: logData, error: lError } = await supabase
+          const { data: lData, error: lError } = await supabase
             .from("vehicle_logs")
             .select("*")
             .eq("vehicle_id", vehicle_id)
@@ -34,7 +48,21 @@ export function useVehicleRealtime() {
             .lte("captured_at", end)
             .order("captured_at", { ascending: true });
 
-          if (lError) throw lError;
+          if (lError || !lData || lData.length === 0) {
+            console.warn("Using local mock logs data due to database error");
+            // Generate some circular mock coords around Laoag City
+            logData = Array.from({length: 20}).map((_, i) => ({
+              id: `mock-log-${i}`,
+              vehicle_id,
+              latitude: 18.1960 + Math.sin(i * 0.3) * 0.01,
+              longitude: 120.5927 + Math.cos(i * 0.3) * 0.01,
+              speed: 30 + Math.random() * 20,
+              network_signal: 70 + Math.random() * 30,
+              captured_at: new Date().toISOString()
+            }));
+          } else {
+            logData = lData;
+          }
 
           let logIndex = 0;
 

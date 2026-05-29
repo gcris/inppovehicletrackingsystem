@@ -143,19 +143,29 @@ export default function TrackingMapPage() {
   }, [isPlaying, currentIndex, activeLogs.length]);
 
   const fetchVehicle = async (vehicleId: string) => {
-    const { data } = await supabase.from('vehicles').select('*').eq('id', vehicleId).single();
-    if (data) setVehicle(data);
+    try {
+      const { data, error } = await supabase.from('vehicles').select('*').eq('id', vehicleId).single();
+      if (error) console.error('Error fetching vehicle:', error);
+      else if (data) setVehicle(data);
+    } catch (err) {
+      console.error('Fetch vehicle failed:', err);
+    }
   };
 
   const fetchSchedules = async (unitId: string, dateStr: string) => {
-    const { data } = await supabase
-      .from('schedule')
-      .select('*, personnel(*)')
-      .eq('unit_id', unitId)
-      .eq('date', dateStr)
-      .order('time_from', { ascending: true });
-    
-    if (data) setSchedules(data);
+    try {
+      const { data, error } = await supabase
+        .from('schedule')
+        .select('*, personnel(*)')
+        .eq('unit_id', unitId)
+        .eq('date', dateStr)
+        .order('time_from', { ascending: true });
+      
+      if (error) console.error('Error fetching schedules:', error);
+      else if (data) setSchedules(data);
+    } catch (err) {
+      console.error('Fetch schedules failed:', err);
+    }
   };
 
   const fetchHistory = async (vehicleId: string, dateStr: string, pageNum = 1) => {

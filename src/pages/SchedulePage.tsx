@@ -96,16 +96,28 @@ export default function SchedulePage() {
     }
 
     // 2. Check for conflicts (personnel id + date)
-    const { data: conflicts } = await supabase
-      .from('schedule')
-      .select('*')
-      .eq('personnel_id', formData.personnel_id)
-      .eq('date', formData.date);
+    try {
+      const { data: conflicts, error } = await supabase
+        .from('schedule')
+        .select('*')
+        .eq('personnel_id', formData.personnel_id)
+        .eq('date', formData.date);
 
-    if (conflicts && conflicts.length > 0) {
-      // Very basic check: any assignment on same day is a conflict for this demo
-      // In production, we'd check time overlaps
-      setError("Officer already has an assignment for this date.");
+      if (error) {
+        console.error('Validation error:', error);
+        setError("Error validating schedule. Please try again.");
+        return false;
+      }
+
+      if (conflicts && conflicts.length > 0) {
+        // Very basic check: any assignment on same day is a conflict for this demo
+        // In production, we'd check time overlaps
+        setError("Officer already has an assignment for this date.");
+        return false;
+      }
+    } catch (err) {
+      console.error('Validation check failed:', err);
+      setError("Network error validating schedule.");
       return false;
     }
 

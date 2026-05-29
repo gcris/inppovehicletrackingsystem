@@ -25,8 +25,16 @@ export default function RegisterPage() {
   }, []);
 
   const fetchUnits = async () => {
-    const { data } = await supabase.from('unit').select('*').order('unit_name');
-    if (data) setUnits(data);
+    try {
+      const { data, error } = await supabase.from('unit').select('*').order('unit_name');
+      if (error) {
+        console.error('Error fetching units:', error);
+      } else if (data) {
+        setUnits(data);
+      }
+    } catch (err) {
+      console.error('Fetch units failed:', err);
+    }
   };
 
   const handleRegister = async (e: React.FormEvent) => {

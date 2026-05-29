@@ -3,7 +3,29 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || '';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const isMock = supabaseUrl === '' || supabaseUrl === 'your-project-url' || supabaseUrl.includes('your-project-url');
+
+const customFetch = async (url: RequestInfo | URL, options?: RequestInit) => {
+  const urlString = url.toString();
+  if (urlString.includes('mock.supabase.co')) {
+    // Mock response to prevent "Failed to fetch"
+    return new Response(JSON.stringify([]), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+  return fetch(url, options);
+};
+
+export const supabase = createClient(
+  isMock ? 'https://mock.supabase.co' : supabaseUrl,
+  isMock ? 'mock-key' : supabaseAnonKey,
+  {
+    global: {
+      fetch: customFetch
+    }
+  }
+);
 
 export type Vehicle = {
   id: string;

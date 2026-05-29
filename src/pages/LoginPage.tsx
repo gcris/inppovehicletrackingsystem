@@ -16,17 +16,23 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (error) {
-      setError(error.message);
-    } else {
-      navigate('/dashboard');
+      if (error) {
+        setError(error.message);
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (err: any) {
+      console.error('Login failed:', err);
+      setError(err?.message || "Login failed due to a network error.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

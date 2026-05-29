@@ -36,12 +36,19 @@ export default function VehicleFleetPage() {
   }, []);
 
   const fetchSupportData = async () => {
-    const [pRes, uRes] = await Promise.all([
-      supabase.from('personnel').select('*'),
-      supabase.from('unit').select('*')
-    ]);
-    if (pRes.data) setPersonnelList(pRes.data);
-    if (uRes.data) setUnitList(uRes.data);
+    try {
+      const [pRes, uRes] = await Promise.all([
+        supabase.from('personnel').select('*'),
+        supabase.from('unit').select('*')
+      ]);
+      if (pRes.error) console.error('Error fetching personnel:', pRes.error);
+      else if (pRes.data) setPersonnelList(pRes.data);
+
+      if (uRes.error) console.error('Error fetching units:', uRes.error);
+      else if (uRes.data) setUnitList(uRes.data);
+    } catch (err) {
+      console.error('Fetch support data failed:', err);
+    }
   };
 
   const fetchVehicles = async () => {
