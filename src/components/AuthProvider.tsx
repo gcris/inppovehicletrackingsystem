@@ -49,6 +49,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // Fallback timeout to ensure we don't get stuck in loading state ever
+    const timeoutId = setTimeout(() => {
+      setLoading(false);
+    }, 5000);
+
     // Initial fetch
     const initAuth = async () => {
       try {
@@ -65,6 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Fatal auth initialization error:', err);
       } finally {
         setLoading(false);
+        clearTimeout(timeoutId);
       }
     };
 
@@ -84,10 +90,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       setLoading(false);
+      clearTimeout(timeoutId);
     });
 
     return () => {
       subscription.unsubscribe();
+      clearTimeout(timeoutId);
     };
   }, []);
 
@@ -102,9 +110,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isApproved: profile?.is_approved === true || user?.email === OWNER_EMAIL,
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-slate-500 font-medium animate-pulse">Initializing Application...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 }

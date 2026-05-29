@@ -18,6 +18,15 @@ import {
   Minimize2
 } from 'lucide-react';
 
+if (typeof window !== 'undefined') {
+  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  });
+}
+
 const getSpeedColor = (speed: number) => {
   if (speed > 80) return '#ef4444'; // Red
   if (speed > 50) return '#f59e0b'; // Amber
@@ -97,6 +106,11 @@ export default function TrackingMapPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Group logs into sessions whenever they change or threshold changes
   useEffect(() => {
@@ -228,6 +242,10 @@ export default function TrackingMapPage() {
 
   const currentLog = activeLogs[currentIndex];
 
+  if (!isMounted) {
+    return <div className="animate-pulse bg-slate-100 dark:bg-slate-900 rounded-xl min-h-[600px] w-full" />;
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
@@ -270,7 +288,7 @@ export default function TrackingMapPage() {
             ? 'fixed inset-0 z-[9999] bg-white dark:bg-slate-900 p-4' 
             : 'flex-[3] bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-2 relative flex flex-col overflow-hidden transition-colors'
         } transition-[width,height,transform] duration-300`}>
-          <div className="flex-1 relative rounded-xl overflow-hidden">
+          <div className="flex-1 relative rounded-xl overflow-hidden min-h-[500px]">
             <MapContainer 
               center={[18.1960, 120.5927]} 
               zoom={11} 
@@ -286,7 +304,7 @@ export default function TrackingMapPage() {
                 <Polyline key={i} positions={seg.positions} color={seg.color} weight={5} opacity={0.8} />
               ))}
 
-              {currentLog && (
+              {currentLog && typeof window !== 'undefined' && (
                 <Marker 
                   position={[currentLog.latitude, currentLog.longitude]}
                   icon={L.divIcon({

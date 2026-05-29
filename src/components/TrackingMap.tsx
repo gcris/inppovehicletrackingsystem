@@ -6,13 +6,16 @@ import { Signal, Radio, Navigation, History, Maximize2, Minimize2 } from 'lucide
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 
-// Fix for default marker icons in Leaflet + Vite
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
+// Isolate Leaflet SSR crash by ensuring it only runs in the browser
+if (typeof window !== 'undefined') {
+  // Fix for default marker icons in Leaflet + Vite
+  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  });
+}
 
 // Component to handle map resizing
 function ResizeMap({ isFullscreen }: { isFullscreen?: boolean }) {
@@ -38,6 +41,8 @@ function ResizeMap({ isFullscreen }: { isFullscreen?: boolean }) {
 
 // Custom icons based on load status
 const createIcon = (status: string, isStale: boolean) => {
+  if (typeof window === 'undefined') return new L.Icon.Default();
+  
   const color = isStale ? '#9ca3af' : // gray
                 status === 'Emergency' ? '#ef4444' : // red
                 status === 'On Patrol' ? '#22c55e' : // green
@@ -71,10 +76,17 @@ interface MapProps {
 export default function TrackingMap({ vehicles, logs }: MapProps) {
   const center: [number, number] = [18.1960, 120.5927]; // Ilocos Norte Coordinates
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
     console.log('TrackingMap mounted with logs:', Object.keys(logs).length);
   }, [logs]);
+
+  if (!isMounted) {
+    // Provide a fallback explicit height to prevent 0px collapsing
+    return <div className="w-full h-full min-h-[500px] bg-slate-100 dark:bg-slate-900 animate-pulse rounded-xl" />;
+  }
 
   return (
     <div className={`${
@@ -82,7 +94,7 @@ export default function TrackingMap({ vehicles, logs }: MapProps) {
         ? 'fixed inset-0 z-[9999] bg-white dark:bg-slate-900 p-4' 
         : 'h-full w-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm z-0 relative bg-slate-100'
     } transition-[width,height,transform] duration-300`}>
-      <div className="h-full w-full relative rounded-xl overflow-hidden">
+      <div className="h-full w-full relative rounded-xl overflow-hidden min-h-[500px]">
         <MapContainer 
           center={center} 
           zoom={11} 
