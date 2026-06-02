@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase, Unit } from '../lib/supabase';
-import { Shield, Mail, Lock, User, BadgeCheck, Building2, ChevronRight, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Shield, Mail, Lock, User, BadgeCheck, Building2, ChevronRight, AlertCircle, CheckCircle2, QrCode } from 'lucide-react';
+import QRCode from 'react-qr-code';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -19,6 +20,9 @@ export default function RegisterPage() {
     badgeNumber: '',
     unitId: '',
   });
+
+  const [mfaData, setMfaData] = useState<{ id: string, qrCodeUrl: string } | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
 
   useEffect(() => {
     fetchUnits();
@@ -64,21 +68,56 @@ export default function RegisterPage() {
           fullname: formData.fullName,
           rank: formData.rank,
           badge_number: formData.badgeNumber,
-          unit_id: formData.unitId,
+          unit_id: formData.unitId || null,
           is_approved: false, // Default
           role: 'user' // Default
         });
 
         if (profileError) {
           console.error('Profile creation error:', profileError);
-          // If profile fails, user is still signed up which is tricky
           setError("Account created but failed to set up profile. Please contact support.");
-        } else {
-          setSuccess(true);
+          return;
+        } 
+
+        // 3. Start MFA Enrollment
+        const { data: factorData, error: enrollError } = await supabase.auth.mfa.enroll({
+          factorType: 'totp',
+        });
+
+        if (enrollError) {
+          setError("Failed to initialize Google Authenticator 2FA. " + enrollError.message);
+        } else if (factorData) {
+          setMfaData({ id: factorData.id, qrCodeUrl: factorData.totp.uri });
         }
       }
     } catch (err: any) {
       setError(err.message || "An error occurred during registration");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyMfa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mfaData) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({ factorId: mfaData.id });
+      if (challengeError) throw challengeError;
+
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: mfaData.id,
+        challengeId: challengeData.id,
+        code: mfaCode
+      });
+      if (verifyError) throw verifyError;
+
+      setSuccess(true);
+      await supabase.auth.signOut(); // Force signout so they login again and wait for approval
+    } catch (err: any) {
+      setError(err.message || "Invalid authentication code");
     } finally {
       setLoading(false);
     }
@@ -103,6 +142,56 @@ export default function RegisterPage() {
             Return to Login
             <ChevronRight className="w-4 h-4" />
           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (mfaData) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 transition-colors">
+        <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-xl shadow-blue-500/5 p-8 text-center border border-slate-100 dark:border-slate-800 transition-colors">
+          <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+            <QrCode className="w-10 h-10 text-blue-600 dark:text-blue-500" />
+          </div>
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Setup Google Authenticator</h2>
+          <p className="text-slate-500 dark:text-slate-400 mb-6 font-medium text-sm leading-relaxed">
+            Scan the QR code below using your Google Authenticator app (or any TOTP app).
+          </p>
+          
+          <div className="flex justify-center bg-white p-4 rounded-2xl mb-8 border border-slate-100">
+            <QRCode value={mfaData.qrCodeUrl} size={180} />
+          </div>
+
+          <form onSubmit={handleVerifyMfa} className="space-y-4">
+            {error && (
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/50 rounded-2xl flex items-center gap-3 text-red-600 dark:text-red-400 text-sm font-bold">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                {error}
+              </div>
+            )}
+            
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Authentication Code</label>
+              <input 
+                type="text" 
+                required
+                maxLength={6}
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="123456"
+                className="w-full text-center tracking-widest bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-4 text-xl font-mono text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600"
+              />
+            </div>
+            
+            <button 
+              type="submit"
+              disabled={loading || mfaCode.length !== 6}
+              className="w-full bg-blue-600 text-white rounded-xl py-4 font-black text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {loading ? "Verifying..." : "Verify & Complete"}
+            </button>
+          </form>
         </div>
       </div>
     );

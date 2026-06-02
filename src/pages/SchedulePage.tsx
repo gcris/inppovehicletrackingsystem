@@ -129,37 +129,48 @@ export default function SchedulePage() {
     setError(null);
     setIsSubmitting(true);
 
-    const isValid = await validateAssignment();
-    if (!isValid) {
+    try {
+      const isValid = await validateAssignment();
+      if (!isValid) {
+        setIsSubmitting(false);
+        return;
+      }
+
+      const { error: insertError } = await supabase
+        .from('schedule')
+        .insert([formData]);
+
+      if (insertError) {
+        setError(insertError.message);
+      } else {
+        setShowModal(false);
+        fetchSchedules();
+        setFormData({
+          unit_id: '',
+          personnel_id: '',
+          date: format(selectedDate, 'yyyy-MM-dd'),
+          time_from: '08:00',
+          time_to: '17:00',
+          sector: ''
+        });
+      }
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred.');
+    } finally {
       setIsSubmitting(false);
-      return;
     }
-
-    const { error: insertError } = await supabase
-      .from('schedule')
-      .insert([formData]);
-
-    if (insertError) {
-      setError(insertError.message);
-    } else {
-      setShowModal(false);
-      fetchSchedules();
-      setFormData({
-        unit_id: '',
-        personnel_id: '',
-        date: format(selectedDate, 'yyyy-MM-dd'),
-        time_from: '08:00',
-        time_to: '17:00',
-        sector: ''
-      });
-    }
-    setIsSubmitting(false);
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to cancel this assignment?')) return;
-    const { error } = await supabase.from('schedule').delete().eq('id', id);
-    if (!error) fetchSchedules();
+    try {
+      const { error } = await supabase.from('schedule').delete().eq('id', id);
+      if (!error) fetchSchedules();
+      else alert('Failed to delete schedule: ' + error.message);
+    } catch (err) {
+      console.error('Delete schedule failed:', err);
+      alert('Failed to delete schedule due to an unexpected error.');
+    }
   };
 
   return (

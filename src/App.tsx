@@ -40,8 +40,9 @@ import {
 } from 'lucide-react';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, isApproved } = useAuth();
+  const { user, loading, isApproved, isMfaVerified, clearAuthCache } = useAuth();
   if (loading) return null;
+  // MFA verification is temporarily bypassed as requested to allow proceeding to the dashboard
   if (!user) return <Navigate to="/login" replace />;
   
   if (!isApproved) {
@@ -57,7 +58,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
             Once approved, you will have access to the system.
           </p>
           <button 
-            onClick={() => supabase.auth.signOut()}
+            onClick={clearAuthCache}
             className="flex items-center justify-center gap-2 w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
           >
             <LogOut className="w-4 h-4" />
@@ -72,7 +73,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function Layout() {
-  const { user, profile, isAdmin } = useAuth();
+  const { user, profile, isAdmin, clearAuthCache } = useAuth();
   const { theme, toggleTheme } = useTheme();
   
   const [vehiclesList, setVehiclesList] = React.useState<Vehicle[]>([]);
@@ -222,7 +223,7 @@ function Layout() {
               </div>
             </Link>
             <button 
-              onClick={() => supabase.auth.signOut()}
+              onClick={clearAuthCache}
               className="p-2 text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-colors"
               title="Sign Out"
             >

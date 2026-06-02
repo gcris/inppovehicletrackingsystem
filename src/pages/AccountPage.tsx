@@ -18,14 +18,19 @@ import {
 import { useNavigate } from 'react-router-dom';
 
 export default function AccountPage() {
-  const { user, profile, isAdmin, loading: authLoading } = useAuth();
+  const { user, profile, isAdmin, loading: authLoading, clearAuthCache } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const navigate = useNavigate();
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
-    await supabase.auth.signOut();
-    navigate('/login');
+    try {
+      await clearAuthCache();
+    } catch (err) {
+      console.error('Logout failed:', err);
+    } finally {
+      navigate('/login');
+    }
   };
 
   if (authLoading) {

@@ -13,9 +13,7 @@ import {
   Clock, 
   Navigation,
   Activity,
-  History as HistoryIcon,
-  Maximize2,
-  Minimize2
+  History as HistoryIcon
 } from 'lucide-react';
 
 if (typeof window !== 'undefined') {
@@ -42,27 +40,6 @@ function ChangeView({ lat, lng }: { lat: number; lng: number }) {
       map.invalidateSize();
     }
   }, [map, lat, lng]);
-  return null;
-}
-
-function ResizeMap({ isFullscreen }: { isFullscreen?: boolean }) {
-  const map = useMap();
-  useEffect(() => {
-    // Aggressive resize detection during transition
-    const interval = setInterval(() => {
-      map.invalidateSize();
-    }, 100);
-    
-    const timeout = setTimeout(() => {
-      clearInterval(interval);
-      map.invalidateSize();
-    }, 600); // Wait for transition to finish (300ms + buffer)
-
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
-    };
-  }, [map, isFullscreen]);
   return null;
 }
 
@@ -99,13 +76,11 @@ export default function TrackingMapPage() {
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [threshold, setThreshold] = useState<number>(30); // Default to 30 mins to avoid premature splitting
-  const [logPage, setLogPage] = useState<number>(1);
   const [totalLogs, setTotalLogs] = useState<number>(0);
   
   // Playback state
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -132,9 +107,8 @@ export default function TrackingMapPage() {
 
   useEffect(() => {
     if (id) {
-      setLogPage(1);
       fetchVehicle(id);
-      fetchHistory(id, selectedDate, 1);
+      fetchHistory(id, selectedDate);
     }
   }, [id, selectedDate]);
 
@@ -182,51 +156,77 @@ export default function TrackingMapPage() {
     }
   };
 
-  const fetchHistory = async (vehicleId: string, dateStr: string, pageNum = 1) => {
+  const fetchHistory = async (vehicleId: string, dateStr: string) => {
     setLoading(true);
     
-    // Safely offset to Philippines (UTC+8) operational timeframe to retrieve all logs of the selected date
-    const localStart = new Date(`${dateStr}T00:00:00`);
-    const start = new Date(localStart.getTime()).toISOString();
-    
-    const localEnd = new Date(`${dateStr}T23:59:59.999`);
-    const end = new Date(localEnd.getTime()).toISOString();
+    try {
+      // Safely offset to Philippines (UTC+8) operational timeframe to retrieve all logs of the selected date
+      const localStart = new Date(`${dateStr}T00:00:00`);
+      const start = new Date(localStart.getTime()).toISOString();
+      
+      const localEnd = new Date(`${dateStr}T23:59:59.999`);
+      const end = new Date(localEnd.getTime()).toISOString();
 
-    const fromRange = (pageNum - 1) * 1000;
-    const toRange = pageNum * 1000 - 1;
+      let allData: VehicleLog[] = [];
+      let pageNum = 1;
+      let hasMore = true;
+      let totalCount = 0;
 
-    const { data, error, count } = await supabase
-      .from('vehicle_logs')
-      .select('*', { count: 'exact' })
-      .eq('vehicle_id', vehicleId)
-      .gte('captured_at', start)
-      .lte('captured_at', end)
-      .order('captured_at', { ascending: true })
-      .range(fromRange, toRange);
+      // Loop to fetch everything, bypassing the 1000 limit, max 10000 points to prevent browser crash
+      while (hasMore && allData.length < 10000) {
+        const fromRange = (pageNum - 1) * 1000;
+        const toRange = pageNum * 1000 - 1;
 
-    if (error) {
-      console.error('Error fetching history logs:', error.message);
-    }
+        const { data, error, count } = await supabase
+          .from('vehicle_logs')
+          .select('*', { count: 'exact' })
+          .eq('vehicle_id', vehicleId)
+          .gte('captured_at', start)
+          .lte('captured_at', end)
+          .order('captured_at', { ascending: true })
+          .range(fromRange, toRange);
 
-    if (count !== null && count !== undefined) {
-      setTotalLogs(count);
-    } else {
-      setTotalLogs(data ? data.length : 0);
-    }
+        if (error) {
+          console.error('Error fetching history logs:', error.message);
+          break;
+        }
 
-    if (data) {
-      const cleanLogs = data.filter(log => {
-        const lat = Number(log.latitude);
-        const lng = Number(log.longitude);
-        return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
-      });
-      setLogs(cleanLogs);
-      setCurrentIndex(0);
-    } else {
+        if (count !== null && count !== undefined && pageNum === 1) {
+          totalCount = count;
+        }
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          pageNum++;
+          // If we got less than 1000, we've reached the end
+          if (data.length < 1000) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      setTotalLogs(totalCount || allData.length);
+
+      if (allData.length > 0) {
+        const cleanLogs = allData.filter(log => {
+          const lat = Number(log.latitude);
+          const lng = Number(log.longitude);
+          return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
+        });
+        setLogs(cleanLogs);
+        setCurrentIndex(0);
+      } else {
+        setLogs([]);
+        setCurrentIndex(0);
+      }
+    } catch (err) {
+      console.error('Fetch history failed:', err);
       setLogs([]);
-      setCurrentIndex(0);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   // Group logs into segments for color-coded Polyline
@@ -283,18 +283,13 @@ export default function TrackingMapPage() {
 
       <div className="flex gap-6 h-[calc(100vh-250px)] min-h-[600px]">
         {/* Map Area */}
-        <div className={`${
-          isFullscreen 
-            ? 'fixed inset-0 z-[9999] bg-white dark:bg-slate-900 p-4' 
-            : 'flex-[3] bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-2 relative flex flex-col overflow-hidden transition-colors'
-        } transition-[width,height,transform] duration-300`}>
+        <div className="flex-[3] bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-2 relative flex flex-col overflow-hidden transition-colors">
           <div className="flex-1 relative rounded-xl overflow-hidden min-h-[500px]">
             <MapContainer 
               center={[18.1960, 120.5927]} 
               zoom={11} 
               style={{ height: '100%', width: '100%' }}
             >
-              <ResizeMap isFullscreen={isFullscreen} />
               <TileLayer 
                 attribution='&copy; CARTO'
                 url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" 
@@ -328,15 +323,6 @@ export default function TrackingMapPage() {
               )}
               {currentLog && <ChangeView lat={currentLog.latitude} lng={currentLog.longitude} />}
             </MapContainer>
-
-            {/* Fullscreen Toggle Button */}
-            <button
-              onClick={() => setIsFullscreen(!isFullscreen)}
-              className="absolute top-4 right-4 z-[1000] p-3 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-all hover:scale-110 active:scale-95"
-              title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Map"}
-            >
-              {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-            </button>
           </div>
 
           {/* Controls Bar */}
@@ -448,52 +434,6 @@ export default function TrackingMapPage() {
                 )}
               </div>
 
-              {/* Pagination Controls */}
-              {totalLogs > 0 && (
-                <div className="pt-2.5 px-1 border-t border-slate-100 dark:border-slate-800/60 mt-1 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Page {logPage} of {Math.max(1, Math.ceil(totalLogs / 1000))}
-                      </p>
-                      <p className="text-[9px] text-slate-400 font-medium">
-                        Showing {Math.min(totalLogs, (logPage - 1) * 1000 + 1)}-{Math.min(totalLogs, logPage * 1000)} of {totalLogs} logs
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        title="Previous Page"
-                        disabled={logPage === 1 || loading}
-                        onClick={() => {
-                          const prev = logPage - 1;
-                          setLogPage(prev);
-                          if (id) fetchHistory(id, selectedDate, prev);
-                        }}
-                        className="px-2 py-1 text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 dark:hover:text-white text-slate-600 dark:text-slate-300 rounded-lg transition-all disabled:opacity-40 disabled:hover:bg-slate-100 disabled:hover:text-slate-600 dark:disabled:hover:bg-slate-800 dark:disabled:hover:text-slate-300 select-none border border-slate-200 dark:border-slate-700/50"
-                      >
-                        Prev
-                      </button>
-                      <button
-                        title="Next Page"
-                        disabled={logPage >= Math.ceil(totalLogs / 1000) || loading}
-                        onClick={() => {
-                          const next = logPage + 1;
-                          setLogPage(next);
-                          if (id) fetchHistory(id, selectedDate, next);
-                        }}
-                        className="px-2 py-1 text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 dark:hover:text-white text-slate-600 dark:text-slate-300 rounded-lg transition-all disabled:opacity-40 disabled:hover:bg-slate-100 disabled:hover:text-slate-600 dark:disabled:hover:bg-slate-800 dark:disabled:hover:text-slate-300 select-none border border-slate-200 dark:border-slate-700/50"
-                      >
-                        Next
-                      </button>
-                    </div>
-                  </div>
-                  {totalLogs > 1000 && (
-                    <p className="text-[9px] text-blue-600 dark:text-blue-400 font-bold leading-normal">
-                      💡 Supabase limits queries to 1,000 items. Toggle pages above to replay other segments.
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
 
             <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl transition-colors">

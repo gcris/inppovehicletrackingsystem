@@ -14,16 +14,21 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
 
-    if (error) {
-      setError(error.message);
-    } else {
-      setSuccess(true);
+      if (error) {
+        setError(error.message);
+      } else {
+        setSuccess(true);
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during password reset.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

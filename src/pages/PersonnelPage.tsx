@@ -27,6 +27,16 @@ export default function PersonnelPage() {
   const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<'all' | 'pending'>('all');
   const [editingPerson, setEditingPerson] = useState<(Personnel & { unit?: Unit }) | null>(null);
+  
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    fullname: '',
+    rank: 'Patrol',
+    badge_number: '',
+    unit_id: ''
+  });
 
   useEffect(() => {
     fetchData();
@@ -76,15 +86,20 @@ export default function PersonnelPage() {
   });
 
   const handleApprove = async (id: string) => {
-    const { error } = await supabase
-      .from('personnel')
-      .update({ is_approved: true })
-      .eq('id', id);
-    
-    if (error) {
-      alert('Error approving user: ' + error.message);
-    } else {
-      fetchData();
+    try {
+      const { error } = await supabase
+        .from('personnel')
+        .update({ is_approved: true })
+        .eq('id', id);
+      
+      if (error) {
+        alert('Error approving user: ' + error.message);
+      } else {
+        fetchData();
+      }
+    } catch (err: any) {
+      alert('Error approving user: ' + (err.message || 'Unknown error'));
+      console.error(err);
     }
   };
 
@@ -130,6 +145,38 @@ export default function PersonnelPage() {
     }
   };
 
+  const handleAddPersonnel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const confirmLogOut = window.confirm("Security Notice: Registering a new personnel directly overrides the current session. You will be logged out after creation. Continue?");
+      if (!confirmLogOut) return;
+
+      const { data: { user }, error: signUpError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      if (signUpError) throw signUpError;
+
+      if (user) {
+        const { error: profileError } = await supabase.from('personnel').insert({
+          id: user.id,
+          fullname: formData.fullname,
+          rank: formData.rank,
+          badge_number: formData.badge_number,
+          unit_id: formData.unit_id || null,
+          is_approved: true, // Auto-approve since admin created
+          role: 'user'
+        });
+
+        if (profileError) throw profileError;
+        alert('Personnel successfully created. Redirecting to login...');
+      }
+    } catch (err: any) {
+      alert('Error creating personnel: ' + (err.message || 'Unknown error'));
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -164,7 +211,16 @@ export default function PersonnelPage() {
           )}
 
           <div className="flex items-center gap-3">
-          <div className="relative">
+            {isAdmin && (
+              <button 
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 shadow-sm transition-all focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+              >
+                <Users className="w-4 h-4" />
+                New
+              </button>
+            )}
+            <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
               type="text" 
@@ -356,6 +412,126 @@ export default function PersonnelPage() {
                   className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-tighter hover:bg-blue-700 shadow-lg shadow-blue-200 dark:shadow-none transition-all"
                 >
                   Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <div>
+                <h3 className="font-black text-slate-900 dark:text-white">Add New Personnel</h3>
+                <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">Register new officer account</p>
+              </div>
+              <button onClick={() => setShowAddModal(false)} className="p-2 bg-white dark:bg-slate-800 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+                <span className="text-slate-400 font-bold text-lg leading-none cursor-pointer">×</span>
+              </button>
+            </div>
+            
+            <div className="bg-amber-50 dark:bg-amber-900/20 px-6 py-3 border-b border-amber-100 dark:border-amber-900/50 flex gap-3 items-start">
+              <span className="text-amber-500 mt-0.5">⚠</span>
+              <p className="text-[11px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide leading-relaxed">
+                Security Notice: Registering a user here creates an account instantly and will securely log you out of your current admin session.
+              </p>
+            </div>
+
+            <form onSubmit={handleAddPersonnel} className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Email (Login)</label>
+                <input 
+                  required
+                  type="email" 
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-mono"
+                  placeholder="officer@inppo.ph"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Temporary Password</label>
+                <input 
+                  required
+                  type="password" 
+                  value={formData.password}
+                  onChange={(e) => setFormData({...formData, password: e.target.value})}
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-mono"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
+                <input 
+                  required
+                  type="text" 
+                  value={formData.fullname}
+                  onChange={(e) => setFormData({...formData, fullname: e.target.value})}
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  placeholder="Juan Dela Cruz"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Rank</label>
+                  <select 
+                    value={formData.rank}
+                    onChange={(e) => setFormData({...formData, rank: e.target.value})}
+                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  >
+                    <option value="Patrol">Patrol</option>
+                    <option value="Corporal">Corporal</option>
+                    <option value="Sergeant">Sergeant</option>
+                    <option value="Lieutenant">Lieutenant</option>
+                    <option value="Captain">Captain</option>
+                    <option value="Major">Major</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Badge N°</label>
+                  <input 
+                    required
+                    type="text" 
+                    value={formData.badge_number}
+                    onChange={(e) => setFormData({...formData, badge_number: e.target.value})}
+                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-mono"
+                    placeholder="INP-000"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Unit Assignment</label>
+                <select 
+                  required
+                  value={formData.unit_id}
+                  onChange={(e) => setFormData({...formData, unit_id: e.target.value})}
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                >
+                  <option value="" disabled>Select Unit</option>
+                  {units.map(u => <option key={u.id} value={u.id}>{u.unit_name}</option>)}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-3 pt-4">
+                <button 
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black uppercase tracking-tighter hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-tighter hover:bg-blue-700 shadow-lg shadow-blue-200 dark:shadow-none transition-all"
+                >
+                  Register Officer
                 </button>
               </div>
             </form>

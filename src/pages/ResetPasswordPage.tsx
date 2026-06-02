@@ -14,8 +14,12 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     // Check if we have an active session for the reset flow
     const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error || !data.session) {
+          navigate('/login');
+        }
+      } catch (err) {
         navigate('/login');
       }
     };
@@ -32,15 +36,20 @@ export default function ResetPasswordPage() {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.updateUser({ password });
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
 
-    if (error) {
-      setError(error.message);
-    } else {
-      setSuccess(true);
-      setTimeout(() => navigate('/login'), 3000);
+      if (error) {
+        setError(error.message);
+      } else {
+        setSuccess(true);
+        setTimeout(() => navigate('/login'), 3000);
+      }
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
