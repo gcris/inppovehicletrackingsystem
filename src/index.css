@@ -9,6 +9,7 @@
 
 :root {
   color-scheme: light;
+  font-size: 106.25%; /* Scales the base font size from 16px to 17px for slightly larger system-wide typography */
 }
 
 .dark {

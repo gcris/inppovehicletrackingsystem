@@ -40,9 +40,9 @@ import {
 } from 'lucide-react';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, isApproved, isMfaVerified, clearAuthCache } = useAuth();
+  const { user, loading, isApproved, clearAuthCache } = useAuth();
   if (loading) return null;
-  // MFA verification is temporarily bypassed as requested to allow proceeding to the dashboard
+  
   if (!user) return <Navigate to="/login" replace />;
   
   if (!isApproved) {

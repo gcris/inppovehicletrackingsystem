@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase, Vehicle, VehicleLog } from "../lib/supabase";
+import { supabase, Vehicle, VehicleLog, isMock } from "../lib/supabase";
 
 export function useVehicleRealtime() {
   const [vehicles, setVehicles] = useState<Record<string, Vehicle>>({});
@@ -49,6 +49,11 @@ export function useVehicleRealtime() {
     fetchInitialData();
 
     // Subscribe to real-time updates for vehicle logs with a unique channel name to avoid collisions
+    if (isMock) {
+      console.log("[useVehicleRealtime] Realtime subscriptions disabled in mock mode.");
+      return;
+    }
+
     const channelId = Math.random().toString(36).slice(2);
     const channel = supabase
       .channel(`vehicle-tracking-${channelId}`)

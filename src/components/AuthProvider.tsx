@@ -34,14 +34,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Personnel | null>(null);
   const [loading, setLoading] = useState(true);
   
-  const [isMfaVerified, _setIsMfaVerified] = useState(true);
-  const isMfaVerifiedRef = React.useRef(true);
+  const userRef = React.useRef<User | null>(null);
+  const sessionRef = React.useRef<Session | null>(null);
+  const profileRef = React.useRef<Personnel | null>(null);
+
+  const setUserState = (u: User | null) => {
+    setUser(u);
+    userRef.current = u;
+  };
+  const setSessionState = (s: Session | null) => {
+    setSession(s);
+    sessionRef.current = s;
+  };
+  const setProfileState = (p: Personnel | null) => {
+    setProfile(p);
+    profileRef.current = p;
+  };
+
+  const [isMfaVerified, _setIsMfaVerified] = useState(false);
+  const isMfaVerifiedRef = React.useRef(false);
 
   const setIsMfaVerifiedState = (val: boolean) => {
-    // Temporarily bypass MFA requirement so user can always proceed to the dashboard
-    _setIsMfaVerified(true);
-    isMfaVerifiedRef.current = true;
-    console.log('[AuthProvider] MFA Bypassed (temporarily forced to true)');
+    _setIsMfaVerified(val);
+    isMfaVerifiedRef.current = val;
+    console.log('[AuthProvider] MFA verification state updated:', val);
   };
 
   const fetchProfile = React.useCallback(async (uid: string) => {
@@ -54,14 +70,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (error) {
         console.error('Error fetching profile:', error.message);
-        setProfile(null);
+        setProfileState(null);
       } else {
         console.log(data);
-        setProfile(data);
+        setProfileState(data);
       }
     } catch (err) {
       console.error('Profile fetch error:', err);
-      setProfile(null);
+      setProfileState(null);
     }
   }, []);
 
@@ -71,8 +87,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         if (currentSession) {
-          setSession(currentSession);
-          setUser(currentSession.user);
+          setSessionState(currentSession);
+          setUserState(currentSession.user);
           await fetchProfile(currentSession.user.id);
         }
       } catch (err) {
@@ -99,18 +115,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (mounted) {
           if (currentSession?.user) {
-            setSession(currentSession);
-            setUser(currentSession.user);
+            setSessionState(currentSession);
+            setUserState(currentSession.user);
             await fetchProfile(currentSession.user.id);
 
             const { data: mfaData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
             const verified = mfaData?.currentLevel === 'aal2';
             setIsMfaVerifiedState(verified);
           } else {
-            setSession(null);
-            setUser(null);
+            setSessionState(null);
+            setUserState(null);
             setIsMfaVerifiedState(false);
-            setProfile(null);
+            setProfileState(null);
           }
         }
       } catch (err) {
@@ -132,52 +148,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!mounted) return;
 
         // Avoid re-triggering INITIAL_SESSION if we already handled it in initializeAuth
-        if (event === 'INITIAL_SESSION') return;
+        if (event === 'INITIAL_SESSION' || event === "SIGNED_IN" || event === "SIGNED_OUT") return;
 
-        let currentSession = session;
-        if (!currentSession) {
-          const { data } = await supabase.auth.getSession();
-          currentSession = data.session;
-        }
+        // DO NOT call getSession() here to avoid infinite token-refresh loop on tab focus!
+        // We strictly use the session provided by the onAuthStateChange callback.
+        const currentSession = session;
         
         if (currentSession?.user) {
-          setSession(currentSession);
-          setUser(currentSession.user);
+          // const isSameUser = userRef.current?.id === currentSession.user.id;
+          // const isSameSession = sessionRef.current?.access_token === currentSession.access_token;
+
+          // if (isSameUser && isSameSession) {
+          //   // Already initialized with this session. No need to fetch profile/MFA again,
+          //   // preventing unhandled promise rejections on window focus/tab-reload.
+          //   return;
+          // }
+
+          // if (!isSameSession) {
+            
+          // }
+          // if (!isSameUser) {
+          //   console.log("Current user", userRef.current?.email);
+            
+          // }
+
+          setSessionState(currentSession);
+          setUserState(currentSession.user);
+
+          // Only fetch profile if user has changed or profile has not been fetched yet
           await fetchProfile(currentSession.user.id);
 
           const { data: mfaData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
           console.log('[onAuthStateChange] mfaData currentLevel:', mfaData?.currentLevel, 'event:', event, 'isMfaVerifiedRef:', isMfaVerifiedRef.current);
 
-          if (event === 'SIGNED_OUT') {
-            setIsMfaVerifiedState(false);
-          } else if (event === 'SIGNED_IN') {
-            if (mfaData?.currentLevel === 'aal2') {
-              setIsMfaVerifiedState(true);
-            } else {
-              setIsMfaVerifiedState(false);
-            }
-          } else if (event === 'MFA_CHALLENGE_VERIFIED') {
-            setIsMfaVerifiedState(true);
-          } else {
-            // Other events (TOKEN_REFRESHED, USER_UPDATED, etc.)
-            if (mfaData?.currentLevel === 'aal2' || isMfaVerifiedRef.current) {
-              setIsMfaVerifiedState(true);
-            } else {
-              setIsMfaVerifiedState(false);
-            }
-          }
+          setIsMfaVerifiedState(mfaData?.currentLevel === 'aal2' || event === 'MFA_CHALLENGE_VERIFIED' || isMfaVerifiedRef.current);
         } else {
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          setIsMfaVerifiedState(false);
+          // If there is no session, and we currently have active states, clean them up
+          if (userRef.current || sessionRef.current || profileRef.current) {
+            setSessionState(null);
+            setUserState(null);
+            setProfileState(null);
+            setIsMfaVerifiedState(false);
+          }
         }
       } catch (err) {
         console.error('Auth state change error:', err);
-      } finally {
-        if (mounted) setLoading(false);
-      }
+      } 
     });
+
+    setLoading(false);
 
     return () => {
       mounted = false;

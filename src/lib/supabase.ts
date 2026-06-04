@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || '';
 
-const isMock = supabaseUrl === '' || supabaseUrl === 'your-project-url' || supabaseUrl.includes('your-project-url');
+export const isMock = supabaseUrl === '' || supabaseUrl === 'your-project-url' || supabaseUrl.includes('your-project-url');
 
 const customFetch = async (url: RequestInfo | URL, options?: RequestInit) => {
   const urlString = url.toString();

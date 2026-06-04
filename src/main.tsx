@@ -9,7 +9,7 @@ import './index.css';
 // Catch unhandled promise rejections that might cause blank pages
 window.addEventListener('unhandledrejection', (event) => {
   console.error('Unhandled Promise Rejection:', event.reason);
-  // Optional: You could trigger a state update in ErrorBoundary here if you passed a ref
+  event.preventDefault(); // Prevent standard error bubbling/escalation
 });
 
 createRoot(document.getElementById('root')!).render(

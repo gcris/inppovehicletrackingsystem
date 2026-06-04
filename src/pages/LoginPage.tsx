@@ -22,6 +22,10 @@ export default function LoginPage() {
 
   useEffect(() => {
     const detectActiveSession = async () => {
+      // If MFA is already verified or bypassed, don't run active session enrolments
+      if (isMfaVerified) {
+        return;
+      }
       try {
         const { data: { session: activeSession } } = await supabase.auth.getSession();
         if (activeSession?.user) {
@@ -32,7 +36,8 @@ export default function LoginPage() {
           }
 
           // User is signed in but at aal1 (needs MFA verification)
-          const factors = activeSession.user.factors || [];
+          const { data: factorsData } = await supabase.auth.mfa.listFactors();
+          const factors = factorsData?.all || [];
           const totpFactor = factors.find((f: any) => f.factor_type === 'totp' && f.status === 'verified');
           if (totpFactor) {
             setMfaFactorId(totpFactor.id);
@@ -86,7 +91,8 @@ export default function LoginPage() {
       }
 
       // Check if MFA is required
-      const factors = data.user?.factors || [];
+      const { data: factorsData } = await supabase.auth.mfa.listFactors();
+      const factors = factorsData?.all || [];
       const totpFactor = factors.find((f: any) => f.factor_type === 'totp' && f.status === 'verified');
 
       if (totpFactor) {
@@ -368,15 +374,8 @@ export default function LoginPage() {
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center leading-relaxed">
               Don't have an account? <Link to="/register" className="text-blue-600 dark:text-blue-400 hover:underline">Register Official Account</Link>
             </p>
-            <button 
-              type="button"
-              onClick={clearAuthCache}
-              className="mt-1 text-[10px] font-black text-amber-600 hover:text-amber-700 dark:text-amber-500 uppercase tracking-widest hover:underline cursor-pointer bg-transparent border-none py-1 px-2"
-            >
-              Clear Session & Authenticator Cache
-            </button>
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center leading-relaxed opacity-50">
-              Secured by Department of Information and <br />Communications Technology
+              Secured by Ilocos Norte Police Provincial Office
             </p>
           </div>
         </div>
