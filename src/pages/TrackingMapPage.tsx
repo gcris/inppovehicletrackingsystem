@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { supabase, Vehicle, VehicleLog, Schedule } from '../lib/supabase';
+import { supabase, Vehicle, VehicleLog, PatrolSchedule } from '../lib/supabase';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { 
   Play, 
@@ -72,7 +72,7 @@ export default function TrackingMapPage() {
   const [logs, setLogs] = useState<VehicleLog[]>([]);
   const [sessions, setSessions] = useState<VehicleLog[][]>([]);
   const [selectedSessionIndex, setSelectedSessionIndex] = useState<number>(-1);
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [schedules, setSchedules] = useState<PatrolSchedule[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [threshold, setThreshold] = useState<number>(30); // Default to 30 mins to avoid premature splitting
@@ -143,12 +143,12 @@ export default function TrackingMapPage() {
   const fetchSchedules = async (unitId: string, dateStr: string) => {
     try {
       const { data, error } = await supabase
-        .from('schedule')
-        .select('*, personnel(*)')
+        .from('patrol_schedule')
+        .select('*, unit(*), schedule_assignments(personnel(*))')
         .eq('unit_id', unitId)
         .eq('date', dateStr)
         .order('time_from', { ascending: true });
-      
+
       if (error) console.error('Error fetching schedules:', error);
       else if (data) setSchedules(data);
     } catch (err) {
@@ -476,7 +476,7 @@ export default function TrackingMapPage() {
               {schedules?.length > 0 ? (
                 <div className="space-y-3">
                   {schedules.map((schedule) => (
-                    <div 
+                    <div
                       key={schedule.id}
                       className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800/50 transition-colors"
                     >
@@ -489,7 +489,16 @@ export default function TrackingMapPage() {
                         </span>
                       </div>
                       <p className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                        {schedule.personnel?.rank} {schedule.personnel?.fullname}
+                        {/* Display personnel names from junction table */}
+                        {schedule.schedule_assignments?.length > 0 ? (
+                          schedule.schedule_assignments
+                            .map(assign => `${assign.personnel?.rank} ${assign.personnel?.fullname}`)
+                            .filter((name): name is string => name !== undefined)
+                            .join(', ')
+                        ) : (
+                          // Fallback to old personnel data
+                          `${schedule.personnel?.rank} ${schedule.personnel?.fullname}` || 'Unassigned'
+                        )}
                       </p>
                     </div>
                   ))}

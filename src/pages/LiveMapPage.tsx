@@ -6,8 +6,8 @@ import { Map as MapIcon } from 'lucide-react';
 export default function LiveMapPage() {
   const { vehicles, logs } = useVehicleRealtime();
   const vehiclesList = vehicles ? Object.values(vehicles) : [];
-  const normalCount = vehiclesList.filter((v: any) => v.load_status === 'Normal').length;
-  const expiredCount = vehiclesList.filter((v: any) => v.load_status === 'Expired').length;
+  const normalCount = 0;
+  const expiredCount = 0;
 
   return (
     <div className="flex flex-col gap-6 h-full min-h-[750px] pb-6">

@@ -1,27 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { supabase, Vehicle, Unit, VehicleLog } from '../lib/supabase';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  LineChart, 
-  Line, 
-  AreaChart, 
+import { supabase, Vehicle, Unit, VehicleLog, PatrolSchedule } from '../lib/supabase';
+import { useAuth } from '../components/AuthProvider';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  AreaChart,
   Area,
   PieChart,
   Pie,
   Cell
 } from 'recharts';
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Zap, 
-  Clock, 
-  Shield, 
+import {
+  BarChart3,
+  TrendingUp,
+  Zap,
+  Clock,
+  Shield,
   AlertCircle,
   FileText,
   Download,
@@ -42,6 +43,7 @@ export default function AnalyticsPage() {
     weeklyHours: 0,
     activeAlerts: 0
   });
+  const { unitId, isAdmin } = useAuth();
 
   useEffect(() => {
     fetchAnalytics();
@@ -52,17 +54,42 @@ export default function AnalyticsPage() {
     try {
       // Fetch dynamic analytics data based on timeRange
       const rangeStart = subDays(new Date(), timeRange).toISOString();
+
+      // Build queries with unit filtering for non-admin users
+      let unitsQuery = supabase.from('unit').select('*');
+      let logsQuery = supabase.from('vehicle_logs').select('*').gte('captured_at', rangeStart);
+      let vehiclesQuery = supabase.from('vehicles').select('*');
+      let scheduleQuery = supabase.from('patrol_schedule').select('*, unit(*), schedule_assignments(personnel(*))').gte('date', rangeStart.split('T')[0]);
+
+      // Apply unit filtering for non-admin users
+      if (!isAdmin && unitId) {
+        unitsQuery = unitsQuery.eq('id', unitId);
+        vehiclesQuery = vehiclesQuery.eq('unit_id', unitId);
+        // For logs, we need to filter by vehicle's unit_id
+        logsQuery = supabase.from('vehicle_logs').select('*, vehicles(unit_id)').gte('captured_at', rangeStart);
+        // For schedules, filter by unit_id
+        scheduleQuery = supabase.from('patrol_schedule').select('*, unit(*), schedule_assignments(personnel(*))').eq('unit_id', unitId).gte('date', rangeStart.split('T')[0]);
+      }
+
       const [unitsRes, logsRes, vehiclesRes, scheduleRes] = await Promise.all([
-        supabase.from('unit').select('*'),
-        supabase.from('vehicle_logs').select('*').gte('captured_at', rangeStart),
-        supabase.from('vehicles').select('*'),
-        supabase.from('schedule').select('*').gte('date', rangeStart.split('T')[0])
+        unitsQuery,
+        logsQuery,
+        vehiclesQuery,
+        scheduleQuery
       ]);
 
       if (unitsRes.error) throw unitsRes.error;
       if (logsRes.error) throw logsRes.error;
       if (vehiclesRes.error) throw vehiclesRes.error;
       if (scheduleRes.error) throw scheduleRes.error;
+
+      // Filter logs to only include those from user's unit (for non-admin)
+      let filteredLogsData = logsRes.data;
+      if (!isAdmin && unitId && logsRes.data) {
+        filteredLogsData = logsRes.data.filter(log =>
+          log.vehicles && log.vehicles.unit_id === unitId
+        );
+      }
 
       // 1. Unit Distribution (Pie)
       let dist: any[] = [];
@@ -79,14 +106,14 @@ export default function AnalyticsPage() {
       let activeAlerts = 0;
       let avgSignal = 84;
 
-      const sortedLogData = logsRes.data ? [...logsRes.data].sort((a, b) => 
+      const sortedLogData = filteredLogsData ? [...filteredLogsData].sort((a, b) =>
         new Date(a.captured_at).getTime() - new Date(b.captured_at).getTime()
       ) : [];
 
       if (sortedLogData.length > 0) {
         const avgSpeedCalc = sortedLogData.reduce((a, b) => a + Number(b.speed || 0), 0) / sortedLogData.length;
         avgSpeed = Number(avgSpeedCalc.toFixed(1));
-        
+
         // Sampling down for dense/performance on charts (max 20 points)
         const sampleCount = 20;
         const step = Math.max(1, Math.floor(sortedLogData.length / sampleCount));
@@ -94,7 +121,7 @@ export default function AnalyticsPage() {
         for (let i = 0; i < sortedLogData.length; i += step) {
           sampledLogs.push(sortedLogData[i]);
         }
-        
+
         signalLogs = sampledLogs.map(l => ({
           time: format(new Date(l.captured_at), 'MMM dd HH:mm'),
           signal: l.network_signal || 0,
@@ -102,7 +129,7 @@ export default function AnalyticsPage() {
         }));
 
         activeAlerts = sortedLogData.filter(l => (l.network_signal || 0) < 20).length;
-        
+
         const totalSignal = sortedLogData.reduce((sum, l) => sum + (l.network_signal || 0), 0);
         avgSignal = Math.round(totalSignal / sortedLogData.length);
       }
@@ -112,7 +139,7 @@ export default function AnalyticsPage() {
       const daysData = lastXDays.map(date => {
         const dateStr = format(date, 'yyyy-MM-dd');
         const dayName = format(date, 'EEE, MMM d');
-        
+
         const daySchedules = (scheduleRes.data || []).filter(s => s.date === dateStr);
         let hours = 0;
         daySchedules.forEach(s => {
@@ -148,9 +175,9 @@ export default function AnalyticsPage() {
       // 4. Generate recent activities based on actual data
       const recentActivities: any[] = [];
       const recentSchedules = (scheduleRes.data || []).sort((a, b) => new Date(`${b.date}T${b.time_from || '00:00'}`).getTime() - new Date(`${a.date}T${a.time_from || '00:00'}`).getTime());
-      
+
       recentSchedules.slice(0, 5).forEach(s => {
-        const unitName = unitsRes.data?.find(u => u.id === s.unit_id)?.unit_name || 'Unknown Unit';
+        const unitName = s.unit?.unit_name || 'Unknown Unit';
         const dObj = new Date(`${s.date}T${s.time_from || '00:00'}`);
         recentActivities.push({
           title: `Schedule Assigned - ${unitName}`,
@@ -195,7 +222,7 @@ export default function AnalyticsPage() {
       }
 
       recentActivities.sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime());
-      
+
       if (recentActivities.length === 0) {
         recentActivities.push({
           title: "System Online & Syncing Data",

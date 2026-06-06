@@ -146,7 +146,6 @@ export default function LoginPage() {
       if (verifyError) throw verifyError;
 
       setIsMfaVerified(true);
-      navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || "Invalid authentication code");
     } finally {

@@ -12,6 +12,9 @@ interface AuthContextType {
   isMfaVerified: boolean;
   setIsMfaVerified: (verified: boolean) => void;
   clearAuthCache: () => Promise<void>;
+  // Additional fields for role and unit_id
+  role: Personnel['role'] | null;
+  unitId: Personnel['unit_id'] | null;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -24,6 +27,8 @@ const AuthContext = createContext<AuthContextType>({
   isMfaVerified: false,
   setIsMfaVerified: () => {},
   clearAuthCache: async () => {},
+  role: null,
+  unitId: null,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -181,7 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const { data: mfaData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
           console.log('[onAuthStateChange] mfaData currentLevel:', mfaData?.currentLevel, 'event:', event, 'isMfaVerifiedRef:', isMfaVerifiedRef.current);
 
-          setIsMfaVerifiedState(mfaData?.currentLevel === 'aal2' || event === 'MFA_CHALLENGE_VERIFIED' || isMfaVerifiedRef.current);
+          setIsMfaVerifiedState(mfaData?.currentLevel === 'aal2' || event === 'MFA_CHALLENGE_VERIFIED');
         } else {
           // If there is no session, and we currently have active states, clean them up
           if (userRef.current || sessionRef.current || profileRef.current) {
@@ -239,6 +244,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isMfaVerified,
       setIsMfaVerified: updateMfaVerification,
       clearAuthCache,
+      role: profile?.role ?? null,
+      unitId: profile?.unit_id ?? null,
     };
   }, [user, session, profile, loading, isMfaVerified, updateMfaVerification, clearAuthCache]);
 

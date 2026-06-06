@@ -42,11 +42,8 @@ function ResizeMap({ isFullscreen }: { isFullscreen?: boolean }) {
 // Custom icons based on load status
 const createIcon = (status: string, isStale: boolean) => {
   if (typeof window === 'undefined') return new L.Icon.Default();
-  
+
   const color = isStale ? '#9ca3af' : // gray
-                status === 'Emergency' ? '#ef4444' : // red
-                status === 'On Patrol' ? '#22c55e' : // green
-                status === 'Maintenance' ? '#f59e0b' : // amber
                 '#3b82f6'; // blue (Available)
 
   return L.divIcon({
@@ -128,11 +125,10 @@ export default function TrackingMap({ vehicles, logs }: MapProps) {
                     <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
                       <span className="font-black text-lg text-slate-900">{vehicle.plate_number}</span>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                        isStale ? 'bg-slate-100 text-slate-500' : 
-                        vehicle.load_status === 'Expired' ? 'bg-amber-100 text-amber-600' :
+                        isStale ? 'bg-slate-100 text-slate-500' :
                         'bg-green-100 text-green-600'
                       }`}>
-                        {isStale ? 'Offline' : vehicle.load_status}
+                        {isStale ? 'Offline' : 'Available'}
                       </span>
                     </div>
                     

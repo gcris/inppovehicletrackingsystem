@@ -19,6 +19,7 @@ export default function RegisterPage() {
     rank: '',
     badgeNumber: '',
     unitId: '',
+    designation: '',
   });
 
   const [mfaData, setMfaData] = useState<{ id: string, qrCodeUrl: string } | null>(null);
@@ -53,6 +54,43 @@ export default function RegisterPage() {
     }
 
     try {
+      // 0. Validate registration against personnel table
+      if (!formData.badgeNumber || !formData.rank || !formData.unitId) {
+        setError("Please fill in all required fields: Badge Number, Rank, and Unit");
+        setLoading(false);
+        return;
+      }
+
+      const { data: personnelData, error: personnelError } = await supabase
+        .from('personnel')
+        .select('*')
+        .eq('badge_number', formData.badgeNumber)
+        .eq('rank', formData.rank)
+        .eq('unit_id', formData.unitId)
+        .maybeSingle();
+
+      if (personnelError) {
+        console.error('Personnel validation error:', personnelError);
+        setError("Validation failed. Please check your information and try again.");
+        setLoading(false);
+        return;
+      }
+
+      if (!personnelData) {
+        setError("No matching personnel record found. Please ensure your badge number, rank, and unit are correct and that you have been added to the personnel table by an administrator.");
+        setLoading(false);
+        return;
+      }
+
+      // Check if this personnel record already has an associated auth account
+      // The personnel.id field is a foreign key to auth.users.id
+      // If personnel.id is not null, it means it's already linked to an auth user
+      if (personnelData.id) {
+        setError("This personnel record is already associated with an account. Please contact administrator if you believe this is in error.");
+        setLoading(false);
+        return;
+      }
+
       // 1. Sign up user
       const { data: { user }, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
@@ -62,22 +100,25 @@ export default function RegisterPage() {
       if (signUpError) throw signUpError;
 
       if (user) {
-        // 2. Create personnel profile
-        const { error: profileError } = await supabase.from('personnel').insert({
-          id: user.id,
+        // 2. Update personnel profile with the auth user ID and set role
+        const { error: profileError } = await supabase.from('personnel').update({
+          id: user.id, // Link to auth user
           fullname: formData.fullName,
-          rank: formData.rank,
-          badge_number: formData.badgeNumber,
-          unit_id: formData.unitId || null,
-          is_approved: false, // Default
-          role: 'user' // Default
-        });
+          designation: formData.designation,
+          // Keep existing rank, badge_number, unit_id from validation
+          is_approved: false, // Requires admin approval
+          role: 'user' // Default role
+        }).eq('badge_number', formData.badgeNumber)
+         .eq('rank', formData.rank)
+         .eq('unit_id', formData.unitId);
 
         if (profileError) {
           console.error('Profile creation error:', profileError);
+          // Clean up the auth user since profile creation failed
+          await supabase.auth.admin.deleteUser(user.id);
           setError("Account created but failed to set up profile. Please contact support.");
           return;
-        } 
+        }
 
         // 3. Start MFA Enrollment
         const { data: factorData, error: enrollError } = await supabase.auth.mfa.enroll({
@@ -271,12 +312,27 @@ export default function RegisterPage() {
                 <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Rank</label>
                 <div className="relative">
                   <Shield className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     required
                     value={formData.rank}
                     onChange={(e) => setFormData({...formData, rank: e.target.value})}
                     placeholder="e.g. PCPT"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 pl-12 text-sm font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Designation</label>
+                <div className="relative">
+                  <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    value={formData.designation}
+                    onChange={(e) => setFormData({...formData, designation: e.target.value})}
+                    placeholder="e.g. Driver, Investigator"
                     className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 pl-12 text-sm font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600"
                   />
                 </div>
