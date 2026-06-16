@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
-import { Shield, Lock, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "../lib/supabase";
+import { Shield, Lock, AlertCircle, Loader2, CheckCircle2 } from "lucide-react";
 
 export default function ResetPasswordPage() {
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -17,10 +17,10 @@ export default function ResetPasswordPage() {
       try {
         const { data, error } = await supabase.auth.getSession();
         if (error || !data.session) {
-          navigate('/login');
+          navigate("/login");
         }
       } catch (err) {
-        navigate('/login');
+        navigate("/login");
       }
     };
     checkSession();
@@ -43,7 +43,7 @@ export default function ResetPasswordPage() {
         setError(error.message);
       } else {
         setSuccess(true);
-        setTimeout(() => navigate('/login'), 3000);
+        setTimeout(() => navigate("/login"), 3000);
       }
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred.");
@@ -59,7 +59,9 @@ export default function ResetPasswordPage() {
           <div className="bg-blue-600 p-4 rounded-3xl shadow-xl shadow-blue-200 dark:shadow-none mb-6 font-bold text-white">
             <Shield className="w-10 h-10" />
           </div>
-          <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">NEW PASSKEY</h1>
+          <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
+            NEW PASSKEY
+          </h1>
         </div>
 
         <div className="bg-white dark:bg-slate-900 rounded-[32px] shadow-2xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 overflow-hidden transition-colors">
@@ -69,7 +71,9 @@ export default function ResetPasswordPage() {
                 <div className="w-20 h-20 bg-green-50 dark:bg-green-900/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
                   <CheckCircle2 className="w-10 h-10 text-green-500" />
                 </div>
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-3">Passkey Updated</h2>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-3">
+                  Passkey Updated
+                </h2>
                 <p className="text-sm font-bold text-slate-400 dark:text-slate-500 mb-8 leading-relaxed">
                   Your identity has been re-verified. Redirecting to login...
                 </p>
@@ -80,20 +84,29 @@ export default function ResetPasswordPage() {
             ) : (
               <>
                 <div className="mb-8">
-                  <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Set New Password</h2>
-                  <p className="text-sm font-bold text-slate-400 dark:text-slate-500">Ensure your new password uses mixed characters for high strength</p>
+                  <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">
+                    Set New Password
+                  </h2>
+                  <p className="text-sm font-bold text-slate-400 dark:text-slate-500">
+                    Ensure your new password uses mixed characters for high
+                    strength
+                  </p>
                 </div>
 
                 <form onSubmit={handleUpdate} className="space-y-6">
                   {error && (
                     <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 text-red-600 dark:text-red-400 p-4 rounded-2xl flex items-start gap-3">
                       <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                      <p className="text-xs font-black uppercase text-red-600 dark:text-red-400">{error}</p>
+                      <p className="text-xs font-black uppercase text-red-600 dark:text-red-400">
+                        {error}
+                      </p>
                     </div>
                   )}
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">New Password</label>
+                    <label className=" font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                      New Password
+                    </label>
                     <div className="relative">
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 dark:text-slate-700" />
                       <input
@@ -108,7 +121,9 @@ export default function ResetPasswordPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Confirm New Password</label>
+                    <label className=" font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                      Confirm New Password
+                    </label>
                     <div className="relative">
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 dark:text-slate-700" />
                       <input
@@ -130,7 +145,7 @@ export default function ResetPasswordPage() {
                     {loading ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
-                      'Update Passkey'
+                      "Update Passkey"
                     )}
                   </button>
                 </form>

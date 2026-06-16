@@ -5,15 +5,13 @@
 
 import React from "react";
 import { Routes, Route, NavLink, Navigate, Link } from "react-router-dom";
-import { supabase } from "./lib/supabase";
+import { supabase, MobilityAsset } from "./lib/supabase";
 import { AuthProvider, useAuth } from "./components/AuthProvider";
 import { ThemeProvider, useTheme } from "./components/ThemeProvider";
-import { Vehicle } from "./lib/supabase";
 import LiveMapPage from "./pages/LiveMapPage";
 import TrackingMapPage from "./pages/TrackingMapPage";
 import SchedulePage from "./pages/SchedulePage";
 import PersonnelPage from "./pages/PersonnelPage";
-import VehicleFleetPage from "./pages/VehicleFleetPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
@@ -41,7 +39,10 @@ import {
   CheckCircle2,
   ListRestart,
   Clock,
+  Group,
 } from "lucide-react";
+import MobilityAssetsPage from "./pages/MobilityAssetsPage";
+import TeamManagement from "./pages/TeamManagement";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -125,29 +126,28 @@ function Layout() {
   const { user, profile, isAdmin, clearAuthCache } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
-  const [vehiclesList, setVehiclesList] = React.useState<Vehicle[]>([]);
+  // const [vehiclesList, setVehiclesList] = React.useState<MobilityAsset[]>([]);
 
   React.useEffect(() => {
     let isMounted = true;
-    const fetchVehicles = async () => {
-      try {
-        const { data, error } = await supabase.from("vehicles").select("*");
-        if (error) throw error;
-        if (data && isMounted) {
-          setVehiclesList(data);
-        }
-      } catch (err) {
-        console.error("Error fetching layout vehicles:", err);
-      }
-    };
-    fetchVehicles();
+    // const fetchVehicles = async () => {
+    //   try {
+    //     const { data, error } = await supabase
+    //       .from("mobility_assets")
+    //       .select("*");
+    //     if (error) throw error;
+    //     if (data && isMounted) {
+    //       setVehiclesList(data);
+    //     }
+    //   } catch (err) {
+    //     console.error("Error fetching layout vehicles:", err);
+    //   }
+    // };
+    // fetchVehicles();
     return () => {
       isMounted = false;
     };
   }, []);
-
-  const normalCount = 0;
-  const expiredCount = 0;
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 selection:bg-blue-100 dark:selection:bg-blue-900/30 selection:text-blue-900 transition-colors duration-300">
@@ -167,10 +167,10 @@ function Layout() {
             />
           </div>
           <div>
-            <h1 className="font-bold text-[11px] leading-tight text-slate-900 dark:text-white">
+            <h1 className="font-bold leading-tight text-slate-900 dark:text-white">
               INPPO PATROL
             </h1>
-            <p className="text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-widest font-black">
+            <p className="text-[12px] text-slate-500 dark:text-slate-400 uppercase tracking-widest font-black">
               Ilocos Norte PPO
             </p>
           </div>
@@ -179,82 +179,100 @@ function Layout() {
         <nav className="flex-1 px-4 space-y-1">
           <NavItem
             to="/dashboard"
-            icon={<Activity className="w-5 h-5" />}
+            icon={
+              <img
+                src="/assets/dashboard.png"
+                alt="Dashboard"
+                className="w-7 h-7"
+              />
+            }
             label="Dashboard"
           />
           <NavItem
             to="/map"
-            icon={<MapIcon className="w-5 h-5" />}
+            icon={<img src="/assets/map.png" alt="Map" className="w-7 h-7" />}
             label="Live Tracking"
           />
-          <NavItem
-            to="/schedule"
-            icon={<Calendar className="w-5 h-5" />}
-            label="Patrolling Schedules"
-          />
-          <NavItem
-            to="/personnel"
-            icon={<Users className="w-5 h-5" />}
-            label="Personnel List"
-          />
-          <NavItem
-            to="/vehicles"
-            icon={<Car className="w-5 h-5" />}
-            label="Mobile Patrols"
-          />
-          <NavItem
+          {/* <NavItem
             to="/shift-management"
-            icon={<ListRestart className="w-5 h-5" />}
+            icon={
+              <img
+                src="/assets/duty-schedule.png"
+                alt="Duty Schedules"
+                className="w-7 h-7"
+              />
+            }
             label="Duty Schedules"
           />
           <NavItem
             to="/duty-shift-management"
-            icon={<Clock className="w-5 h-5" />}
+            icon={
+              <img
+                src="/assets/duty-shift.png"
+                alt="Duty Shifts"
+                className="w-7 h-7"
+              />
+            }
             label="Duty Shifts"
+          /> */}
+          <NavItem
+            to="/personnel"
+            icon={
+              <img
+                src="/assets/personnel.png"
+                alt="Personnel"
+                className="w-7 h-7"
+              />
+            }
+            label="Personnel List"
           />
+          <NavItem
+            to="/schedule"
+            icon={
+              <img
+                src="/assets/patrol-schedule.png"
+                alt="Schedules"
+                className="w-7 h-7"
+              />
+            }
+            label="Schedules"
+          />
+          <NavItem
+            to="/mobility-assets"
+            icon={
+              <img
+                src="/assets/mobility-assets.png"
+                alt="Mobility Assets"
+                className="w-7 h-7"
+              />
+            }
+            label="Mobility Assets"
+          />
+          {/* <NavItem
+            to="/team"
+            icon={<Group className="w-7 h-7" />}
+            label="Team"
+          /> */}
           <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800">
             <NavItem
               to="/analytics"
-              icon={<BarChart3 className="w-5 h-5" />}
+              icon={<BarChart3 className="w-7 h-7" />}
               label="Analytics"
             />
             <NavItem
               to="/account"
-              icon={<User className="w-5 h-5" />}
+              icon={<User className="w-7 h-7" />}
               label="My Account"
             />
           </div>
         </nav>
-
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800">
-          <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl">
-            <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 mb-1 uppercase tracking-tighter">
-              NETWORK STATUS
-            </p>
-            <div className="flex items-center gap-2 mt-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
-              <span className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">
-                Connected
-              </span>
-            </div>
-          </div>
-        </div>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header */}
         <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 z-20 shrink-0 transition-colors duration-300">
-          <div className="relative w-96 font-sans">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search assets, sectors, or officers..."
-              className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-lg py-2 pl-10 text-sm font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600"
-            />
-          </div>
-
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 ml-auto">
             <button
               onClick={toggleTheme}
               className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
@@ -297,86 +315,19 @@ function Layout() {
               )}
             </button>
 
-            <div className="relative group">
-              <button className="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
-                <Bell className="w-5 h-5" />
-                {expiredCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900 animate-bounce"></span>
-                )}
-              </button>
-
-              <div className="absolute right-0 top-full pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                <div className="w-80 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-4">
-                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 px-1">
-                    Fleet Notifications
-                  </h3>
-                  <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                    {expiredCount > 0 ? (
-                      vehiclesList
-                        .filter((v: any) => v.load_status === "Expired")
-                        .map((v: any) => (
-                          <div
-                            key={v.id}
-                            className="flex gap-3 p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900/30"
-                          >
-                            <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-                            <div>
-                              <p className="text-xs font-black text-red-900 dark:text-red-400">
-                                Status Expired: {v.plate_number}
-                              </p>
-                              <p className="text-[10px] text-red-600/70 dark:text-red-500/70 font-bold uppercase mt-0.5">
-                                Asset Requires Immediate Review
-                              </p>
-                            </div>
-                          </div>
-                        ))
-                    ) : (
-                      <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
-                        <CheckCircle2 className="w-8 h-8 text-green-500 mx-auto mb-3 opacity-50" />
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                          All vehicles are operating within normal parameters.
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="pt-2">
-                      <p className="text-[10px] font-black text-slate-300 dark:text-slate-700 uppercase tracking-tighter mb-2 text-center">
-                        Active Operations Summary
-                      </p>
-                      <div className="flex justify-between items-center px-2 py-1 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
-                        <span className="text-[10px] font-bold text-slate-500">
-                          Total Assets
-                        </span>
-                        <span className="text-xs font-black text-green-600">
-                          {vehiclesList.length}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             <div className="h-8 w-px bg-slate-200 dark:border-slate-800 mx-2"></div>
             <Link
               to="/account"
               className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 p-1.5 rounded-lg transition-colors"
             >
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-black leading-none">
+                <p className="font-bold leading-none">
+                  {profile?.rank?.rank_name}{" "}
                   {profile?.fullname || user?.email?.split("@")[0]}
                 </p>
-                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-1 uppercase tracking-wider">
-                  {profile?.rank
-                    ? `${profile.rank}`
-                    : isAdmin
-                      ? "Central Admin"
-                      : "Officer"}
+                <p className="text-slate-800 dark:text-slate-200 mt-1">
+                  {isAdmin ? "Administrator" : "Welcome back!"}
                 </p>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-[10px] uppercase shadow-lg shadow-blue-100 dark:shadow-none">
-                {profile?.fullname?.slice(0, 2).toUpperCase() ||
-                  user?.email?.slice(0, 2).toUpperCase()}
               </div>
             </Link>
             <button
@@ -384,7 +335,7 @@ function Layout() {
               className="p-2 text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-colors"
               title="Sign Out"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-7 h-7" />
             </button>
           </div>
         </header>
@@ -400,13 +351,14 @@ function Layout() {
               <Route path="/trackingmap/:id" element={<TrackingMapPage />} />
               <Route path="/schedule" element={<SchedulePage />} />
               <Route path="/personnel" element={<PersonnelPage />} />
-              <Route path="/vehicles" element={<VehicleFleetPage />} />
+              <Route path="/mobility-assets" element={<MobilityAssetsPage />} />
+              {/* <Route path="/team" element={<TeamManagement />} /> */}
               <Route path="/analytics" element={<AnalyticsPage />} />
-              <Route path="/shift-management" element={<ShiftManagement />} />
+              {/* <Route path="/shift-management" element={<ShiftManagement />} />
               <Route
                 path="/duty-shift-management"
                 element={<DutyShiftManagement />}
-              />
+              /> */}
               <Route path="/account" element={<AccountPage />} />
               <Route
                 path="*"
@@ -415,7 +367,7 @@ function Layout() {
                     <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-300 dark:text-slate-600 mb-4">
                       <Shield className="w-8 h-8" />
                     </div>
-                    <h3 className="text-slate-400 dark:text-slate-500 font-black uppercase tracking-widest text-[10px] text-center">
+                    <h3 className="text-slate-400 dark:text-slate-500 font-black uppercase tracking-widest  text-center">
                       Secure Section
                     </h3>
                   </div>
@@ -470,19 +422,19 @@ function NavItem({
       className={({ isActive }) =>
         `flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer transition-all ${
           isActive
-            ? "bg-blue-600 text-white shadow-lg shadow-blue-100 dark:shadow-none ring-4 ring-blue-50 dark:ring-blue-900/20"
-            : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200"
+            ? "font-bold bg-blue-600 text-white shadow-lg shadow-blue-100 dark:shadow-none ring-4 ring-blue-50 dark:ring-blue-900/20"
+            : "hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200"
         }`
       }
     >
       {({ isActive }) => (
         <>
           <div
-            className={`${isActive ? "text-white" : "text-slate-400 dark:text-slate-500"}`}
+            className={`${isActive ? "text-white" : "bg-slate-50 dark:bg-slate-800 dark:text-slate-500 rounded-lg p-0.5"} transition-colors duration-300  `}
           >
             {icon}
           </div>
-          <span className="text-sm font-black tracking-tight">{label}</span>
+          <span className="text-md tracking-tight">{label}</span>
           {isActive && (
             <div className="ml-auto w-1.5 h-1.5 bg-white rounded-full ring-4 ring-blue-400/50"></div>
           )}
@@ -505,7 +457,7 @@ function StatCard({
 }) {
   return (
     <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-colors duration-300">
-      <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
+      <p className="font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
         {label}
       </p>
       <div className="flex items-end gap-2 mb-1">
@@ -521,7 +473,7 @@ function StatCard({
           {value}
         </h3>
       </div>
-      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
+      <p className=" text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
         {sub}
       </p>
     </div>

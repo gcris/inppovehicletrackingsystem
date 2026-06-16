@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { supabase, Vehicle, Personnel, Unit } from "../lib/supabase";
+import { supabase, MobilityAsset, Unit } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../components/AuthProvider";
 import {
@@ -18,28 +18,28 @@ import {
   Edit2,
   Activity,
   LocateFixed,
+  Cross,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
-export default function VehicleFleetPage() {
-  const [vehicles, setVehicles] = useState<
-    (Vehicle & { personnel?: Personnel; unit?: Unit })[]
-  >([]);
+export default function MobilityAssetsPage() {
+  const [vehicles, setVehicles] = useState<(MobilityAsset & { unit?: Unit })[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   // Filter status removed since load_status column was deleted
   const [editingVehicle, setEditingVehicle] = useState<
-    (Vehicle & { personnel?: Personnel; unit?: Unit }) | null
+    (MobilityAsset & { unit?: Unit }) | null
   >(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [formData, setFormData] = useState({
     plate_number: "",
     unit_id: "",
-    personnel_id: "",
     vehicle_type: "",
+    description: "",
   });
 
-  const [personnelList, setPersonnelList] = useState<Personnel[]>([]);
   const [unitList, setUnitList] = useState<Unit[]>([]);
   const navigate = useNavigate();
   const { unitId, isAdmin } = useAuth();
@@ -59,17 +59,13 @@ export default function VehicleFleetPage() {
   const fetchSupportData = async () => {
     try {
       // Apply unit filtering for non-admin users
-      let personnelQuery = supabase.from("personnel").select("*");
       let unitQuery = supabase.from("unit").select("*");
 
       if (!isAdmin && unitId) {
-        personnelQuery = personnelQuery.eq("unit_id", unitId);
         unitQuery = unitQuery.eq("id", unitId);
       }
 
-      const [pRes, uRes] = await Promise.all([personnelQuery, unitQuery]);
-      if (pRes.error) console.error("Error fetching personnel:", pRes.error);
-      else if (pRes.data) setPersonnelList(pRes.data);
+      const [uRes] = await Promise.all([unitQuery]);
 
       if (uRes.error) console.error("Error fetching units:", uRes.error);
       else if (uRes.data) setUnitList(uRes.data);
@@ -83,8 +79,8 @@ export default function VehicleFleetPage() {
     try {
       // Build query with unit filtering for non-admin users
       let vehiclesQuery = supabase
-        .from("vehicles")
-        .select("*, personnel(*), unit(*)")
+        .from("mobility_assets")
+        .select("*, unit(*)")
         .order("plate_number", { ascending: true });
 
       // Apply unit filtering for non-admin users
@@ -104,14 +100,17 @@ export default function VehicleFleetPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this vehicle?"))
+    if (!window.confirm("Are you sure you want to delete this mobility asset?"))
       return;
     try {
-      const { error } = await supabase.from("vehicles").delete().eq("id", id);
+      const { error } = await supabase
+        .from("mobility_assets")
+        .delete()
+        .eq("id", id);
       if (error) throw error;
       fetchVehicles();
     } catch (err: any) {
-      alert("Error deleting vehicle: " + err.message);
+      alert("Error deleting mobility asset: " + err.message);
     }
   };
 
@@ -121,39 +120,52 @@ export default function VehicleFleetPage() {
 
     try {
       const { error } = await supabase
-        .from("vehicles")
+        .from("mobility_assets")
         .update({
           plate_number: editingVehicle.plate_number,
           unit_id: editingVehicle.unit_id,
-          personnel_id: editingVehicle.personnel_id,
+          vehicle_type: editingVehicle.vehicle_type,
+          description: editingVehicle.description,
         })
         .eq("id", editingVehicle.id);
 
       if (error) throw error;
       setEditingVehicle(null);
+      setFormData({
+        plate_number: "",
+        unit_id: unitId || "",
+        vehicle_type: "",
+        description: "",
+      });
       fetchVehicles();
     } catch (err: any) {
-      alert("Error updating vehicle: " + err.message);
+      alert("Error updating mobility asset: " + err.message);
     }
   };
 
   const handleAddVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { error } = await supabase.from("vehicles").insert([
+      const { error } = await supabase.from("mobility_assets").insert([
         {
           plate_number: formData.plate_number,
           unit_id: formData.unit_id || null,
-          personnel_id: formData.personnel_id || null,
+          vehicle_type: formData.vehicle_type,
+          description: formData.description,
         },
       ]);
 
       if (error) throw error;
       setShowAddModal(false);
-      setFormData({ plate_number: "", unit_id: "", personnel_id: "" });
+      setFormData({
+        plate_number: "",
+        unit_id: unitId || "",
+        vehicle_type: "",
+        description: "",
+      });
       fetchVehicles();
     } catch (err: any) {
-      alert("Error adding vehicle: " + err.message);
+      alert("Error adding mobility asset: " + err.message);
     }
   };
 
@@ -169,19 +181,19 @@ export default function VehicleFleetPage() {
     <div className="flex flex-col gap-6 px-1">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+          <h1 className="text-2xl text-slate-900 dark:text-white flex items-center gap-2">
             <Car className="w-6 h-6 text-blue-600" />
-            INPPO Fleet Assets
+            Mobility Assets
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-1">
-            Registry of Ilocos Norte provincial response vehicles
+          <p className="text-slate-800 dark:text-slate-200 mt-1">
+            Manage mobility assets
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 shadow-sm transition-all focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-sm transition-all focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
           >
             <Car className="w-4 h-4" />
             New
@@ -193,13 +205,13 @@ export default function VehicleFleetPage() {
               placeholder="Filter by plate number..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl py-2 pl-10 pr-4 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 w-64 shadow-sm"
+              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl py-2 pl-10 pr-4 font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 w-64 shadow-sm"
             />
           </div>
 
           <button
             onClick={fetchVehicles}
-            className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors shadow-sm"
+            className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-500 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors shadow-sm"
           >
             <RefreshCcw className="w-5 h-5" />
           </button>
@@ -216,33 +228,25 @@ export default function VehicleFleetPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
-                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                  <th className="p-4 text-slate-800 dark:text-slate-200 ">
                     Plate Number
                   </th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                  <th className="p-4  text-slate-800 dark:text-slate-200 ">
                     Assigned Unit
                   </th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                    Personnel In-Charge
+                  <th className="p-4  text-slate-800 dark:text-slate-200 ">
+                    Description
                   </th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                    Vehicle Type
+                  <th className="p-4  text-slate-800 dark:text-slate-200 ">
+                    Mobility Type
                   </th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                    Status
-                  </th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                    Last Update
-                  </th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">
+                  <th className="p-4  text-slate-800 dark:text-slate-200 text-center">
                     Action
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
                 {filteredVehicles.map((vehicle) => {
-                  const isStale = false; // No last_load_update column available
-
                   return (
                     <tr
                       key={vehicle.id}
@@ -250,72 +254,47 @@ export default function VehicleFleetPage() {
                     >
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <div
-                            className={`p-2 rounded-lg ${getStatusColor(vehicle.load_status).replace("bg-", "dark:bg-opacity-20 bg-")}`}
-                          >
-                            <Car className="w-5 h-5" />
-                          </div>
-                          <span className="font-black text-slate-900 dark:text-white text-sm tracking-tight">
+                          <span className=" text-slate-900 dark:text-white tracking-tight">
                             {vehicle.plate_number}
                           </span>
                         </div>
                       </td>
                       <td className="p-4">
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                        <span className="text-slate-800 dark:text-slate-200">
                           {vehicle.unit?.unit_name}
                         </span>
                       </td>
                       <td className="p-4">
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                        <span className="text-slate-800 dark:text-slate-200">
+                          {vehicle.description || "No description"}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span className="text-slate-800 dark:text-slate-200">
                           {vehicle.vehicle_type || "Not Specified"}
                         </span>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-600">
-                            <User className="w-3 h-3" />
-                          </div>
-                          <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                            {vehicle.personnel?.fullname || "Not Assigned"}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-green-600 bg-green-100">
-                          All Systems Normal
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-3.5 h-3.5 text-slate-400" />
-                            <span className="text-[10px] font-bold text-slate-500">
-                              Real-time
-                            </span>
-                          </div>
-                        </div>
                       </td>
                       <td className="p-4 flex items-center justify-center gap-2">
                         <button
                           onClick={() => navigate("/trackingmap/" + vehicle.id)}
                           title="Track Vehicle"
-                          className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                          className="p-2 text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
                         >
-                          <LocateFixed className="w-4 h-4" />
+                          <LocateFixed className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => setEditingVehicle(vehicle)}
                           title="Edit Vehicle"
-                          className="p-2 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all"
+                          className="p-2 text-slate-800 dark:text-slate-200 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all"
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <Edit2 className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => handleDelete(vehicle.id)}
                           title="Delete Vehicle"
-                          className="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                          className="p-2 text-slate-800 dark:text-slate-200 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-5 h-5" />
                         </button>
                       </td>
                     </tr>
@@ -328,8 +307,8 @@ export default function VehicleFleetPage() {
           {filteredVehicles.length === 0 && (
             <div className="flex-1 flex flex-col items-center justify-center py-20">
               <Car className="w-12 h-12 text-slate-100 dark:text-slate-800 mb-4" />
-              <p className="text-slate-400 dark:text-slate-600 font-bold uppercase tracking-widest text-sm">
-                No vehicles found
+              <p className="text-slate-400 dark:text-slate-800 font-bold text-sm">
+                No mobility assets found
               </p>
             </div>
           )}
@@ -341,17 +320,17 @@ export default function VehicleFleetPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
             <div className="p-8 border-b border-slate-100 dark:border-slate-800">
-              <h2 className="text-xl font-black text-slate-900 dark:text-white">
-                Edit Fleet Asset
+              <h2 className="text-xl  text-slate-900 dark:text-white">
+                Edit Mobility Asset
               </h2>
-              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">
-                Modify vehicle registration & status
+              <p className="text-slate-400 font-bold tmt-1">
+                Modify Mobility asset
               </p>
             </div>
 
             <form onSubmit={handleUpdate} className="p-8 space-y-5">
               <div>
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                <label className="text-slate-800 dark:text-slate-200 tml-1">
                   Plate Number
                 </label>
                 <input
@@ -363,13 +342,13 @@ export default function VehicleFleetPage() {
                       plate_number: e.target.value,
                     })
                   }
-                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                  <label className="text-slate-800 dark:text-slate-200 tml-1">
                     Unit/Station
                   </label>
                   <select
@@ -381,7 +360,7 @@ export default function VehicleFleetPage() {
                       })
                     }
                     disabled={!isAdmin && unitId}
-                    className={`w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${!isAdmin && unitId ? "bg-slate-200 dark:bg-slate-700/50 cursor-not-allowed" : ""}`}
+                    className={`w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${!isAdmin && unitId ? "bg-slate-200 dark:bg-slate-700/50 cursor-not-allowed" : ""}`}
                   >
                     <option value="">Select Unit</option>
                     {unitList.map((u) => (
@@ -391,50 +370,44 @@ export default function VehicleFleetPage() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
-                    Load Status
-                  </label>
-                  <select
-                    value={editingVehicle.load_status}
-                    onChange={(e) =>
-                      setEditingVehicle({
-                        ...editingVehicle,
-                        load_status: e.target.value as
-                          | "Normal"
-                          | "Expired"
-                          | "Maintenance",
-                      })
-                    }
-                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                  >
-                    <option value="Normal">Normal</option>
-                    <option value="Expired">Expired</option>
-                    <option value="Maintenance">Maintenance</option>
-                  </select>
-                </div>
               </div>
 
               <div>
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
-                  Personnel In-Charge
+                <label className="text-slate-800 dark:text-slate-200 tml-1">
+                  Description
                 </label>
-                <select
-                  value={editingVehicle.personnel_id || ""}
+                <input
+                  type="text"
+                  value={editingVehicle.description || ""}
                   onChange={(e) =>
                     setEditingVehicle({
                       ...editingVehicle,
-                      personnel_id: e.target.value,
+                      description: e.target.value,
                     })
                   }
-                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  placeholder="Description"
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="  text-slate-800 dark:text-slate-200 tml-1">
+                  Mobility Type
+                </label>
+                <select
+                  value={editingVehicle.vehicle_type}
+                  onChange={(e) =>
+                    setEditingVehicle({
+                      ...editingVehicle,
+                      vehicle_type: e.target.value,
+                    })
+                  }
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 >
-                  <option value="">No Assignment</option>
-                  {personnelList.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.fullname}
-                    </option>
-                  ))}
+                  <option value="">Select Mobility Type</option>
+                  <option value="Mobile Patrol">Mobile Patrol</option>
+                  <option value="Motorcycle">Motorcycle</option>
+                  <option value="Bike">Bike</option>
                 </select>
               </div>
 
@@ -442,13 +415,13 @@ export default function VehicleFleetPage() {
                 <button
                   type="button"
                   onClick={() => setEditingVehicle(null)}
-                  className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black uppercase tracking-tighter hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                  className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-tighter hover:bg-blue-700 shadow-lg shadow-blue-200 dark:shadow-none transition-all"
+                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 dark:shadow-none transition-all"
                 >
                   Save Asset
                 </button>
@@ -464,24 +437,25 @@ export default function VehicleFleetPage() {
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200">
             <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
               <div>
-                <h3 className="font-black text-slate-900 dark:text-white">
-                  Add New Asset
+                <h3 className=" text-slate-900 dark:text-white">
+                  Add New Mobility Asset
                 </h3>
-                <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">
-                  Register new vehicle to fleet
+                <p className="font-bold text-slate-500 mt-1">
+                  Register new mobility asset
                 </p>
               </div>
               <button
                 onClick={() => setShowAddModal(false)}
                 className="p-2 bg-white dark:bg-slate-800 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition"
               >
-                <Trash2 className="w-4 h-4 text-slate-400" />
-                {/* using close icon concept without importing X, reuse Trash2 or just text */}
+                <span className="text-slate-400 font-bold text-lg leading-none cursor-pointer">
+                  ×
+                </span>
               </button>
             </div>
             <form onSubmit={handleAddVehicle} className="p-6 space-y-5">
               <div>
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                <label className="  text-slate-800 dark:text-slate-200 tml-1">
                   Unit/Station
                 </label>
                 <select
@@ -491,7 +465,7 @@ export default function VehicleFleetPage() {
                     setFormData({ ...formData, unit_id: e.target.value })
                   }
                   disabled={!isAdmin && unitId}
-                  className={`w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${!isAdmin && unitId ? "bg-slate-200 dark:bg-slate-700/50 cursor-not-allowed" : ""}`}
+                  className={`w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${!isAdmin && unitId ? "bg-slate-200 dark:bg-slate-700/50 cursor-not-allowed" : ""}`}
                 >
                   <option value="" disabled>
                     Select Unit Headquarters
@@ -505,7 +479,7 @@ export default function VehicleFleetPage() {
               </div>
 
               <div>
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                <label className="  text-slate-800 dark:text-slate-200 tml-1">
                   Plate Number
                 </label>
                 <div className="relative mt-1.5">
@@ -519,44 +493,39 @@ export default function VehicleFleetPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, plate_number: e.target.value })
                     }
-                    className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 pl-12 pr-4 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-mono"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 pl-12 pr-4 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-mono"
                     placeholder="PNP-1234"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
-                  Personnel In-Charge
+                <label className="  text-slate-800 dark:text-slate-200 tml-1">
+                  Description
                 </label>
-                <select
-                  value={formData.personnel_id}
+                <input
+                  type="text"
+                  value={formData.description}
                   onChange={(e) =>
-                    setFormData({ ...formData, personnel_id: e.target.value })
+                    setFormData({ ...formData, description: e.target.value })
                   }
-                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                >
-                  <option value="">No Assignment</option>
-                  {personnelList.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.fullname}
-                    </option>
-                  ))}
-                </select>
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  placeholder="Additional details about the vehicle"
+                />
               </div>
 
               <div>
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
-                  Vehicle Type
+                <label className="  text-slate-800 dark:text-slate-200 tml-1">
+                  Mobility Type
                 </label>
                 <select
                   value={formData.vehicle_type}
                   onChange={(e) =>
                     setFormData({ ...formData, vehicle_type: e.target.value })
                   }
-                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 >
-                  <option value="">Select Vehicle Type</option>
+                  <option value="">Select Mobility Type</option>
                   <option value="Mobile Patrol">Mobile Patrol</option>
                   <option value="Motorcycle">Motorcycle</option>
                   <option value="Bike">Bike</option>
@@ -567,13 +536,13 @@ export default function VehicleFleetPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black uppercase tracking-tighter hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                  className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-tighter hover:bg-blue-700 shadow-lg shadow-blue-200 dark:shadow-none transition-all"
+                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 dark:shadow-none transition-all"
                 >
                   Add Vehicle
                 </button>

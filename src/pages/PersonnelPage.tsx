@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { supabase, Personnel, Unit, Schedule, Vehicle } from "../lib/supabase";
+import {
+  supabase,
+  Personnel,
+  Unit,
+  PatrolSchedule,
+  Rank,
+} from "../lib/supabase";
 import { AuthProvider, useAuth } from "../components/AuthProvider";
 import {
   Users,
@@ -29,9 +35,11 @@ export default function PersonnelPage() {
   const [personnel, setPersonnel] = useState<
     (Personnel & {
       unit?: Unit;
+      rank?: Rank;
     })[]
   >([]);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [rankList, setRankList] = useState<Rank[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUnit, setSelectedUnit] = useState<string>("all");
@@ -54,7 +62,7 @@ export default function PersonnelPage() {
     email: "",
     password: "",
     fullname: "",
-    rank: "",
+    rank_id: "",
     badge_number: "",
     phone_number: "",
     viber_number: "",
@@ -77,7 +85,7 @@ export default function PersonnelPage() {
         email: "", // Clear email in edit mode as we won't modify credentials
         password: "", // Clear password in edit mode as we won't modify credentials
         fullname: editingPerson.fullname || "",
-        rank: editingPerson.rank || "Patrol",
+        rank_id: editingPerson.rank_id || "",
         badge_number: editingPerson.badge_number || "",
         phone_number: editingPerson.phone_number || "",
         viber_number: editingPerson.viber_number || "",
@@ -93,7 +101,7 @@ export default function PersonnelPage() {
         email: "",
         password: "",
         fullname: "",
-        rank: "Patrol",
+        rank_id: "",
         badge_number: "",
         phone_number: "",
         viber_number: "",
@@ -114,27 +122,38 @@ export default function PersonnelPage() {
     setLoading(true);
     try {
       // Fetch fundamental data
-      let personnelQuery = supabase.from("personnel").select("*, unit(*)");
+      let personnelQuery = supabase
+        .from("personnel")
+        .select("*, unit(*), rank:rank_id(*)");
       if (activeTab === "pending") {
         personnelQuery = personnelQuery.eq("is_approved", false);
       }
 
-      const [personnelRes, unitsRes] = await Promise.all([
+      const [personnelRes, unitsRes, rankRes] = await Promise.all([
         personnelQuery,
         supabase.from("unit").select("*"),
+        supabase.from("rank").select("*").order("level", { ascending: true }),
       ]);
 
       if (personnelRes.error) throw personnelRes.error;
       if (unitsRes.error) throw unitsRes.error;
+      if (rankRes.error) throw rankRes.error;
 
       if (personnelRes.data) {
-        const enrichedPersonnel = personnelRes.data.map((p) => {
+        // Sort by rank level descending (highest first), null ranks treated as lowest
+        const sortedPersonnel = [...personnelRes.data].sort((a, b) => {
+          const rankA = a.rank?.level ?? -Infinity;
+          const rankB = b.rank?.level ?? -Infinity;
+          return rankB - rankA; // descending
+        });
+        const enrichedPersonnel = sortedPersonnel.map((p) => {
           return { ...p }; // Only include personnel and unit data, exclude vehicles and todaySchedule
         });
         setPersonnel(enrichedPersonnel);
       }
 
       if (unitsRes.data) setUnits(unitsRes.data);
+      if (rankRes.data) setRankList(rankRes.data);
     } catch (err: any) {
       console.error("Error fetching personnel data:", err);
     } finally {
@@ -145,7 +164,9 @@ export default function PersonnelPage() {
   const filteredPersonnel = personnel.filter((p) => {
     const matchesSearch =
       (p.fullname || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.rank || "").toLowerCase().includes(searchQuery.toLowerCase());
+      (p.rank?.rank_name || "")
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
     const matchesUnit = selectedUnit === "all" || p.unit_id === selectedUnit;
     return matchesSearch && matchesUnit;
   });
@@ -231,7 +252,7 @@ export default function PersonnelPage() {
           .from("personnel")
           .update({
             fullname: formData.fullname,
-            rank: formData.rank,
+            rank_id: formData.rank_id,
             badge_number: formData.badge_number,
             phone_number: formData.phone_number,
             viber_number: formData.viber_number,
@@ -280,7 +301,7 @@ export default function PersonnelPage() {
             .insert({
               id: user.id,
               fullname: formData.fullname,
-              rank: formData.rank,
+              rank_id: formData.rank_id,
               badge_number: formData.badge_number,
               phone_number: formData.phone_number,
               viber_number: formData.viber_number,
@@ -303,7 +324,7 @@ export default function PersonnelPage() {
         const { error: insertError } = await supabase.from("personnel").insert({
           //id: tempId, // Temporary ID - ideally this would be handled by the database or a proper UUID generator
           fullname: formData.fullname,
-          rank: formData.rank,
+          rank_id: formData.rank_id,
           badge_number: formData.badge_number,
           phone_number: formData.phone_number,
           viber_number: formData.viber_number,
@@ -327,7 +348,7 @@ export default function PersonnelPage() {
         email: "",
         password: "",
         fullname: "",
-        rank: "Patrol",
+        rank_id: "",
         badge_number: "",
         phone_number: "",
         viber_number: "",
@@ -349,34 +370,34 @@ export default function PersonnelPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-            <Users className="w-6 h-6 text-blue-600" />
+          <h1 className="text-2xl text-[var(--text)] flex items-center gap-2">
+            <Users className="w-6 h-6 text-[var(--accent)]" />
             Personnel Directory
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-1">
+          <p className="text-slate-800 dark:text-slate-200 font-boldr mt-1">
             Manage officers, ranks, and unit assignments
           </p>
         </div>
 
         <div className="flex items-center gap-4">
           {isAdmin && (
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+            <div className="flex bg-[var(--secondary)]/[0.1] dark:bg-[var(--secondary)]/[0.2] p-1 rounded-xl">
               <button
                 onClick={() => setActiveTab("all")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-tighter transition-all ${
+                className={`px-4 py-1.5 rounded-lg font-blacktracking-tighter transition-all ${
                   activeTab === "all"
-                    ? "bg-white dark:bg-slate-700 text-blue-600 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                    ? "bg-[var(--primary)]/[0.9] dark:bg-[var(--primary)]/[0.8] text-[var(--accent)] shadow-sm"
+                    : "text-[var(--text)]/[0.5] hover:text-[var(--text)]/[0.7] dark:hover:text-[var(--text)]/[0.4]"
                 }`}
               >
                 All Directory
               </button>
               <button
                 onClick={() => setActiveTab("pending")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-tighter transition-all ${
+                className={`px-4 py-1.5 rounded-lg font-blacktracking-tighter transition-all ${
                   activeTab === "pending"
-                    ? "bg-white dark:bg-slate-700 text-blue-600 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                    ? "bg-[var(--primary)]/[0.9] dark:bg-[var(--primary)]/[0.8] text-[var(--accent)] shadow-sm"
+                    : "text-[var(--text)]/[0.5] hover:text-[var(--text)]/[0.7] dark:hover:text-[var(--text)]/[0.4]"
                 }`}
               >
                 Pending Approvals
@@ -387,24 +408,24 @@ export default function PersonnelPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 shadow-sm transition-all focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-sm transition-all focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
             >
               <Users className="w-4 h-4" />
               New
             </button>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text)]/[0.5]" />
               <input
                 type="text"
                 placeholder="Search officer name or rank..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl py-2 pl-10 pr-4 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 w-64 shadow-sm"
+                className="bg-[var(--primary)]/[0.1] dark:bg-[var(--primary)]/[0.2] border border-[var(--secondary)]/[0.3] dark:border-[var(--secondary)]/[0.2] rounded-xl py-2 pl-10 pr-4 font-bold text-[var(--text)] dark:text-[var(--text)]/[0.8] outline-none focus:ring-2 focus-ring-[var(--accent)]/[0.3] w-64 shadow-sm"
               />
             </div>
 
             <div className="relative">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text)]/[0.5]" />
               <select
                 value={selectedUnit}
                 onChange={(e) => {
@@ -413,7 +434,7 @@ export default function PersonnelPage() {
                   }
                 }}
                 disabled={!isAdmin}
-                className={`bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl py-2 pl-10 pr-8 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none shadow-sm ${!isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`bg-[var(--primary)]/[0.1] dark:bg-[var(--primary)]/[0.2] border border-[var(--secondary)]/[0.3] dark:border-[var(--secondary)]/[0.2] rounded-xl py-2 pl-10 pr-8 font-bold text-[var(--text)] dark:text-[var(--text)]/[0.8] outline-none focus:ring-2 focus-ring-[var(--accent)]/[0.3] appearance-none shadow-sm ${!isAdmin ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <option value="all">All Units</option>
                 {units.map((u) => (
@@ -429,52 +450,44 @@ export default function PersonnelPage() {
 
       {loading ? (
         <div className="flex-1 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent)]/[0.5]"></div>
         </div>
       ) : (
         <div className="flex-1 overflow-hidden bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-colors">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
-                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                    Personnel
-                  </th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                    Designation
-                  </th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                    Unit/Station
-                  </th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                    Contact Info
-                  </th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                    Duty Status
-                  </th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                    Actions
-                  </th>
+                <tr className="border-b border-[var(--secondary)]/[0.2] dark:border-[var(--secondary)]/[0.1] bg-[var(--primary)]/[0.05] dark:bg-[var(--primary)]/[0.02]">
+                  <th className="p-4 font-blackst">Personnel</th>
+                  <th className="p-4 font-blackst">Designation</th>
+                  <th className="p-4 font-blackst">Unit/Station</th>
+                  <th className="p-4 font-blackst">Contact Info</th>
+                  <th className="p-4 font-blackst">Duty Status</th>
+                  <th className="p-4 font-blackst">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-[var(--primary)]/[0.02] dark:bg-[var(--primary)]/[0.01] divide-y divide-[var(--secondary)]/[0.1]">
                 {filteredPersonnel.length === 0 ? (
                   <tr>
                     <td
-                      className="px-6 py-4 text-center text-sm text-gray-500"
-                      colSpan="5"
+                      className="px-6 py-4 text-center text-[var(--text)]/[0.5]"
+                      colSpan={5}
                     >
                       No personnel found
                     </td>
                   </tr>
                 ) : (
                   filteredPersonnel.map((person) => (
-                    <tr key={person.id} className="hover:bg-gray-50">
+                    <tr
+                      key={person.id}
+                      className="hover:bg-[var(--secondary)]/[0.05]"
+                    >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           <div className="flex flex-col">
-                            <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                              {person.rank} {person.fullname}
+                            <span className="text-[var(--text)]/[0.6]r">
+                              {person.rank?.rank_name || "No Rank"}{" "}
+                              {person.fullname}
                             </span>
                           </div>
                         </div>
@@ -482,20 +495,20 @@ export default function PersonnelPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           <div className="flex flex-col">
-                            <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                            <span className="text-[var(--text)]/[0.6]r">
                               {person.designation}
                             </span>
                           </div>
                         </div>
                       </td>
                       <td className="p-4">
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                        <span className="text-[var(--text)]/[0.6]r">
                           {person.unit?.unit_name || "Not Assigned"}
                           {person.remarks}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2 text-sm">
+                        <div className="flex items-center gap-2">
                           {person.phone_number && (
                             <>
                               <a
@@ -521,7 +534,7 @@ export default function PersonnelPage() {
                         </div>
                       </td>
                       <td className="p-4">
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                        <span className="text-[var(--text)]/[0.6]r">
                           {person.duty_status || "Not Assigned"}
                         </span>
                       </td>
@@ -530,9 +543,9 @@ export default function PersonnelPage() {
                           <button
                             onClick={() => handleApprove(person.id)}
                             title="Approve Account"
-                            className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                            className="p-2 text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
                           >
-                            <Shield className="w-3 h-3" />
+                            <Shield className="w-5 h-5" />
                           </button>
                         ) : null}
                         {!isAdmin || person.is_approved ? (
@@ -543,25 +556,27 @@ export default function PersonnelPage() {
                                 setShowAddModal(true);
                               }}
                               title="Edit Officer"
-                              className="p-2 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:bg-amber-900/20 rounded-lg transition-all"
+                              className="p-2 text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
                             >
-                              <Edit className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(person.id)}
-                              title="Delete Officer"
-                              className="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:bg-amber-900/20 rounded-lg transition-all"
-                            >
-                              <Trash className="w-3 h-3" />
+                              <Edit className="w-5 h-5" />
                             </button>
                             {isAdmin && (
-                              <button
-                                onClick={() => handleResetMFA(person.id)}
-                                title="Reset MFA"
-                                className="p-2 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:bg-amber-900/20 rounded-lg transition-all"
-                              >
-                                <RefreshCw className="w-3 h-3" />
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => handleDelete(person.id)}
+                                  title="Delete Officer"
+                                  className="p-2 text-slate-800 dark:text-slate-200 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                                >
+                                  <Trash className="w-5 h-5" />
+                                </button>
+                                <button
+                                  onClick={() => handleResetMFA(person.id)}
+                                  title="Reset MFA"
+                                  className="p-2 text-slate-800 dark:text-slate-200 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all"
+                                >
+                                  <RefreshCw className="w-5 h-5" />
+                                </button>
+                              </>
                             )}
                           </>
                         ) : null}
@@ -578,13 +593,13 @@ export default function PersonnelPage() {
       {/* Add Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200">
             <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
               <div>
-                <h3 className="font-black text-slate-900 dark:text-white">
+                <h1 className="font-bold text-slate-900 dark:text-white">
                   {isEditMode ? "Edit Personnel" : "Add New Personnel"}
-                </h3>
-                <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">
+                </h1>
+                <p className="text-slate-800 dark:text-slate-200 mt-1r">
                   {isEditMode
                     ? "Update officer information"
                     : "Register new officer account"}
@@ -597,7 +612,7 @@ export default function PersonnelPage() {
                 }}
                 className="p-2 bg-white dark:bg-slate-800 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition"
               >
-                <span className="text-slate-400 font-bold text-lg leading-none cursor-pointer">
+                <span className="text-slate-800 dark:text-slate-200 font-bold text-lg leading-none cursor-pointer">
                   ×
                 </span>
               </button>
@@ -611,13 +626,13 @@ export default function PersonnelPage() {
               {formError && (
                 <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 text-red-600 dark:text-red-400 p-4 rounded-xl flex items-start gap-3 mb-4">
                   <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                  <p className="text-sm font-semibold">{formError}</p>
+                  <p className="font-semibold">{formError}</p>
                 </div>
               )}
               {formSuccess && (
                 <div className="bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-900/30 text-green-600 dark:text-green-400 p-4 rounded-xl flex items-start gap-3 mb-4">
                   <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
-                  <p className="text-sm font-semibold">{formSuccess}</p>
+                  <p className="font-semibold">{formSuccess}</p>
                 </div>
               )}
               {!isEditMode && role === "admin" && (
@@ -637,10 +652,10 @@ export default function PersonnelPage() {
                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                       />
                     </div>
-                    <div className="ml-3 text-sm">
+                    <div className="ml-3">
                       <label
-                        for="createAuthCheckbox"
-                        className="font-black text-slate-400 dark:text-slate-500"
+                        htmlFor="createAuthCheckbox"
+                        className="font-black text-slate-800 dark:text-slate-500"
                       >
                         Create Login Credentials for this Officer (Optional)
                       </label>
@@ -651,7 +666,7 @@ export default function PersonnelPage() {
                     <>
                       <div className="bg-amber-50 dark:bg-amber-900/20 px-6 py-3 border-b border-amber-100 dark:border-amber-900/50 flex gap-3 items-start">
                         <span className="text-amber-500 mt-0.5">⚠</span>
-                        <p className="text-[11px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide leading-relaxed">
+                        <p className="font-bold text-amber-700 dark:text-amber-400 leading-relaxed">
                           Security Notice: Registering a user here creates an
                           account instantly and will securely log you out of
                           your current admin session.
@@ -659,7 +674,7 @@ export default function PersonnelPage() {
                       </div>
 
                       <div>
-                        <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                        <label className="text-slate-800 dark:text-slate-200 ml-1">
                           Email (Login)
                         </label>
                         <input
@@ -669,13 +684,13 @@ export default function PersonnelPage() {
                           onChange={(e) =>
                             setFormData({ ...formData, email: e.target.value })
                           }
-                          className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-mono"
+                          className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-mono"
                           placeholder="officer@inppo.ph"
                         />
                       </div>
 
                       <div>
-                        <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                        <label className="text-slate-800 dark:text-slate-200 ml-1">
                           Temporary Password
                         </label>
                         <input
@@ -688,7 +703,7 @@ export default function PersonnelPage() {
                               password: e.target.value,
                             })
                           }
-                          className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-mono"
+                          className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-mono"
                           placeholder="••••••••"
                         />
                       </div>
@@ -700,7 +715,7 @@ export default function PersonnelPage() {
               {isEditMode && (
                 <div className="bg-blue-50 dark:bg-blue-900/20 px-6 py-3 border-b border-blue-100 dark:border-blue-900/50 flex gap-3 items-start">
                   <span className="text-blue-500 mt-0.5">ℹ</span>
-                  <p className="text-[11px] font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wide leading-relaxed">
+                  <p className="font-bold text-blue-700 dark:text-blue-400 leading-relaxed">
                     Login credentials cannot be modified here. To change
                     credentials, please use the password reset feature or
                     contact system administrator.
@@ -709,7 +724,7 @@ export default function PersonnelPage() {
               )}
 
               <div>
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                <label className="text-slate-800 dark:text-slate-200 ml-1">
                   Full Name
                 </label>
                 <input
@@ -719,42 +734,33 @@ export default function PersonnelPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, fullname: e.target.value })
                   }
-                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                   placeholder="Juan Dela Cruz"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                  <label className="text-slate-800 dark:text-slate-200 ml-1">
                     Rank
                   </label>
                   <select
-                    value={formData.rank}
+                    value={formData.rank_id}
                     onChange={(e) =>
-                      setFormData({ ...formData, rank: e.target.value })
+                      setFormData({ ...formData, rank_id: e.target.value })
                     }
-                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                   >
-                    <option value="Pat">Patrolman</option>
-                    <option value="PCpl">Police Corporal</option>
-                    <option value="PSSg">Police Staff Sergeant</option>
-                    <option value="PMSg">Police Master Staff Sergeant</option>
-                    <option value="PSMS">Police Senior Master Sergeant</option>
-                    <option value="PCMS">Police Chief Master Sergeant</option>
-                    <option value="PEMS">
-                      Police Executive Master Sergeant
-                    </option>
-                    <option value="PLT">Police Lieutenant</option>
-                    <option value="PCPT">Police Captain</option>
-                    <option value="PMAJ">Police Major</option>
-                    <option value="PLTCOL">Police Lieutenant Colonel</option>
-                    <option value="PCOL">Police Colonel</option>
-                    <option value="PBGEN">Police Brigadier General</option>
+                    <option value="">Select Rank</option>
+                    {rankList.map((rank) => (
+                      <option key={rank.id} value={rank.id}>
+                        {rank.description}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                  <label className="text-slate-800 dark:text-slate-200 ml-1">
                     Badge Number
                   </label>
                   <input
@@ -763,13 +769,13 @@ export default function PersonnelPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, badge_number: e.target.value })
                     }
-                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-mono"
+                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-mono"
                     placeholder="e.g. 12345"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-4">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                <label className="text-slate-800 dark:text-slate-200 ml-1">
                   Designation
                 </label>
                 <input
@@ -778,14 +784,14 @@ export default function PersonnelPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, designation: e.target.value })
                   }
-                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                   placeholder="e.g. Driver, Investigator, K9 Handler"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                  <label className="text-slate-800 dark:text-slate-200 ml-1">
                     Phone Number
                   </label>
                   <input
@@ -794,12 +800,12 @@ export default function PersonnelPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, phone_number: e.target.value })
                     }
-                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                     placeholder="+63 912 345 6789"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                  <label className="text-slate-800 dark:text-slate-200 ml-1">
                     Viber Number
                   </label>
                   <input
@@ -808,26 +814,26 @@ export default function PersonnelPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, viber_number: e.target.value })
                     }
-                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                     placeholder="+63 912 345 6789"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                <label className="text-slate-800 dark:text-slate-200 ml-1">
                   Unit/Station
                 </label>
                 <select
                   required
                   value={formData.unit_id}
                   onChange={(e) => {
-                    if (role === 'admin') {
+                    if (role === "admin") {
                       setFormData({ ...formData, unit_id: e.target.value });
                     }
                   }}
-                  disabled={role !== 'admin'}
-                  className={`w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${role !== 'admin' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  disabled={role !== "admin"}
+                  className={`w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${role !== "admin" ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
                   <option value="" disabled>
                     Select Unit/Station
@@ -841,7 +847,7 @@ export default function PersonnelPage() {
               </div>
 
               <div className="grid grid-cols-1 gap-4">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                <label className="text-slate-800 dark:text-slate-200 ml-1">
                   Duty Status
                 </label>
                 <select
@@ -849,7 +855,7 @@ export default function PersonnelPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, duty_status: e.target.value })
                   }
-                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 >
                   <option value="Active Duty">Active Duty</option>
                   <option value="Mandatory Leave">Mandatory Leave</option>
@@ -870,7 +876,7 @@ export default function PersonnelPage() {
               {/* Remarks field - only visible when duty_status is "Others" */}
               {formData.duty_status === "Others" && (
                 <div className="grid grid-cols-1 gap-4">
-                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                  <label className="text-slate-800 dark:text-slate-200 ml-1">
                     Remarks
                   </label>
                   <input
@@ -879,7 +885,7 @@ export default function PersonnelPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, remarks: e.target.value })
                     }
-                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                     placeholder="Please specify duty status details"
                   />
                 </div>
@@ -892,13 +898,13 @@ export default function PersonnelPage() {
                     setShowAddModal(false);
                     setEditingPerson(null);
                   }}
-                  className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black uppercase tracking-tighter hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                  className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-800 rounded-xl font-blacktracking-tighter hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-tighter hover:bg-blue-700 shadow-lg shadow-blue-200 dark:shadow-none transition-all"
+                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-blacktracking-tighter hover:bg-blue-700 shadow-lg shadow-blue-200 dark:shadow-none transition-all"
                 >
                   {isEditMode ? "Update" : "Register"}
                 </button>

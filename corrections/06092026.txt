@@ -1,0 +1,36 @@
+
+1. Dashboard
+-Total Strength (include PCO, PNCO, NUP, Office duty, Patrol personnel, Other Duties/Function, Ineffective)
+-Patrol personnel (Mobile (Police Presence, On move), TMRU, Bike, Foot, PBox, Cul de sac, TAC)
+-Patrol personnel - include link to more details
+-Tour of Duty (Current Duty Shift)
+
+2. Live Tracking
+-Include no movement indicator in the map
+-Add personnel assigned with rank/name, designation and contact info.
+
+3. TrackingHistory
+-Update the calculations of the data.
+
+4. Mobility Assets
+-Include all types of mobility
+-include status and remarks
+
+5. Patrol Schedule
+-Add column for replacement and remarks
+-Add teaming and copy paste feature.
+
+6. Analytics
+-list of personnel with number of rank/name, designation, duty schedule, patrol schedule, patrol type, number of hour spend, and km spend.
+
+7. Shift/Duty Schedule
+-Add Shift/Duty Schedule should be in modal form.
+-Maximize the space for the data table.
+
+7. Others
+-Add incident report for today - SMS only
+-Add activity for today, link to inppo-calendar.online
+-Real icons for navigations
+-Make fonts bigger.
+-Implement UI UX PRO MAX design
+-Calculation of Man-hour should based on the patrol schedule (only within/between the given date, time_from, and time_to)

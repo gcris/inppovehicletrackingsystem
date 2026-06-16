@@ -11,39 +11,10 @@ import {
   Loader2,
   CheckCircle2,
   MapPin,
+  Search,
 } from "lucide-react";
 
-export type Personnel = {
-  id: string;
-  fullname: string;
-  rank: string;
-  badge_number: string | null;
-  unit_id: string;
-};
-
-export type DutyShift = {
-  id: string;
-  shift_name: string;
-  time_start: string;
-  time_end: string;
-  is_overnight: boolean;
-};
-
-export type Unit = {
-  id: string;
-  unit_name: string;
-};
-
-export type ShiftAssignment = {
-  id: string;
-  personnel_id: string;
-  shift_id: string;
-  unit_id: string;
-  duty_date: string;
-  personnel?: Personnel;
-  duty_shift?: DutyShift;
-  unit?: Unit;
-};
+import { Personnel, DutyShift, Unit, ShiftAssignment } from "../lib/supabase";
 
 export default function ShiftManagement() {
   const { unitId, isAdmin, role } = useAuth();
@@ -62,6 +33,7 @@ export default function ShiftManagement() {
     duty_date: selectedDate,
     unit_id: "" as string,
   });
+  const [personnelSearch, setPersonnelSearch] = useState("");
   const [loading, setLoading] = useState({
     personnel: false,
     shifts: false,
@@ -75,6 +47,12 @@ export default function ShiftManagement() {
   useEffect(() => {
     if (!isAdmin && unitId) {
       setSelectedUnitId(unitId);
+      setFormData((prev) => ({
+        ...prev,
+        unit_id: unitId,
+        // Clear personnel IDs when unit changes to ensure they belong to the correct unit
+        personnel_ids: [],
+      }));
     }
   }, [isAdmin, unitId]);
 
@@ -108,7 +86,7 @@ export default function ShiftManagement() {
     fetchUnits();
   }, [isAdmin, unitId]);
 
-  // Fetch personnel based on selected unit
+  // Fetch personnel based on selected unit and exclude those already assigned to shifts on selected date
   useEffect(() => {
     const fetchPersonnel = async () => {
       if (!selectedUnitId) {
@@ -117,14 +95,47 @@ export default function ShiftManagement() {
       }
       setLoading((prev) => ({ ...prev, personnel: true }));
       try {
-        const { data, error } = await supabase
+        // First get all personnel for the unit
+        const { data: allPersonnel, error: personnelError } = await supabase
           .from("personnel")
-          .select("id, fullname, rank, badge_number, unit_id")
-          .eq("unit_id", selectedUnitId)
-          .order("fullname");
+          .select(
+            "id, fullname, badge_number, unit_id, rank:rank_id(rank_name, level)",
+          )
+          .eq("unit_id", selectedUnitId);
 
-        if (error) throw error;
-        setPersonnel(data);
+        if (personnelError) throw personnelError;
+
+        // Then get personnel IDs that are already assigned to shifts on the selected date
+        const assignedPersonnelIds = new Set();
+        if (selectedDate) {
+          const { data: shiftData, error: shiftError } = await supabase
+            .from("shift_assignments")
+            .select("personnel_id")
+            .eq("duty_date", selectedDate)
+            .eq("unit_id", selectedUnitId);
+
+          if (!shiftError && shiftData) {
+            shiftData.forEach((assignment) => {
+              assignedPersonnelIds.add(assignment.personnel_id);
+            });
+          }
+        }
+
+        // Filter out personnel who are already assigned
+        const availablePersonnel = allPersonnel.filter(
+          (person) => !assignedPersonnelIds.has(person.id),
+        );
+
+        // Sort by rank level descending, then fullname ascending
+        const sortedPersonnel = [...availablePersonnel].sort((a, b) => {
+          const rankA = a.rank?.level ?? -Infinity;
+          const rankB = b.rank?.level ?? -Infinity;
+          if (rankB !== rankA) {
+            return rankB - rankA; // descending
+          }
+          return a.fullname.localeCompare(b.fullname);
+        });
+        setPersonnel(sortedPersonnel);
       } catch (err: any) {
         setError(err.message);
         console.error("Error fetching personnel:", err);
@@ -134,7 +145,7 @@ export default function ShiftManagement() {
     };
 
     fetchPersonnel();
-  }, [selectedUnitId]);
+  }, [selectedUnitId, selectedDate]);
 
   // Fetch shifts
   useEffect(() => {
@@ -174,7 +185,7 @@ export default function ShiftManagement() {
             shift_id,
             unit_id,
             duty_date,
-            personnel:personnel_id(id, fullname, rank, badge_number, unit_id),
+            personnel:personnel_id(id, fullname, badge_number, unit_id, rank:rank_id(rank_name, level)),
             duty_shift:shift_id(id, shift_name, time_start, time_end, is_overnight),
             unit:unit_id(id, unit_name)
           `,
@@ -255,6 +266,16 @@ export default function ShiftManagement() {
       return;
     }
 
+    // Validate each selected personnel belongs to the selected unit
+    for (const personnelId of formData.personnel_ids) {
+      const officer = personnel.find((p) => p.id === personnelId);
+      if (officer && officer.unit_id !== formData.unit_id) {
+        setError("Selected officer does not belong to the selected unit.");
+        setLoading((prev) => ({ ...prev, submit: false }));
+        return;
+      }
+    }
+
     if (!formData.shift_id) {
       setError("Please select a shift");
       setLoading((prev) => ({ ...prev, submit: false }));
@@ -319,12 +340,18 @@ export default function ShiftManagement() {
             shift_id,
             duty_date,
             unit_id,
-            personnel:personnel_id(id, fullname, rank, badge_number, unit_id),
-            duty_shift:shift_id(id, shift_name, time_start, time_end, is_overnight)
+            personnel:personnel_id(id, fullname, badge_number, unit_id, rank:rank_id(rank_name, level)),
+            duty_shift:shift_id(id, shift_name, time_start, time_end, is_overnight),
+            unit:unit_id(id, unit_name)
           `,
           )
           .eq("duty_date", selectedDate)
           .order("duty_date", { ascending: false });
+
+        // Add unit filtering for non-admin users
+        if (!isAdmin && unitId) {
+          query = query.eq("unit_id", unitId);
+        }
 
         // Add shift filter if selected
         if (selectedShiftId) {
@@ -364,7 +391,7 @@ export default function ShiftManagement() {
       if (error) throw error;
       setSuccess("Assignment removed successfully!");
       // Refetch assignments
-      const { data } = await supabase
+      let query = supabase
         .from("shift_assignments")
         .select(
           `
@@ -372,12 +399,20 @@ export default function ShiftManagement() {
           personnel_id,
           shift_id,
           duty_date,
-          personnel:personnel_id(id, fullname, rank, badge_number),
-          duty_shift:shift_id(id, shift_name, time_start, time_end, is_overnight)
+          personnel:personnel_id(id, fullname, badge_number, unit_id, rank:rank_id(rank_name, level)),
+          duty_shift:shift_id(id, shift_name, time_start, time_end, is_overnight),
+          unit:unit_id(id, unit_name)
         `,
         )
         .eq("duty_date", selectedDate)
         .order("duty_date", { ascending: false });
+
+      // Add unit filtering for non-admin users
+      if (!isAdmin && unitId) {
+        query = query.eq("unit_id", unitId);
+      }
+
+      const { data } = await query;
       // Map Supabase response to correct TypeScript types
       const mappedAssignments = data.map((assignment: any) => ({
         id: assignment.id,
@@ -386,6 +421,7 @@ export default function ShiftManagement() {
         duty_date: assignment.duty_date,
         personnel: assignment.personnel?.[0] || undefined,
         duty_shift: assignment.duty_shift?.[0] || undefined,
+        unit: assignment.unit?.[0] || undefined,
       }));
       setAssignments(mappedAssignments);
     } catch (err: any) {
@@ -433,16 +469,12 @@ export default function ShiftManagement() {
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Unit Selection */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                <label className=" font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
                   Unit/Station
                 </label>
                 <select
                   value={selectedUnitId}
-                  onChange={(e) => {
-                    if (isAdmin) {
-                      setSelectedUnitId(e.target.value);
-                    }
-                  }}
+                  onChange={handleUnitChange}
                   disabled={!isAdmin || loading.personnel || loading.submit}
                   className={`w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors ${!isAdmin ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
@@ -457,7 +489,7 @@ export default function ShiftManagement() {
 
               {/* Date Picker */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                <label className=" font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
                   Duty Date
                 </label>
                 <input
@@ -469,44 +501,80 @@ export default function ShiftManagement() {
                 />
               </div>
 
-              {/* Personnel Multi-Select */}
+              {/* Personnel Searchable Checkbox List */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                <label className=" font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
                   Personnel
                 </label>
-                <select
-                  multiple
-                  value={formData.personnel_ids}
-                  onChange={(e) => {
-                    const selectedIds = Array.from(
-                      e.target.selectedOptions,
-                    ).map((option) => option.value);
-                    setFormData({ ...formData, personnel_ids: selectedIds });
-                  }}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors min-h-[80px]"
-                  disabled={loading.personnel || loading.submit}
-                >
-                  {personnel.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.rank} {p.fullname}
-                    </option>
-                  ))}
-                </select>
-                {personnel.length === 0 && selectedUnitId && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 italic">
-                    No personnel found for selected unit
-                  </p>
-                )}
-                {!selectedUnitId && personnel.length === 0 && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 italic">
-                    Select a unit to see personnel
-                  </p>
-                )}
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search personnel by name or rank..."
+                      value={personnelSearch}
+                      onChange={(e) => setPersonnelSearch(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    />
+                  </div>
+                  <div className="w-full max-h-[200px] overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3">
+                    {selectedUnitId ? (
+                      personnel
+                        .filter(
+                          (p) =>
+                            p.fullname
+                              .toLowerCase()
+                              .includes(personnelSearch.toLowerCase()) ||
+                            (p.rank?.rank_name ?? "")
+                              .toLowerCase()
+                              .includes(personnelSearch.toLowerCase()),
+                        )
+                        .map((p) => (
+                          <div key={p.id} className="flex items-center p-2">
+                            <input
+                              type="checkbox"
+                              checked={formData.personnel_ids.includes(p.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData({
+                                    ...formData,
+                                    personnel_ids: [
+                                      ...formData.personnel_ids,
+                                      p.id,
+                                    ],
+                                  });
+                                } else {
+                                  setFormData({
+                                    ...formData,
+                                    personnel_ids:
+                                      formData.personnel_ids.filter(
+                                        (id) => id !== p.id,
+                                      ),
+                                  });
+                                }
+                              }}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <span className="ml-3 text-sm font-bold text-slate-900 dark:text-white">
+                              {p.rank?.rank_name ?? "No Rank"} {p.fullname}
+                            </span>
+                          </div>
+                        ))
+                    ) : (
+                      <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6">
+                        Please select a unit first
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <p className="text-[14px] text-slate-500 dark:text-slate-400">
+                  Selected {formData.personnel_ids.length} personnel
+                </p>
               </div>
 
               {/* Shift Dropdown */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                <label className=" font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
                   Shift
                 </label>
                 <select
@@ -569,7 +637,7 @@ export default function ShiftManagement() {
                   </span>
                 </div>
                 <div className="relative">
-                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                  <label className=" font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
                     Shift Filter
                   </label>
                   <select
@@ -630,7 +698,8 @@ export default function ShiftManagement() {
                           <div className="flex items-center gap-3">
                             <div className="flex flex-col">
                               <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                                {assignment.personnel?.rank ?? "N/A"}{" "}
+                                {assignment.personnel?.rank?.rank_name ??
+                                  "No Rank"}{" "}
                                 {assignment.personnel?.fullname ?? "N/A"}
                               </span>
                               {assignment.personnel?.badge_number && (
@@ -652,7 +721,7 @@ export default function ShiftManagement() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                          <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                             {assignment.duty_shift?.time_start} -{" "}
                             {assignment.duty_shift?.time_end}
                           </span>

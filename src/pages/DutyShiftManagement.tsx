@@ -210,14 +210,14 @@ export default function DutyShiftManagement() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
+    <div className="flex flex-col gap-6">
       <div className="max-w-4xl mx-auto">
         <header className="mb-6">
           <h1 className="text-3xl font-black text-slate-900 dark:text-white">
-            Duty Shift Management
+            Duty Shift
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">
-            Manage duty shifts (create, edit, delete)
+            Manage duty shifts
           </p>
         </header>
 
@@ -246,7 +246,7 @@ export default function DutyShiftManagement() {
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Shift Name */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                <label className=" font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
                   Shift Name
                 </label>
                 <input
@@ -262,7 +262,7 @@ export default function DutyShiftManagement() {
 
               {/* Start Time */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                <label className=" font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
                   Start Time
                 </label>
                 <input
@@ -278,7 +278,7 @@ export default function DutyShiftManagement() {
 
               {/* End Time */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
+                <label className=" font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">
                   End Time
                 </label>
                 <input
@@ -294,7 +294,7 @@ export default function DutyShiftManagement() {
 
               {/* Overnight Shift */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1 flex items-center">
+                <label className=" font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1 flex items-center">
                   <input
                     type="checkbox"
                     name="is_overnight"
@@ -420,7 +420,7 @@ export default function DutyShiftManagement() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
                             className={`
-                            text-xs font-bold
+                            text-[10px] font-bold
                             ${shift.is_overnight ? "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200" : "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200"}
                             px-2 py-1 rounded-full
                           `}

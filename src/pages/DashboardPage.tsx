@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import {
   supabase,
-  Vehicle,
+  Unit,
+  MobilityAsset,
   VehicleLog,
   Personnel,
   PatrolSchedule,
@@ -23,6 +24,7 @@ import {
   Bike,
   CheckCircle,
   Motorbike,
+  PowerOff,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
@@ -31,21 +33,23 @@ export default function DashboardPage() {
   const { unitId, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState({
-    totalPersonnel: 0,
+    totalStrength: 0,
     activePersonnel: 0,
     ineffectivePersonnel: 0,
     offDutyPersonnel: 0,
-    mobilePatrolling: 0,
-    tmrUPatrolling: 0,
-    footPatrolling: 0,
-    bikePatrolling: 0,
-    checkpoint: 0,
+    onDutyShiftPersonnel: 0,
+    mobilePatrolling: "",
+    tmrUPatrolling: "",
+    footPatrolling: "",
+    bikePatrolling: "",
+    checkpoint: "",
     mobilePatrolVehicles: 0,
     tmrUPatrolVehicles: 0,
     bikePatrolVehicles: 0,
     recentLogs: [] as any[],
     schedules: [] as any[],
   });
+  const [unitName, setUnitName] = useState("");
 
   useEffect(() => {
     fetchDashboardData();
@@ -58,37 +62,61 @@ export default function DashboardPage() {
       let personnelQuery = supabase.from("personnel").select("*");
       let schedulesQuery = supabase
         .from("patrol_schedule")
-        .select("*, unit(*), schedule_assignments(personnel(*))")
+        .select("*, unit(*), schedule_assignments(personnel(*, rank(*)))")
         .eq("date", format(new Date(), "yyyy-MM-dd"));
       let logsQuery = supabase
         .from("vehicle_logs")
-        .select("*, vehicles(unit_id, vehicle_type)")
+        .select("*, mobility_assets(unit_id, plate_number, vehicle_type)")
         .order("captured_at", { ascending: false })
         .limit(5);
-      let vehiclesQuery = supabase.from("vehicles").select("*, vehicle_type");
+      let vehiclesQuery = supabase
+        .from("mobility_assets")
+        .select("*, vehicle_type");
+      let shiftAssignmentsQuery = supabase
+        .from("shift_assignments")
+        .select("personnel_id")
+        .eq("duty_date", format(new Date(), "yyyy-MM-dd"));
 
       // Apply unit filtering for non-admin users
       if (!isAdmin && unitId) {
         personnelQuery = personnelQuery.eq("unit_id", unitId);
         schedulesQuery = schedulesQuery.eq("unit_id", unitId);
-        // For logs, we need to filter by vehicle's unit_id
+        // For logs, we need to filter by mobility asset's unit_id
         logsQuery = supabase
           .from("vehicle_logs")
-          .select("*, vehicles(unit_id, vehicle_type)")
+          .select("*, mobility_assets(unit_id, plate_number, vehicle_type)")
           .order("captured_at", { ascending: false })
           .limit(5);
         vehiclesQuery = vehiclesQuery.eq("unit_id", unitId);
+        shiftAssignmentsQuery = shiftAssignmentsQuery.eq("unit_id", unitId);
+
+        const { data } = await supabase
+          .from("unit")
+          .select("unit_name")
+          .eq("id", unitId)
+          .single();
+
+        if (data) {
+          setUnitName(data.unit_name);
+        }
       }
 
-      const [personnelRes, schedulesRes, logsRes, vehiclesRes] =
-        await Promise.all([
-          personnelQuery,
-          schedulesQuery,
-          logsQuery,
-          vehiclesQuery,
-        ]);
+      const [
+        personnelRes,
+        schedulesRes,
+        logsRes,
+        vehiclesRes,
+        shiftAssignmentsRes,
+      ] = await Promise.all([
+        personnelQuery,
+        schedulesQuery,
+        logsQuery,
+        vehiclesQuery,
+        shiftAssignmentsQuery,
+      ]);
 
       if (personnelRes.error) throw personnelRes.error;
+      if (shiftAssignmentsRes.error) throw shiftAssignmentsRes.error;
 
       if (personnelRes.data) {
         // Calculate personnel statistics
@@ -100,37 +128,34 @@ export default function DashboardPage() {
         ).length;
         const ineffectivePersonnel = totalPersonnel - activePersonnel;
 
-        // Calculate off duty personnel (Active Duty without schedule for today)
+        // Calculate off duty personnel (Active Duty without shift assignment for today)
         const activeDutyPersonnel = personnelRes.data.filter(
           (p) => p.duty_status === "Active Duty",
         );
 
         let offDutyPersonnelCount = 0;
-        if (schedulesRes.data) {
-          const schedules = schedulesRes.data;
-          const personnelWithSchedule = new Set();
-          schedules.forEach((schedule) => {
-            if (schedule.schedule_assignments) {
-              schedule.schedule_assignments.forEach((assignment) => {
-                personnelWithSchedule.add(assignment.personnel_id);
-              });
-            }
-          });
-
+        let onDutyShiftPersonnelCount = 0;
+        if (shiftAssignmentsRes.data) {
+          const assignedPersonnelIds = new Set(
+            shiftAssignmentsRes.data.map((a) => a.personnel_id),
+          );
+          onDutyShiftPersonnelCount = assignedPersonnelIds.size;
           offDutyPersonnelCount = activeDutyPersonnel.filter(
-            (person) => !personnelWithSchedule.has(person.id),
+            (person) => !assignedPersonnelIds.has(person.id),
           ).length;
         } else {
-          // If no schedules data, all active duty are off duty
+          // If no shift assignments data, all active duty are off duty
           offDutyPersonnelCount = activeDutyPersonnel.length;
+          onDutyShiftPersonnelCount = 0;
         }
 
         setData((prev) => ({
           ...prev,
-          totalPersonnel,
+          totalStrength: totalPersonnel,
           activePersonnel,
           ineffectivePersonnel,
           offDutyPersonnel: offDutyPersonnelCount,
+          onDutyShiftPersonnel: onDutyShiftPersonnelCount,
           schedules: schedulesRes.data || [],
         }));
       }
@@ -139,33 +164,57 @@ export default function DashboardPage() {
         // Calculate patrol statistics based on patrol_schedule table
         const schedules = schedulesRes.data;
 
-        const mobilePatrolling = schedules.filter(
-          (s) => s.patrol_type === "Mobile",
+        // Calculate schedule counts
+        const mobilePatrollingSchedules = schedules.filter(
+          (s) => s.patrol_type === "Mobile Patrol",
         ).length;
 
-        const tmrUPatrolling = schedules.filter(
-          (s) => s.sector === "TMRU" || s.sector === "Traffic",
+        const tmrUPatrollingSchedules = schedules.filter(
+          (s) => s.patrol_type === "TMRU Patrol",
         ).length;
 
-        const footPatrolling = schedules.filter(
-          (s) => s.patrol_type === "Foot",
+        const checkpointSchedules = schedules.filter(
+          (s) => s.patrol_type === "Checkpoint",
         ).length;
 
-        const bikePatrolling = schedules.filter(
-          (s) => s.sector === "Bike" || s.sector === "Cycling",
-        ).length;
+        // Calculate actual personnel counts for each patrol type
+        const mobilePatrollingPersonnel = schedules
+          .filter((s) => s.patrol_type === "Mobile Patrol")
+          .reduce((total, schedule) => {
+            return total + (schedule.schedule_assignments?.length || 0);
+          }, 0);
 
-        const checkpoint = schedules.filter(
-          (s) => s.sector === "Checkpoint" || s.sector === "Traffic Control",
-        ).length;
+        const tmrUPatrollingPersonnel = schedules
+          .filter((s) => s.patrol_type === "TMRU Patrol")
+          .reduce((total, schedule) => {
+            return total + (schedule.schedule_assignments?.length || 0);
+          }, 0);
+
+        const footPatrollingPersonnel = schedules
+          .filter((s) => s.patrol_type === "Foot Patrol")
+          .reduce((total, schedule) => {
+            return total + (schedule.schedule_assignments?.length || 0);
+          }, 0);
+
+        const bikePatrollingPersonnel = schedules
+          .filter((s) => s.patrol_type === "Bike Patrol")
+          .reduce((total, schedule) => {
+            return total + (schedule.schedule_assignments?.length || 0);
+          }, 0);
+
+        const checkpointPersonnel = schedules
+          .filter((s) => s.patrol_type === "Checkpoint")
+          .reduce((total, schedule) => {
+            return total + (schedule.schedule_assignments?.length || 0);
+          }, 0);
 
         setData((prev) => ({
           ...prev,
-          mobilePatrolling,
-          tmrUPatrolling,
-          footPatrolling,
-          bikePatrolling,
-          checkpoint,
+          mobilePatrolling: `${mobilePatrollingSchedules} | ${mobilePatrollingPersonnel}`,
+          tmrUPatrolling: `${tmrUPatrollingSchedules} | ${tmrUPatrollingPersonnel}`,
+          footPatrolling: `${footPatrollingPersonnel}`,
+          bikePatrolling: `${bikePatrollingPersonnel}`,
+          checkpoint: `${checkpointSchedules} | ${checkpointPersonnel}`,
           schedules: schedulesRes.data || [],
         }));
       }
@@ -175,7 +224,8 @@ export default function DashboardPage() {
         let filteredLogs = logsRes.data;
         if (!isAdmin && unitId) {
           filteredLogs = logsRes.data.filter(
-            (log) => log.vehicles && log.vehicles.unit_id === unitId,
+            (log) =>
+              log.mobility_assets && log.mobility_assets.unit_id === unitId,
           );
         }
         setData((prev) => ({
@@ -190,10 +240,10 @@ export default function DashboardPage() {
           (v) => v.vehicle_type === "Mobile Patrol",
         ).length;
         const tmrUPatrolVehicles = vehiclesRes.data.filter(
-          (v) => v.vehicle_type === "TMRU",
+          (v) => v.vehicle_type === "Motorcycle",
         ).length;
         const bikePatrolVehicles = vehiclesRes.data.filter(
-          (v) => v.vehicle_type === "Bike Patrol",
+          (v) => v.vehicle_type === "Bike",
         ).length;
 
         setData((prev) => ({
@@ -214,18 +264,18 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+          <h1 className="text-2xl text-slate-900 dark:text-white flex items-center gap-2">
             <Activity className="w-6 h-6 text-blue-600" />
-            Command Dashboard
+            {unitName} Dashboard
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-1">
-            Real-time situational awareness for INPPO Provincial Command
+          <p className="text-slate-800 dark:text-slate-200 mt-1">
+            Real-time situational awareness for {unitName}
           </p>
         </div>
 
         <div className="bg-white dark:bg-slate-900 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-2 transition-colors">
           <Clock className="w-4 h-4 text-slate-400" />
-          <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+          <span className="text-slate-800 dark:text-slate-200">
             {format(new Date(), "HH:mm")} • {format(new Date(), "MMM dd, yyyy")}
           </span>
         </div>
@@ -237,51 +287,56 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="flex-1 space-y-6">
+          <div className="mb-4 flex items-center gap-3">
+            <img
+              src="/assets/total-strength.png"
+              alt="Vehicle Statistics"
+              className="w-8 h-8 object-contain"
+            />
+
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">Personnel</h2>
+            </div>
+          </div>
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 gap-4 mb-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
               <SummaryCard
-                label="Total Personnel"
-                value={data.totalPersonnel}
-                icon={<Users className="w-5 h-5 text-blue-600" />}
-                sub="All police personnel"
+                label="Total Strength"
+                value={data.totalStrength.toString()}
               />
               <SummaryCard
-                label="Active Personnel"
-                value={data.activePersonnel}
-                icon={<Activity className="w-5 h-5 text-green-600" />}
-                sub="Currently on duty"
+                label="Actual Present"
+                value={data.onDutyShiftPersonnel.toString()}
               />
               <SummaryCard
-                label="Ineffective Personnel"
-                value={data.ineffectivePersonnel}
-                icon={<AlertCircle className="w-5 h-5 text-amber-500" />}
-                sub="All leaves, NDS, Suspended, AWOL, etc."
+                label="Patrol Duty"
+                value={data.activePersonnel.toString()}
               />
               <SummaryCard
                 label="Off Duty"
-                value={data.offDutyPersonnel}
-                icon={<AlertCircle className="w-5 h-5 text-amber-500" />}
-                sub="Active Duty"
+                value={data.offDutyPersonnel.toString()}
               />
               <SummaryCard
-                label="Mobile Patrol"
-                value={data.mobilePatrolVehicles}
-                icon={<Car className="w-5 h-5 text-blue-600" />}
-                sub="Number of Mobiles"
+                label="Ineffective Personnel"
+                value={data.ineffectivePersonnel.toString()}
               />
-              <SummaryCard
-                label="TMRU"
-                value={data.tmrUPatrolVehicles}
-                icon={<Motorbike className="w-5 h-5 text-purple-600" />}
-                sub="Number of TMRUs"
-              />
-              <SummaryCard
-                label="Bike Patrol"
-                value={data.bikePatrolVehicles}
-                icon={<Bike className="w-5 h-5 text-orange-500" />}
-                sub="Number of Bikes"
-              />
+            </div>
+
+            <hr className="mt-4 border-gray-600" />
+          </div>
+
+          <div className="mb-4 flex items-center gap-3">
+            <img
+              src="/assets/patrol-schedule.png"
+              alt="Vehicle Statistics"
+              className="w-8 h-8 object-contain"
+            />
+
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">
+                Patrolling Statistics
+              </h2>
             </div>
           </div>
 
@@ -291,43 +346,65 @@ export default function DashboardPage() {
               <SummaryCard
                 label="Mobile Patrolling"
                 value={data.mobilePatrolling}
-                icon={<Car className="w-5 h-5 text-blue-600" />}
-                sub="Personnel on mobile patrol"
               />
               <SummaryCard
                 label="TMRU Patrolling"
                 value={data.tmrUPatrolling}
-                icon={<Motorbike className="w-5 h-5 text-purple-600" />}
-                sub="Personnel in TMRU"
               />
               <SummaryCard
                 label="Foot Patrolling"
                 value={data.footPatrolling}
-                icon={<Users className="w-5 h-5 text-green-600" />}
-                sub="Personnel on foot patrol"
               />
               <SummaryCard
                 label="Bike Patrolling"
                 value={data.bikePatrolling}
-                icon={<Bike className="w-5 h-5 text-orange-500" />}
-                sub="Personnel on bike patrol"
+              />
+              <SummaryCard label="Checkpoint" value={data.checkpoint} />
+            </div>
+            <hr className="mt-4 border-gray-600" />
+          </div>
+
+          <div className="mb-4 flex items-center gap-3">
+            <img
+              src="/assets/mobility-assets.png"
+              alt="Vehicle Statistics"
+              className="w-8 h-8 object-contain"
+            />
+
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">
+                Mobility Asset
+              </h2>
+            </div>
+          </div>
+
+          {/* Vehicle Statistics Cards */}
+          <div className="grid grid-cols-1 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
+              <SummaryCard
+                label="Mobile Patrol"
+                value={data.mobilePatrolVehicles.toString()}
               />
               <SummaryCard
-                label="Checkpoint"
-                value={data.checkpoint}
-                icon={<Zap className="w-5 h-5 text-yellow-500" />}
-                sub="Personnel at checkpoints"
+                label="TMRU"
+                value={data.tmrUPatrolVehicles.toString()}
+              />
+              <SummaryCard
+                label="Bike Patrol"
+                value={data.bikePatrolVehicles.toString()}
               />
             </div>
+
+            <hr className="mt-4 border-gray-600" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Recent Vehicle Activity */}
-            <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-colors">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-colors">
               <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <h3 className="font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest text-[10px] flex items-center gap-2">
+                <h3 className="font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
                   <Navigation className="w-4 h-4 text-blue-600" />
-                  Recent Telemetry Updates
+                  Recent Vehicle Movement
                 </h3>
               </div>
               <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
@@ -336,35 +413,22 @@ export default function DashboardPage() {
                     key={log.id}
                     className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                   >
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                          log.vehicles?.load_status === "Expired"
-                            ? "bg-amber-50 dark:bg-amber-900/20 text-amber-500"
-                            : "bg-slate-50 dark:bg-slate-800 text-slate-500"
-                        }`}
-                      >
+                    <div className="flex items-center gap-4 text-md">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center">
                         <Car className="w-5 h-5" />
                       </div>
                       <div>
-                        <p className="text-sm font-black text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">
-                          {log.vehicles?.plate_number}
+                        <p className="font-black text-slate-900 dark:text-slate-200 transition-colors">
+                          {log.mobility_assets?.plate_number}
                         </p>
-                        <div className="flex items-center gap-2 text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">
-                          <span className="text-blue-600">
-                            {log.speed} km/h
-                          </span>
-                          <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700"></span>
-                          <span>Signal: {log.network_signal}%</span>
+                        <div className="flex items-center gap-2">
+                          <span>{log.speed} km/h</span>
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                        {format(new Date(log.captured_at), "HH:mm:ss")}
-                      </p>
-                      <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">
-                        Received
+                      <p className="text-slate-700 dark:text-slate-300">
+                        {format(new Date(log.captured_at), "HH:mm")}H
                       </p>
                     </div>
                   </div>
@@ -373,11 +437,11 @@ export default function DashboardPage() {
             </div>
 
             {/* Current Deployment List */}
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-colors">
+            <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-colors">
               <div className="p-4 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest text-[10px] flex items-center gap-2">
+                <h3 className="font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
                   <Clock className="w-4 h-4 text-blue-600" />
-                  Active Assignments
+                  Today's Patrol Schedule
                 </h3>
               </div>
               <div className="p-4 space-y-4">
@@ -386,31 +450,51 @@ export default function DashboardPage() {
                     key={sched.id}
                     className="flex flex-col gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest leading-none mb-1">
+                    <div className="font-bold flex items-center justify-between">
+                      <span className="text-blue-600 leading-none mb-1">
                         {sched.unit?.unit_name}
+                        {" | "}
+                        {sched.sector}
+                        {" | "}
+                        {sched.patrol_type}
                       </span>
-                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase leading-none">
+                      <span className="text-slate-800 dark:text-slate-200 leading-none">
                         {sched.time_from.slice(0, 5)} -{" "}
                         {sched.time_to.slice(0, 5)}
                       </span>
                     </div>
-                    <p className="text-xs font-black text-slate-800 dark:text-slate-200 leading-tight">
+                    <p className="text-slate-800 dark:text-slate-200 leading-tight">
                       {/* Display personnel names from junction table */}
                       {sched.schedule_assignments?.length > 0
-                        ? sched.schedule_assignments
-                            .map((assign) => assign.personnel?.fullname)
+                        ? [...sched.schedule_assignments]
+                            .sort((a, b) => {
+                              const rankA =
+                                a.personnel?.rank?.level ?? -Infinity;
+                              const rankB =
+                                b.personnel?.rank?.level ?? -Infinity;
+                              return rankB - rankA; // descending
+                            })
+                            .map(
+                              (assign: {
+                                personnel: {
+                                  rank?: { rank_name: string };
+                                  fullname: string;
+                                };
+                              }) =>
+                                `${assign.personnel.rank?.rank_name ?? "No Rank"} ${assign.personnel?.fullname}`.trim(),
+                            )
                             .filter(
-                              (name): name is string => name !== undefined,
+                              (name: string | undefined): name is string =>
+                                name !== undefined,
                             )
                             .join(", ")
                         : // Fallback to old personnel data
                           sched.personnel?.fullname || "Unassigned"}
                     </p>
                     <div className="flex items-center gap-2">
-                      <Radio className="w-3 h-3 text-slate-400" />
-                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">
-                        {sched.sector}
+                      <span className="text-slate-800 dark:text-slate-200 uppercase">
+                        Number of personnel:{" "}
+                        {sched.schedule_assignments?.length}
                       </span>
                     </div>
                   </div>
@@ -422,7 +506,7 @@ export default function DashboardPage() {
                 )}
                 <Link
                   to="/schedule"
-                  className="block text-center text-[10px] font-black text-blue-600 uppercase tracking-widest pt-2 hover:underline"
+                  className="block text-center  font-black text-blue-600 pt-2 hover:underline"
                 >
                   View Full Schedule
                 </Link>
@@ -435,47 +519,15 @@ export default function DashboardPage() {
   );
 }
 
-function SummaryCard({
-  label,
-  value,
-  icon,
-  status,
-  sub,
-}: {
-  label: string;
-  value: number;
-  icon: React.ReactNode;
-  status?: "success" | "danger";
-  sub: string;
-}) {
+function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4 transition-colors">
-      <div className="flex items-center justify-between">
-        <div className="p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
-          {icon}
-        </div>
-        <div
-          className={`w-2 h-2 rounded-full ${
-            status === "danger" && value > 0
-              ? "bg-red-500 animate-pulse"
-              : status === "success"
-                ? "bg-green-500"
-                : "bg-slate-200 dark:bg-slate-700"
-          }`}
-        ></div>
-      </div>
-      <div>
-        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
-          {label}
-        </p>
-        <h3
-          className={`text-3xl font-black tracking-tighter ${status === "success" ? "text-green-600" : status === "danger" && value > 0 ? "text-red-500" : "text-slate-900 dark:text-white"}`}
-        >
+    <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4 transition-colors w-full">
+      {/* Middle: Content Block (Stretches to fill space) */}
+      <div className="flex-1 min-w-0">
+        <p className="mb-0.5">{label}</p>
+        <h3 className="text-5xl font-bold text-slate-900 dark:text-white leading-tight">
           {value}
         </h3>
-        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider mt-1">
-          {sub}
-        </p>
       </div>
     </div>
   );

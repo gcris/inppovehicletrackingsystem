@@ -1,5 +1,5 @@
-import React from 'react';
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import React from "react";
+import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 
 interface Props {
   children: React.ReactNode;
@@ -15,7 +15,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
     super(props);
     this.state = {
       hasError: false,
-      error: null
+      error: null,
     };
   }
 
@@ -24,7 +24,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Uncaught error:', error, errorInfo);
+    console.error("Uncaught error:", error, errorInfo);
   }
 
   public render() {
@@ -38,15 +38,20 @@ export class ErrorBoundary extends React.Component<Props, State> {
             <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
               <AlertTriangle className="w-10 h-10 text-red-600 dark:text-red-500" />
             </div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">System Encountered a Bug</h2>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">
+              System Encountered a Bug
+            </h2>
             <p className="text-slate-500 dark:text-slate-400 mb-6 font-medium">
-              We've encountered an unexpected error. The system might be trying to load cached data that is no longer compatible.
+              We've encountered an unexpected error. The system might be trying
+              to load cached data that is no longer compatible.
             </p>
-            
+
             <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 mb-8 text-left border border-slate-100 dark:border-slate-800 overflow-hidden">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Error Message</p>
+              <p className=" font-black text-slate-400 uppercase tracking-widest mb-1">
+                Error Message
+              </p>
               <p className="text-xs font-mono text-red-600 dark:text-red-400 break-words line-clamp-3">
-                {error?.message || 'Unknown Error'}
+                {error?.message || "Unknown Error"}
               </p>
             </div>
 
@@ -60,8 +65,8 @@ export class ErrorBoundary extends React.Component<Props, State> {
               </button>
               <button
                 onClick={() => {
-                   localStorage.clear();
-                   window.location.href = '/';
+                  localStorage.clear();
+                  window.location.href = "/";
                 }}
                 className="flex items-center justify-center gap-2 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               >

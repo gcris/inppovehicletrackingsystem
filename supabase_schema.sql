@@ -9,16 +9,21 @@ create table unit (
   unit_name text not null
 );
 
+create table rank (
+  id uuid primary key default uuid_generate_v4(),
+  rank_name text not null
+);
+
 create table personnel (
   id uuid primary key references auth.users(id) on delete cascade,
   badge_number text unique,
-  rank text not null,
   fullname text not null,
   unit_id uuid references unit(id) on delete cascade,
   designation text,
   duty_status text default 'Active Duty' check (duty_status in ('Active Duty', 'Mandatory Leave', 'Vacation Leave', 'Sick Leave', 'Maternity Leave', 'Paternity Leave', 'Study Leave', 'Emergency Leave', 'Detached Service', 'Suspended', 'AWOL', 'Non-Duty Status', 'Others')),
   remarks text,
   is_approved boolean default false,
+  rank_id uuid references rank(id) on delete cascade,
   role text default 'user' check (role in ('user', 'admin'))
 );
 
@@ -29,13 +34,15 @@ create table patrol_schedule (
   time_to time not null,
   sector text not null,
   unit_id uuid references unit(id) on delete cascade,
-  personnel_id uuid references personnel(id) on delete cascade
+  mobility_id uuid references mobility_assets(id),
+  description text
 );
 
-create table vehicles (
+create table mobility_assets (
   id uuid primary key default uuid_generate_v4(),
   plate_number text not null unique,
   vehicle_type text, -- e.g., 'Mobile Patrol', 'TMRU', 'Bike Patrol', 'Other'
+  load_status text default 'Normal' check (load_status in ('Normal', 'Expired', 'Maintenance')),
   created_at timestamptz default now(),
   personnel_id uuid references personnel(id) on delete set null,
   unit_id uuid references unit(id) on delete cascade
@@ -43,7 +50,7 @@ create table vehicles (
 
 create table vehicle_logs (
   id uuid primary key default uuid_generate_v4(),
-  vehicle_id uuid references vehicles(id) on delete cascade,
+  vehicle_id uuid references mobility_assets(id) on delete cascade,
   latitude float8 not null,
   longitude float8 not null,
   speed numeric default 0,
@@ -55,15 +62,15 @@ create table vehicle_logs (
 create index idx_vehicle_logs_vehicle_captured on vehicle_logs(vehicle_id, captured_at desc);
 create index idx_vehicle_logs_captured on vehicle_logs(captured_at desc);
 create index idx_patrol_schedule_date_unit on patrol_schedule(date, unit_id);
-create index idx_patrol_schedule_personnel_date on patrol_schedule(personnel_id, date);
-create index idx_vehicles_unit on vehicles(unit_id);
+create index idx_patrol_schedule_personnel_date on patrol_schedule(mobility_id, date);
+create index idx_mobility_assets_unit on mobility_assets(unit_id);
 create index idx_personnel_unit on personnel(unit_id);
 
 -- 3. Row Level Security (RLS)
 alter table unit enable row level security;
 alter table personnel enable row level security;
 alter table patrol_schedule enable row level security;
-alter table vehicles enable row level security;
+alter table mobility_assets enable row level security;
 alter table vehicle_logs enable row level security;
 
 -- Helper function to check if user is admin
@@ -110,16 +117,16 @@ create policy "Admins see all schedules" on patrol_schedule for all using (is_ad
 create policy "Users see their unit schedules" on patrol_schedule for select using (unit_id = get_user_unit());
 create policy "Commanders manage their unit schedules" on patrol_schedule for all using (unit_id = get_user_unit());
 
--- Vehicle Policies
-create policy "Admins see all vehicles" on vehicles for all using (is_admin());
-create policy "Users see their unit vehicles" on vehicles for select using (unit_id = get_user_unit());
-create policy "Commanders manage their unit vehicles" on vehicles for all using (unit_id = get_user_unit());
+-- Mobility Assets Policies
+create policy "Admins see all mobility assets" on mobility_assets for all using (is_admin());
+create policy "Users see their unit mobility assets" on mobility_assets for select using (unit_id = get_user_unit());
+create policy "Commanders manage their unit mobility assets" on mobility_assets for all using (unit_id = get_user_unit());
 
 -- Vehicle Logs Policies
 create policy "Admins see all logs" on vehicle_logs for all using (is_admin());
 create policy "Users see their unit logs" on vehicle_logs for select using (
   exists (
-    select 1 from vehicles v
+    select 1 from mobility_assets v
     where v.id = vehicle_logs.vehicle_id
     and v.unit_id = get_user_unit()
   )
@@ -127,7 +134,7 @@ create policy "Users see their unit logs" on vehicle_logs for select using (
 
 -- Realtime: Enable realtime for vehicle_logs
 alter publication supabase_realtime add table vehicle_logs;
-alter publication supabase_realtime add table vehicles;
+alter publication supabase_realtime add table mobility_assets;
 
 -- 3. Duty Shifts Table
 create table duty_shifts (

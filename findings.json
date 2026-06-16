@@ -1,0 +1,32 @@
+[
+  {
+    "file": "C:/Users\Computer/Desktop/projects/inppovehicletrackingsystem/src/pages/MobilityAssetsPage.tsx",
+    "line": 230,
+    "summary": "Removed Personnel In-Charge column that displayed which personnel was assigned to each vehicle",
+    "failure_scenario": "User views fleet overview and cannot see which personnel is responsible for each vehicle, leading to unclear accountability and inability to quickly identify vehicle-personnel assignments"
+  },
+  {
+    "file": "C:/Users\Computer/Desktop/projects/inppovehicletrackingsystem/src/pages/MobilityAssetsPage.tsx",
+    "line": 230,
+    "summary": "Removed Status column that displayed vehicle operational status information",
+    "failure_scenario": "User cannot see vehicle status (e.g., maintenance, expired, normal) when reviewing fleet, potentially leading to deployment of unsuitable vehicles or missed maintenance alerts"
+  },
+  {
+    "file": "C:/Users\Computer/Desktop/projects/inppovehicletrackingsystem/src/pages/MobilityAssetsPage.tsx",
+    "line": 230,
+    "summary": "Removed Last Update column that showed when vehicle data was last refreshed",
+    "failure_scenario": "User cannot determine how current the vehicle information is, risking decisions based on stale data without knowing the last update time"
+  },
+  {
+    "file": "C:/Users\Computer/Desktop/projects/inppovehicletrackingsystem/src/pages/MobilityAssetsPage.tsx",
+    "line": 172,
+    "summary": "Removed personnel_id field from add vehicle form, preventing assignment of personnel to vehicles",
+    "failure_scenario": "When adding new vehicles to the fleet, users cannot assign personnel to those vehicles, breaking the vehicle-personnel linkage functionality"
+  },
+  {
+    "file": "C:/Users\Computer/Desktop/projects/inppovehicletrackingsystem/src/pages/MobilityAssetsPage.tsx",
+    "line": 339,
+    "summary": "Removed personnel_id field from edit vehicle form, preventing modification of personnel assignments",
+    "failure_scenario": "When editing existing vehicles, users cannot change or update which personnel is assigned to the vehicle, preventing correction of incorrect assignments"
+  }
+]

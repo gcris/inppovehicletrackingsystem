@@ -30,13 +30,15 @@ export const supabase = createClient(
   },
 );
 
-export type Vehicle = {
+export type MobilityAsset = {
   id: string;
   plate_number: string;
   vehicle_type: string; // e.g., 'Mobile Patrol', 'TMRU', 'Bike Patrol', 'Other'
-  personnel_id: string | null;
   unit_id: string;
+  personnel_id: string | null; // Reference to personnel
   last_log?: VehicleLog;
+  description: string | null;
+  status: string | null;
 };
 
 export type VehicleLog = {
@@ -54,10 +56,18 @@ export type Unit = {
   unit_name: string;
 };
 
+export type Rank = {
+  id: string;
+  rank_name: string;
+  description: string | null;
+  level: number;
+};
+
 export type Personnel = {
   id: string;
   badge_number: string | null;
-  rank: string;
+  rank_id: string | null;
+  rank?: Rank;
   fullname: string;
   unit_id: string;
   is_approved: boolean;
@@ -77,8 +87,11 @@ export type PatrolSchedule = {
   time_to: string;
   sector: string;
   unit_id: string;
-  patrol_type: string; // 'Mobile' or 'Foot'
+  mobility_id: string | null;
+  patrol_type: string;
+  description: string | null;
   unit?: Unit;
+  mobility?: MobilityAsset;
   // Note: personnel_id is removed, we now have a junction table
   schedule_assignments?: {
     id: string;
@@ -115,4 +128,21 @@ export type ShiftAssignment = {
   personnel?: Personnel;
   duty_shift?: DutyShift;
   created_at: string;
+};
+
+export type Team = {
+  id: string;
+  team_name: string;
+  unit_id: string;
+  description: string | null;
+  unit?: Unit;
+  member_count?: number;
+};
+
+export type TeamMember = {
+  id: string;
+  team_id: string;
+  personnel_id: string;
+  is_team_leader: boolean;
+  personnel?: Personnel;
 };
