@@ -359,7 +359,7 @@ export default function MobilityAssetsPage() {
                         unit_id: e.target.value,
                       })
                     }
-                    disabled={!isAdmin && unitId}
+                    disabled={!isAdmin && !!unitId}
                     className={`w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${!isAdmin && unitId ? "bg-slate-200 dark:bg-slate-700/50 cursor-not-allowed" : ""}`}
                   >
                     <option value="">Select Unit</option>
@@ -464,7 +464,7 @@ export default function MobilityAssetsPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, unit_id: e.target.value })
                   }
-                  disabled={!isAdmin && unitId}
+                  disabled={!isAdmin && !!unitId}
                   className={`w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${!isAdmin && unitId ? "bg-slate-200 dark:bg-slate-700/50 cursor-not-allowed" : ""}`}
                 >
                   <option value="" disabled>

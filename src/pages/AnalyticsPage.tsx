@@ -5,24 +5,9 @@ import {
   Unit,
   VehicleLog,
   PatrolSchedule,
+  Personnel,
 } from "../lib/supabase";
 import { useAuth } from "../components/AuthProvider";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
 import {
   BarChart3,
   TrendingUp,
@@ -33,8 +18,18 @@ import {
   FileText,
   Download,
   Filter,
+  Phone,
+  MessageCircle,
 } from "lucide-react";
 import { format, subDays, formatDistanceToNow } from "date-fns";
+import { start } from "repl";
+
+// Type definition for vehicle logs with joined mobility asset data
+type VehicleLogSelection = VehicleLog & {
+  mobility_assets: {
+    unit_id: string;
+  };
+};
 
 // Haversine formula to calculate distance between two coordinates in kilometers
 function calculateDistance(
@@ -56,11 +51,43 @@ function calculateDistance(
   return R * c;
 }
 
+// Helper to group logs into sessions based on interval
+const groupLogsBySession = (
+  allLogs: VehicleLogSelection[],
+  thresholdMinutes = 10,
+) => {
+  if (allLogs.length === 0) return [];
+  const sessions: VehicleLogSelection[][] = [];
+  let currentSession: VehicleLogSelection[] = [allLogs[0]];
+
+  for (let i = 1; i < allLogs.length; i++) {
+    const prevTime = new Date(allLogs[i - 1].captured_at).getTime();
+    const currTime = new Date(allLogs[i].captured_at).getTime();
+    const diffMinutes = (currTime - prevTime) / 60000;
+
+    if (diffMinutes > thresholdMinutes) {
+      sessions.push(currentSession);
+      currentSession = [allLogs[i]];
+    } else {
+      currentSession.push(allLogs[i]);
+    }
+  }
+  sessions.push(currentSession);
+  return sessions;
+};
+
+type ProcessedPersonnel = Personnel & {
+  hour_patrolled: number;
+  man_hour: number;
+  kilometer_patrolled: number;
+};
+
 export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [activities, setActivities] = useState<any[]>([]);
-  const [personnelData, setPersonnelData] = useState<any[]>([]);
+  const [selectedDate, setSelectedDate] = useState(
+    new Date().toISOString().split("T")[0],
+  );
+  const [personnelData, setPersonnelData] = useState<ProcessedPersonnel[]>([]);
   const [stats, setStats] = useState({
     patrolHours: [] as any[],
     signalLogs: [] as any[],
@@ -71,6 +98,17 @@ export default function AnalyticsPage() {
     totalHourPatrolled: 0,
     totalManHour: 0,
     totalKilometerPatrolled: 0,
+  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const filteredPersonnel = personnelData.filter((person) => {
+    const term = searchTerm.toLowerCase();
+    return (
+      person.badge_number?.toLowerCase().includes(term) ||
+      person.fullname.toLowerCase().includes(term) ||
+      person.rank?.rank_name?.toLowerCase().includes(term) ||
+      person.phone_number?.toLowerCase().includes(term) ||
+      person.viber_number?.toLowerCase().includes(term)
+    );
   });
   const { unitId, isAdmin } = useAuth();
   // Handle case where auth is still loading
@@ -86,128 +124,197 @@ export default function AnalyticsPage() {
     try {
       // Fetch personnel report for the selected date only
       const selectedDateStr = selectedDate;
-      const rangeStart = `${selectedDateStr}T00:00:00.000Z`;
-      const rangeEnd = `${selectedDateStr}T23:59:59.999Z`;
+      const rangeStart = `${selectedDateStr}T00:00:00.000+08:00`;
+      const rangeEnd = `${selectedDateStr}T23:59:59.999+08:00`;
 
       // Fetch personnel with their ranks and contact info
       const { data: personnelData, error: personnelError } = await supabase
         .from("personnel")
-        .select(
-          `
-          id,
-          badge_number,
-          fullname,
-          rank_id,
-          rank:rank_id(rank_name),
-          unit_id,
-          phone_number,
-          email
-        `,
-        )
-        .eq("is_approved", true);
+        .select("*, rank(*)")
+        .order("rank(level)", { ascending: false })
+        .order("fullname", { ascending: true });
 
       if (personnelError) throw personnelError;
 
-      // Fetch shift assignments for the date range to calculate hours
-      const { data: shiftAssignments, error: shiftError } = await supabase
-        .from("shift_assignments")
-        .select(
-          `
-          personnel_id,
-          duty_date,
-          duty_shift:shift_id(
-            time_start,
-            time_end
-          )
-        `,
-        )
-        .gte("duty_date", rangeStart.split("T")[0])
-        .lte("duty_date", rangeEnd.split("T")[0]);
+      // Fetch patrol schedules and their assignments for the date range to calculate hours
+      const { data: patrolSchedules, error: patrolSchedulesError } =
+        await supabase
+          .from("patrol_schedule")
+          .select("*, schedule_assignments(*, personnel(id))")
+          .neq("patrol_type", "Remain in Office")
+          .gte("date", rangeStart.split("T")[0])
+          .lte("date", rangeEnd.split("T")[0]);
 
-      if (shiftError) throw shiftError;
+      if (patrolSchedulesError) throw patrolSchedulesError;
 
-      // Fetch vehicle logs for distance calculation
-      const { data: vehicleLogs, error: logsError } = await supabase
-        .from("vehicle_logs")
-        .select(
-          `
-          vehicle_id,
-          latitude,
-          longitude,
-          captured_at
-        `,
-        )
-        .gte("captured_at", rangeStart)
-        .lte("captured_at", rangeEnd)
-        .order("captured_at", { ascending: true });
+      let vehicleLogs: VehicleLog[] = [];
+      let pageNum = 1;
+      let hasMore = true;
+      let totalCount = 0;
 
-      if (logsError) throw logsError;
+      // Loop to fetch everything, bypassing the 1000 limit, max 10000 points to prevent browser crash
+      while (hasMore && vehicleLogs.length < 10000) {
+        const fromRange = (pageNum - 1) * 1000;
+        const toRange = pageNum * 1000 - 1;
 
-      // Fetch mobility assets to link vehicles to personnel
-      const { data: mobilityAssets, error: assetsError } = await supabase.from(
-        "mobility_assets",
-      ).select(`
-          id,
-          personnel_id
-        `);
+        const { data, error, count } = await supabase
+          .from("vehicle_logs")
+          .select("*, mobility_assets(unit_id)")
+          .gte("captured_at", rangeStart)
+          .lte("captured_at", rangeEnd)
+          .order("captured_at", { ascending: true })
+          .range(fromRange, toRange);
 
-      if (assetsError) throw assetsError;
+        if (error) {
+          console.error("Error fetching history logs:", error.message);
+          break;
+        }
+
+        if (count !== null && count !== undefined && pageNum === 1) {
+          totalCount = count;
+        }
+
+        if (data && data.length > 0) {
+          vehicleLogs = [...vehicleLogs, ...data];
+          pageNum++;
+          // If we got less than 1000, we've reached the end
+          if (data.length < 1000) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      // Cast vehicleLogs to the correct type for processing
+      const typedVehicleLogs = vehicleLogs as VehicleLogSelection[];
 
       // Process data to calculate metrics per personnel
       const processedPersonnel = personnelData.map((person) => {
-        // Calculate hour patrolled and man-hour from shift assignments
-        const personShifts = shiftAssignments.filter(
-          (sa) => sa.personnel_id === person.id,
-        );
-
-        let hourPatrolled = 0;
-        personShifts.forEach((shift) => {
-          // Safely access nested duty_shift properties (it's an array from Supabase)
-          const dutyShiftArray = shift.duty_shift;
-          if (
-            dutyShiftArray &&
-            Array.isArray(dutyShiftArray) &&
-            dutyShiftArray.length > 0
-          ) {
-            const dutyShift = dutyShiftArray[0];
-            if (dutyShift.time_start && dutyShift.time_end) {
-              const [startH, startM] = dutyShift.time_start
-                .split(":")
-                .map(Number);
-              const [endH, endM] = dutyShift.time_end.split(":").map(Number);
-              let diffMinutes = endH * 60 + endM - (startH * 60 + startM);
-              if (diffMinutes < 0) diffMinutes += 24 * 60; // Overnight shift
-              hourPatrolled += diffMinutes / 60;
-            }
+        // Create maps for efficient lookup (shared between hour and distance calculations)
+        const scheduleToPersonnelMap: Record<string, string[]> = {};
+        (patrolSchedules || []).forEach((schedule) => {
+          const personnelIds = (schedule.schedule_assignments || [])
+            .map(
+              (assignment: { personnel_id: string }) => assignment.personnel_id,
+            )
+            .filter((id): id is string => id !== null && id !== undefined);
+          if (schedule.id && personnelIds.length > 0) {
+            scheduleToPersonnelMap[schedule.id] = personnelIds;
           }
         });
 
-        // Calculate kilometer patrolled from vehicle logs
-        let kilometerPatrolled = 0;
-
-        // Create a map of vehicle_id to personnel_id from mobility assets
-        const vehicleToPersonnelMap: Record<string, any[]> = {};
-        mobilityAssets.forEach((asset) => {
-          if (asset.personnel_id) {
-            vehicleToPersonnelMap[asset.id] = asset.personnel_id;
+        const assetToScheduleMap: Record<string, string> = {};
+        (patrolSchedules || []).forEach((schedule) => {
+          if (schedule.mobility_id) {
+            assetToScheduleMap[schedule.mobility_id] = schedule.id;
           }
         });
 
-        // Group logs by vehicle and calculate distances
-        const logsByVehicle: Record<string, any[]> = {};
-        vehicleLogs.forEach((log) => {
+        // Group logs by vehicle
+        const logsByVehicle: Record<string, VehicleLogSelection[]> = {};
+        typedVehicleLogs.forEach((log) => {
           if (!logsByVehicle[log.vehicle_id]) {
             logsByVehicle[log.vehicle_id] = [];
           }
           logsByVehicle[log.vehicle_id].push(log);
         });
 
-        // Calculate distance for each vehicle's logs
-        Object.keys(logsByVehicle).forEach((vehicleId) => {
-          const vehicleLogs = logsByVehicle[vehicleId] || [];
-          const personnelId = vehicleToPersonnelMap[vehicleId];
+        // Calculate hour patrolled and man-hour from vehicle_logs that match patrol_schedule for this person
+        let hourPatrolled = 0;
+        let manHour = 0;
 
-          if (personnelId === person.id && vehicleLogs.length > 1) {
+        // Create a map of schedule_id to schedule time range for quick lookup
+        const scheduleTimeMap: Record<
+          string,
+          { startTime: number; endTime: number }
+        > = {};
+        // Also create a map for personnel count per schedule
+        const schedulePersonnelCountMap: Record<string, number> = {};
+        (patrolSchedules || []).forEach((schedule) => {
+          if (schedule.time_from && schedule.time_to) {
+            const [fH, fM] = schedule.time_from.split(":").map(Number);
+            const [tH, tM] = schedule.time_to.split(":").map(Number);
+            let startMinutes = fH * 60 + fM;
+            let endMinutes = tH * 60 + tM;
+            if (endMinutes < startMinutes) endMinutes += 24 * 60; // Overnight shift
+            scheduleTimeMap[schedule.id] = {
+              startTime: startMinutes * 60 * 1000, // Convert to milliseconds
+              endTime: endMinutes * 60 * 1000,
+            };
+          }
+          // Calculate personnel count for this schedule
+          const personnelCount =
+            schedule.schedule_assignments?.reduce(
+              (count: number, assignment: { personnel_id: string }) => {
+                return assignment.personnel_id ? count + 1 : count;
+              },
+              0,
+            ) || 0;
+          schedulePersonnelCountMap[schedule.id] = personnelCount;
+        });
+
+        // For each schedule assignment of this person, find matching vehicle logs
+        (patrolSchedules || []).forEach((schedule) => {
+          // Check if this person is assigned to this schedule
+          const personAssignments =
+            schedule.schedule_assignments?.filter(
+              (assignment: { personnel_id: string }) =>
+                assignment.personnel_id === person.id,
+            ) || [];
+          if (
+            personAssignments.length > 0 &&
+            schedule.id &&
+            scheduleTimeMap[schedule.id]
+          ) {
+            const scheduleTime = scheduleTimeMap[schedule.id];
+            const personnelCount = schedulePersonnelCountMap[schedule.id] || 0;
+
+            // Filter vehicle logs that occurred during this schedule's time on this date
+            const matchingLogs = typedVehicleLogs.filter((log) => {
+              const logTime = new Date(log.captured_at).getTime();
+              const baseDate = new Date(
+                `${selectedDateStr}T00:00:00.000+08:00`,
+              );
+              const startTime = baseDate.getTime() + scheduleTime.startTime;
+              const endTime = baseDate.getTime() + scheduleTime.endTime;
+
+              return logTime >= startTime && logTime <= endTime;
+            });
+
+            // Calculate time duration from matching logs
+            if (matchingLogs.length > 1) {
+              const firstLogTime = new Date(
+                matchingLogs[0].captured_at,
+              ).getTime();
+              const lastLogTime = new Date(
+                matchingLogs[matchingLogs.length - 1].captured_at,
+              ).getTime();
+              let durationMinutes = (lastLogTime - firstLogTime) / (1000 * 60); // Convert to minutes
+
+              // Only count if we have valid duration (non-negative)
+              if (durationMinutes >= 0) {
+                const durationHours = durationMinutes / 60;
+                hourPatrolled += durationHours;
+                // Man-hour calculation: hour patrolled × number of personnel assigned to schedule
+                manHour += durationHours * personnelCount;
+              }
+            }
+          }
+        });
+
+        // Calculate kilometer patrolled from vehicle logs
+        let kilometerPatrolled = 0;
+        // Calculate distance for each vehicle's logs
+        Object.keys(logsByVehicle).forEach((vehicleId: string) => {
+          const vehicleLogs = logsByVehicle[vehicleId] || [];
+          const scheduleId = assetToScheduleMap[vehicleId];
+
+          if (
+            scheduleId &&
+            scheduleToPersonnelMap[scheduleId]?.includes(person.id) &&
+            vehicleLogs.length > 1
+          ) {
             for (let i = 1; i < vehicleLogs.length; i++) {
               const prev = vehicleLogs[i - 1];
               const curr = vehicleLogs[i];
@@ -230,10 +337,17 @@ export default function AnalyticsPage() {
           }
         });
 
+        // Convert rank array to single object (take first element if exists)
+        const rankData =
+          Array.isArray(person.rank) && person.rank.length > 0
+            ? person.rank[0]
+            : person.rank;
+
         return {
           ...person,
+          rank: rankData,
           hour_patrolled: Number(hourPatrolled.toFixed(1)),
-          man_hour: Number(hourPatrolled.toFixed(1)), // Assuming man-hour equals hour patrolled
+          man_hour: Number(hourPatrolled.toFixed(1)), // Individual man-hour equals hours worked
           kilometer_patrolled: Number(kilometerPatrolled.toFixed(2)),
         };
       });
@@ -246,22 +360,36 @@ export default function AnalyticsPage() {
     }
   };
 
+  // Helper function to format hours to "X hour(s) and Y minute(s)" format
+  const formatHoursToHoursAndMinutes = (hours: number) => {
+    const totalMinutes = Math.round(hours * 60);
+    const hoursPart = Math.floor(totalMinutes / 60);
+    const minutesPart = totalMinutes % 60;
+
+    if (hoursPart === 0) {
+      return `${minutesPart} m`;
+    }
+    if (minutesPart === 0) {
+      return `${hoursPart} hour${hoursPart !== 1 ? "s" : ""}`;
+    }
+    return `${hoursPart} h & ${minutesPart} m`;
+  };
+
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
       // Fetch analytics data for the selected date only
       const selectedDateStr = selectedDate;
-      const rangeStart = `${selectedDateStr}T00:00:00.000Z`;
-      const rangeEnd = `${selectedDateStr}T23:59:59.999Z`;
+      const rangeStart = `${selectedDateStr}T00:00:00.000+08:00`;
+      const rangeEnd = `${selectedDateStr}T23:59:59.999+08:00`;
 
       // Build queries with unit filtering for non-admin users
       let unitsQuery = supabase.from("unit").select("*");
       let vehiclesQuery = supabase.from("mobility_assets").select("*");
       let scheduleQuery = supabase
         .from("patrol_schedule")
-        .select("*, unit(*), schedule_assignments(personnel(*))")
-        .gte("date", rangeStart.split("T")[0])
-        .lte("date", rangeStart.split("T")[0]);
+        .select("*, unit(*), schedule_assignments(*, personnel(*))")
+        .eq("date", rangeStart.split("T")[0]);
 
       // Apply unit filtering for non-admin users
       // Explicitly check for null/undefined to handle unitId = 0 case
@@ -273,53 +401,239 @@ export default function AnalyticsPage() {
         scheduleQuery = scheduleQuery.eq("unit_id", unitIdSafe);
       }
 
-      // Always build logsQuery with the base conditions
-      let logsQuery = supabase
-        .from("vehicle_logs")
-        .select("*, mobility_assets(unit_id)")
-        .gte("captured_at", rangeStart)
-        .lte("captured_at", rangeEnd);
+      let vehicleLogs: VehicleLog[] = [];
+      let pageNum = 1;
+      let hasMore = true;
+      let totalCount = 0;
 
-      const [unitsRes, logsRes, vehiclesRes, scheduleRes] = await Promise.all([
+      // Loop to fetch everything, bypassing the 1000 limit, max 10000 points to prevent browser crash
+      while (hasMore && vehicleLogs.length < 10000) {
+        const fromRange = (pageNum - 1) * 1000;
+        const toRange = pageNum * 1000 - 1;
+
+        const { data, error, count } = await supabase
+          .from("vehicle_logs")
+          .select("*, mobility_assets(unit_id)")
+          .gte("captured_at", rangeStart)
+          .lte("captured_at", rangeEnd)
+          .order("captured_at", { ascending: true })
+          .range(fromRange, toRange);
+
+        if (error) {
+          console.error("Error fetching history logs:", error.message);
+          break;
+        }
+
+        if (count !== null && count !== undefined && pageNum === 1) {
+          totalCount = count;
+        }
+
+        if (data && data.length > 0) {
+          vehicleLogs = [...vehicleLogs, ...data];
+          pageNum++;
+          // If we got less than 1000, we've reached the end
+          if (data.length < 1000) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const [unitsRes, vehiclesRes, scheduleRes] = await Promise.all([
         unitsQuery,
-        logsQuery,
         vehiclesQuery,
         scheduleQuery,
       ]);
 
       if (unitsRes.error) throw unitsRes.error;
-      if (logsRes.error) throw logsRes.error;
       if (vehiclesRes.error) throw vehiclesRes.error;
       if (scheduleRes.error) throw scheduleRes.error;
 
+      // Type assertions for better type safety
+      const schedules = scheduleRes.data as (PatrolSchedule & {
+        unit: Unit;
+        schedule_assignments: { personnel: { id: string } }[];
+      })[];
+      const logs = vehicleLogs as (VehicleLog & {
+        mobility_assets: { unit_id: string };
+      })[];
+
       // Filter logs to only include those from user's unit (for non-admin)
-      let filteredLogsData = logsRes.data;
-      // Explicitly check for null/undefined to handle unitId = 0 case
-      if (!isAdminSafe && unitIdSafe !== null && logsRes.data) {
-        filteredLogsData = logsRes.data.filter(
+      let filteredLogsData = logs;
+      if (!isAdminSafe && unitIdSafe !== null && logs) {
+        filteredLogsData = logs.filter(
           (log) =>
             log.mobility_assets && log.mobility_assets.unit_id === unitIdSafe,
         );
       }
 
-      // 2. Average Speed, Signals, & Active Alerts
-      let signalLogs: any[] = [];
+      // 1. Compute total hour patrolled (using session grouping on all logs for the day)
+      let totalHourPatrolled = 0;
+      const allSessions = groupLogsBySession(filteredLogsData, 10); // 10-minute threshold
+      for (const session of allSessions) {
+        const start = new Date(session[0].captured_at).getTime();
+        const end = new Date(session[session.length - 1].captured_at).getTime();
+        totalHourPatrolled += (end - start) / (1000 * 60 * 60); // convert ms to hours
+      }
+
+      // 2. Compute total man-hour: for each schedule, calculate overlap between schedule time and patrol time
+      let totalManHour = 0;
+      for (const schedule of schedules) {
+        // Filter logs that are in this schedule's date and time range
+        const scheduleLogs = filteredLogsData.filter((log) => {
+          const logTime = new Date(log.captured_at);
+
+          // 1. Get the local date string (YYYY-MM-DD) matching your local timezone
+          const logDate = logTime.toLocaleDateString("en-CA", {
+            timeZone: "Asia/Manila",
+          });
+          if (logDate !== schedule.date) return false;
+
+          // 2. Get local hours and minutes directly (Bypasses the UTC string-splitting trap)
+          const logH = parseInt(
+            logTime.toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              hour12: false,
+              timeZone: "Asia/Manila",
+            }),
+            10,
+          );
+          const logM = logTime.getMinutes();
+          const logTotalMinutes = logH * 60 + logM;
+
+          // --- Schedule logic ---
+          const [scheduleStartH, scheduleStartM] = schedule.time_from
+            .split(":")
+            .map(Number);
+          const [scheduleEndH, scheduleEndM] = schedule.time_to
+            .split(":")
+            .map(Number);
+          const scheduleStartMinutes = scheduleStartH * 60 + scheduleStartM;
+          const scheduleEndMinutes = scheduleEndH * 60 + scheduleEndM;
+
+          if (scheduleEndMinutes < scheduleStartMinutes) {
+            // Overnight shift
+            return (
+              logTotalMinutes >= scheduleStartMinutes ||
+              logTotalMinutes <= scheduleEndMinutes
+            );
+          } else {
+            // Normal shift
+            return (
+              logTotalMinutes >= scheduleStartMinutes &&
+              logTotalMinutes <= scheduleEndMinutes
+            );
+          }
+        });
+
+        // Now compute the patrol time within scheduleLogs using session grouping
+        let schedulePatrolHours = 0;
+        if (scheduleLogs.length > 0) {
+          const grouped = groupLogsBySession(scheduleLogs, 10); // threshold 10 minutes
+          for (const session of grouped) {
+            const start = new Date(session[0].captured_at).getTime();
+            const end = new Date(
+              session[session.length - 1].captured_at,
+            ).getTime();
+            schedulePatrolHours += (end - start) / (1000 * 60 * 60);
+          }
+        }
+
+        // Count unique personnel in this schedule
+        const personnelIds = new Set<string>();
+        for (const assign of schedule.schedule_assignments || []) {
+          if (assign.personnel?.id) {
+            personnelIds.add(assign.personnel.id);
+          }
+        }
+        const personnelCount = personnelIds.size;
+
+        totalManHour += schedulePatrolHours * personnelCount;
+      }
+
+      // 3. Compute kilometer patrolled per vehicle (sum of distances between consecutive points within 5 min)
+      const vehicleKilometersMap = new Map<string, number>();
+      // Group logs by vehicle
+      const logsByVehicle: Record<string, typeof filteredLogsData> = {};
+      for (const log of filteredLogsData) {
+        const vid = log.vehicle_id;
+        if (!logsByVehicle[vid]) {
+          logsByVehicle[vid] = [];
+        }
+        logsByVehicle[vid].push(log);
+      }
+      for (const [vid, vehicleLogs] of Object.entries(logsByVehicle)) {
+        const sorted = [...vehicleLogs].sort(
+          (a, b) =>
+            new Date(a.captured_at).getTime() -
+            new Date(b.captured_at).getTime(),
+        );
+        let total = 0;
+        for (let i = 1; i < sorted.length; i++) {
+          const prev = sorted[i - 1];
+          const curr = sorted[i];
+          const timeDiff =
+            new Date(curr.captured_at).getTime() -
+            new Date(prev.captured_at).getTime();
+          if (timeDiff <= 5 * 60 * 1000) {
+            // 5 minutes in milliseconds
+            const distance = calculateDistance(
+              prev.latitude,
+              prev.longitude,
+              curr.latitude,
+              curr.longitude,
+            );
+            total += distance;
+          }
+        }
+        vehicleKilometersMap.set(vid, total);
+      }
+
+      let totalKilometerPatrolled = 0;
+      vehicleKilometersMap.forEach((km) => {
+        totalKilometerPatrolled += km;
+      });
+
+      // 5. Patrol hours based on schedule date and time (for selected date only) - keep original for compatibility
+      const daySchedules = schedules.filter((s) => s.date === selectedDateStr);
+      let hours = 0;
+      daySchedules.forEach((s) => {
+        if (s.time_from && s.time_to) {
+          const [fH, fM] = s.time_from.split(":").map(Number);
+          const [tH, tM] = s.time_to.split(":").map(Number);
+          let diffMinutes = tH * 60 + (tM || 0) - (fH * 60 + (fM || 0));
+          if (diffMinutes < 0) diffMinutes += 24 * 60; // Overnight shift
+          hours += diffMinutes / 60;
+        }
+      });
+      const patrolHours = [
+        {
+          day: format(new Date(selectedDateStr), "EEE, MMM d"),
+          date: selectedDateStr,
+          hours: Number(hours.toFixed(1)),
+        },
+      ];
+      const weeklyHours = Math.round(totalHourPatrolled); // changed to log-based hours
+
+      // 6. Average Speed, Signals, & Active Alerts (keep existing logic)
+      let signalLogs: { time: string; signal: number; speed: number }[] = [];
       let avgSpeed = 0;
       let activeAlerts = 0;
       let avgSignal = 84;
 
-      const sortedLogData = filteredLogsData
-        ? [...filteredLogsData].sort(
-            (a, b) =>
-              new Date(a.captured_at).getTime() -
-              new Date(b.captured_at).getTime(),
-          )
-        : [];
+      if (filteredLogsData.length > 0) {
+        const sortedLogData = [...filteredLogsData].sort(
+          (a, b) =>
+            new Date(a.captured_at).getTime() -
+            new Date(b.captured_at).getTime(),
+        );
 
-      if (sortedLogData.length > 0) {
         const avgSpeedCalc =
-          sortedLogData.reduce((a, b) => a + Number(b.speed || 0), 0) /
-          sortedLogData.length;
+          sortedLogData.reduce(
+            (a: number, b: VehicleLogSelection) => a + Number(b.speed || 0),
+            0,
+          ) / sortedLogData.length;
         avgSpeed = Number(avgSpeedCalc.toFixed(1));
 
         // Sampling down for dense/performance on charts (max 20 points)
@@ -350,168 +664,24 @@ export default function AnalyticsPage() {
         avgSignal = Math.round(totalSignal / sortedLogData.length);
       }
 
-      // 3. Patrol Hours based on schedule date and time (for selected date only)
-      const daySchedules = (scheduleRes.data || []).filter(
-        (s) => s.date === selectedDate,
-      );
-      let hours = 0;
-      daySchedules.forEach((s) => {
-        if (s.time_from && s.time_to) {
-          const [fH, fM] = s.time_from.split(":").map(Number);
-          const [tH, tM] = s.time_to.split(":").map(Number);
-          let diffMinutes = tH * 60 + (tM || 0) - (fH * 60 + (fM || 0));
-          if (diffMinutes < 0) diffMinutes += 24 * 60; // Overnight shift
-          hours += diffMinutes / 60;
-        }
-      });
-
-      const patrolHours = [
-        {
-          day: format(new Date(selectedDate), "EEE, MMM d"),
-          date: selectedDate,
-          hours: Number(hours.toFixed(1)),
-        },
-      ];
-      const weeklyHours = Math.round(hours);
-
-      // Calculate total hour patrolled (sum of all patrol hours)
-      const totalHourPatrolled = hours;
-
-      // Calculate total man-hour (assuming same as hour patrolled for now)
-      const totalManHour = totalHourPatrolled;
-
-      // Calculate total kilometer patrolled from vehicle logs
-      let totalKilometerPatrolled = 0;
-      if (sortedLogData.length > 1) {
-        // Sort by captured_at to ensure chronological order
-        const sortedLogsByTime = [...sortedLogData].sort(
-          (a, b) =>
-            new Date(a.captured_at).getTime() -
-            new Date(b.captured_at).getTime(),
-        );
-
-        // Calculate distance between consecutive points (Haversine formula)
-        for (let i = 1; i < sortedLogsByTime.length; i++) {
-          const prev = sortedLogsByTime[i - 1];
-          const curr = sortedLogsByTime[i];
-
-          // Only calculate distance if it's from the same vehicle
-          if (prev.vehicle_id === curr.vehicle_id) {
-            const distance = calculateDistance(
-              prev.latitude,
-              prev.longitude,
-              curr.latitude,
-              curr.longitude,
-            );
-            totalKilometerPatrolled += distance;
-          }
-        }
-      }
-
+      // 7. Set stats
       setStats({
         patrolHours,
         signalLogs,
         avgSpeed,
-        avgSignal: sortedLogData.length > 0 ? avgSignal : ("--" as any),
+        avgSignal: filteredLogsData.length > 0 ? avgSignal : ("--" as any),
         weeklyHours,
         activeAlerts,
         totalHourPatrolled,
         totalManHour,
         totalKilometerPatrolled,
       });
-
-      // 4. Generate recent activities based on actual data
-      const recentActivities: any[] = [];
-      const recentSchedules = (scheduleRes.data || []).sort(
-        (a, b) =>
-          new Date(`${b.date}T${b.time_from || "00:00"}`).getTime() -
-          new Date(`${a.date}T${a.time_from || "00:00"}`).getTime(),
-      );
-
-      recentSchedules.slice(0, 5).forEach((s) => {
-        const unitName = s.unit?.unit_name || "Unknown Unit";
-        const dObj = new Date(`${s.date}T${s.time_from || "00:00"}`);
-        recentActivities.push({
-          title: `Schedule Assigned - ${unitName}`,
-          time:
-            dObj.getTime() < Date.now()
-              ? formatDistanceToNow(dObj, { addSuffix: true })
-              : `Planned for ${format(dObj, "MMM d, p")}`,
-          type: "schedule",
-          dateObj: dObj,
-        });
-      });
-
-      if (sortedLogData.length > 0) {
-        // High speed
-        const speedAlerts = sortedLogData.filter((l) => l.speed > 80);
-        const speedByVehicle = Array.from(
-          new Set(speedAlerts.map((a) => a.vehicle_id)),
-        );
-        speedByVehicle.slice(0, 3).forEach((vId) => {
-          const logsForVehicle = speedAlerts
-            .filter((a) => a.vehicle_id === vId)
-            .sort(
-              (a, b) =>
-                new Date(b.captured_at).getTime() -
-                new Date(a.captured_at).getTime(),
-            );
-          const log = logsForVehicle[0]; // most recent
-          const vehicleInfo = vehiclesRes.data?.find(
-            (v) => v.id === log.vehicle_id,
-          );
-          const dObj = new Date(log.captured_at);
-          recentActivities.push({
-            title: `High Speed Alert: Mobility Asset ${vehicleInfo?.plate_number || "Unknown"} (${log.speed} km/h)`,
-            time: formatDistanceToNow(dObj, { addSuffix: true }),
-            type: "alert",
-            dateObj: dObj,
-          });
-        });
-
-        // Low signal
-        const signalAlerts = sortedLogData.filter((l) => l.network_signal < 20);
-        const signalByVehicle = Array.from(
-          new Set(signalAlerts.map((a) => a.vehicle_id)),
-        );
-        signalByVehicle.slice(0, 3).forEach((vId) => {
-          const logsForVehicle = signalAlerts
-            .filter((a) => a.vehicle_id === vId)
-            .sort(
-              (a, b) =>
-                new Date(b.captured_at).getTime() -
-                new Date(a.captured_at).getTime(),
-            );
-          const log = logsForVehicle[0]; // most recent
-          const vehicleInfo = vehiclesRes.data?.find(
-            (v) => v.id === log.vehicle_id,
-          );
-          const dObj = new Date(log.captured_at);
-          recentActivities.push({
-            title: `Signal Drop: Mobility Asset ${vehicleInfo?.plate_number || "Unknown"} (${Math.round(log.network_signal)}%)`,
-            time: formatDistanceToNow(dObj, { addSuffix: true }),
-            type: "alert",
-            dateObj: dObj,
-          });
-        });
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        console.error("Error fetching analytics:", err.message);
+      } else {
+        console.error("Error fetching analytics:", err);
       }
-
-      recentActivities.sort(
-        (a, b) => b.dateObj.getTime() - a.dateObj.getTime(),
-      );
-
-      if (recentActivities.length === 0) {
-        recentActivities.push({
-          title: "System Online & Syncing Data",
-          time: "Just now",
-          type: "sync",
-          dateObj: new Date(),
-        });
-      }
-
-      setActivities(recentActivities.slice(0, 7));
-    } catch (err: any) {
-      console.error("Error fetching analytics:", err);
     } finally {
       setLoading(false);
     }
@@ -529,30 +699,26 @@ export default function AnalyticsPage() {
     <div className="flex flex-col gap-8">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-2 gap-6">
         <div>
-          <h1 className="text-3xl font-black text-[var(--text)] flex items-center gap-4">
-            <BarChart3 className="w-7 h-7 text-[var(--accent)]" />
+          <h1 className="text-2xl font-black text-[var(--text)] flex items-center gap-4">
+            <BarChart3 className="w-7 h-7" />
             Performance Analytics
           </h1>
-          <p className="text-[16px] text-[var(--text)]/[0.9] font-bold uppercase tracking-wider mt-2">
+          <p className="text-[var(--text)]/[0.9] mt-2">
             Deep dive into unit efficiency and fleet health
           </p>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center bg-[var(--primary)]/[0.4] dark:bg-[var(--primary)]/[0.3] border border-[var(--secondary)]/[0.4] dark:border-[var(--secondary)]/[0.3] rounded-2xl p-2 shadow-[var(--accent)]/[0.1] dark:shadow-[var(--accent)]/[0.05] transition-colors duration-200 backdrop-blur-sm">
+        <div className="flex items-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-1 transition-colors">
+          <div className="relative">
             <input
               type="date"
-              defaultValue={new Date().toISOString().split('T')[0]}
-              className="ml-2 block w-[200px] rounded-md border-[var(--secondary)]/[0.4] dark:border-[var(--secondary)]/[0.3] bg-[var(--primary)]/[0.9] px-3 py-2 text-[var(--text)] ring-1 ring-inset ring-[var(--primary)]/[0.25] focus:ring-2 focus-ring-[var(--accent)]/[0.5] focus:ring-offset-[var(--accent)]/[0.1] sm:text-sm"
+              defaultValue={new Date().toISOString().split("T")[0]}
+              className="w-full py-2 pl-2 font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer"
               onChange={(e) => {
                 setSelectedDate(e.target.value);
               }}
             />
           </div>
-          <button className="flex items-center gap-3 px-5 py-3 bg-[var(--accent)]/[0.25] text-[var(--text)] font-bold text-[16px] uppercase tracking-tighter hover:bg-[var(--accent)]/[0.35] transition-colors duration-200 focus:ring-2 focus-ring-[var(--accent)]/[0.4] focus:ring-offset-[var(--accent)]/[0.1]">
-            <Download className="w-5 h-5" />
-            Export
-          </button>
         </div>
       </div>
 
@@ -564,46 +730,46 @@ export default function AnalyticsPage() {
         <div className="flex-1 overflow-y-auto pr-2 space-y-8 pb-8">
           {/* Top Row Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-[var(--primary)]/[0.92] dark:bg-[var(--primary)]/[0.85] p-8 rounded-2xl border border-[var(--secondary)]/[0.35] dark:border-[var(--secondary)]/[0.25] shadow-[var(--accent)]/[0.15] dark:shadow-[var(--accent)]/[0.08] transition-colors duration-300 backdrop-blur-sm">
+            <div className="dark:text-white p-8 rounded-2xl border border-slate-400 dark:border-slate-600 shadow-slate-800 dark:shadow-border-slate-200 transition-colors duration-300 backdrop-blur-sm">
               <div className="flex items-center justify-between">
-                <div className="p-5 bg-[var(--secondary)]/[0.25] rounded-xl border border-[var(--secondary)]/[0.25]">
-                  <TrendingUp className="w-6 h-6 text-[var(--accent)]" />
-                </div>
+                {/* <div className="p-5 rounded-xl border border-[var(--secondary)]/[0.25]">
+                  <TrendingUp className="w-6 h-6" />
+                </div> */}
                 <div>
-                  <p className="text-[12px] font-black text-[var(--text)]/[0.9] uppercase tracking-widest mb-2">
+                  <p className="text-[var(--text)]/[0.9] mb-2">
                     Total Hour Patrolled
                   </p>
-                  <p className="text-4xl font-black text-[var(--text)] tracking-tighter">
-                    {stats.totalHourPatrolled}h
+                  <p className="text-5xl font-bold text-[var(--text)]">
+                    {formatHoursToHoursAndMinutes(stats.totalHourPatrolled)}
                   </p>
                 </div>
               </div>
             </div>
-            <div className="bg-[var(--primary)]/[0.92] dark:bg-[var(--primary)]/[0.85] p-8 rounded-2xl border border-[var(--secondary)]/[0.35] dark:border-[var(--secondary)]/[0.25] shadow-[var(--accent)]/[0.15] dark:shadow-[var(--accent)]/[0.08] transition-colors duration-300 backdrop-blur-sm">
+            <div className="dark:text-white p-8 rounded-2xl border border-slate-400 dark:border-slate-600 shadow-slate-800 shadow-[var(--accent)]/[0.15] dark:shadow-[var(--accent)]/[0.08] transition-colors duration-300 backdrop-blur-sm">
               <div className="flex items-center justify-between">
-                <div className="p-5 bg-[var(--secondary)]/[0.25] rounded-xl border border-[var(--secondary)]/[0.25]">
-                  <Clock className="w-6 h-6 text-[var(--accent)]" />
-                </div>
+                {/* <div className="p-5 rounded-xl border border-[var(--secondary)]/[0.25]">
+                  <Clock className="w-6 h-6" />
+                </div> */}
                 <div>
-                  <p className="text-[12px] font-black text-[var(--text)]/[0.9] uppercase tracking-widest mb-2">
+                  <p className="text-[var(--text)]/[0.9] mb-2">
                     Total Man-Hour
                   </p>
-                  <p className="text-4xl font-black text-[var(--text)] tracking-tighter">
-                    {stats.totalManHour}h
+                  <p className="text-5xl font-bold text-[var(--text)]">
+                    {formatHoursToHoursAndMinutes(stats.totalManHour)}
                   </p>
                 </div>
               </div>
             </div>
-            <div className="bg-[var(--primary)]/[0.92] dark:bg-[var(--primary)]/[0.85] p-8 rounded-2xl border border-[var(--secondary)]/[0.35] dark:border-[var(--secondary)]/[0.25] shadow-[var(--accent)]/[0.15] dark:shadow-[var(--accent)]/[0.08] transition-colors duration-300 backdrop-blur-sm">
+            <div className="dark:text-white p-8 rounded-2xl border border-slate-400 dark:border-slate-600 shadow-slate-800 shadow-[var(--accent)]/[0.15] dark:shadow-[var(--accent)]/[0.08] transition-colors duration-300 backdrop-blur-sm">
               <div className="flex items-center justify-between">
-                <div className="p-5 bg-[var(--secondary)]/[0.25] rounded-xl border border-[var(--secondary)]/[0.25]">
+                {/* <div className="p-5 rounded-xl border border-[var(--secondary)]/[0.25]">
                   <Zap className="w-6 h-6 text-amber-500" />
-                </div>
+                </div> */}
                 <div>
-                  <p className="text-[12px] font-black text-[var(--text)]/[0.9] uppercase tracking-widest mb-2">
+                  <p className="text-[var(--text)]/[0.9] mb-2">
                     Total Kilometer Patrolled
                   </p>
-                  <p className="text-4xl font-black text-[var(--text)] tracking-tighter">
+                  <p className="text-5xl font-bold text-[var(--text)]">
                     {stats.totalKilometerPatrolled.toFixed(2)} km
                   </p>
                 </div>
@@ -613,66 +779,99 @@ export default function AnalyticsPage() {
 
           <div className="grid grid-cols-1 xl:grid-cols-1 gap-8">
             {/* Personnel List */}
-            <div className="bg-[var(--primary)]/[0.92] dark:bg-[var(--primary)]/[0.85] p-8 rounded-2xl border border-[var(--secondary)]/[0.35] dark:border-[var(--secondary)]/[0.25] shadow-[var(--accent)]/[0.15] dark:shadow-[var(--accent)]/[0.08] transition-colors duration-300 backdrop-blur-sm">
+            <div className="dark:text-white p-4 rounded-2xl border border-[var(--secondary)]/[0.35] dark:border-[var(--secondary)]/[0.25] shadow-[var(--accent)]/[0.15] dark:shadow-[var(--accent)]/[0.08] transition-colors duration-300 backdrop-blur-sm">
               <div className="flex items-center justify-between mb-8">
-                <h3 className="font-black text-[var(--text)]/[0.9] uppercase tracking-widest text-[16px] flex items-center gap-4">
-                  <FileText className="w-5 h-5 text-[var(--accent)]" />
+                <h3 className="font-black text-[var(--text)]/[0.9] text-[16px] flex items-center gap-4">
+                  <FileText className="w-5 h-5" />
                   Personnel Patrol Report
                 </h3>
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="text"
+                    placeholder="Search personnel..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="min-w-[350px] px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                  />
+                </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-[var(--secondary)]/[0.2]">
-                  <thead className="bg-[var(--secondary)]/[0.1]">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[var(--text)]/[0.6] uppercase tracking-wider">
-                        Badge #
+              <div className="flex-1 overflow-hidden bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-colors overflow-x-auto">
+                <table>
+                  <thead>
+                    <tr className="border-b border-[var(--secondary)]/[0.2] dark:border-[var(--secondary)]/[0.1] bg-[var(--primary)]/[0.05] dark:bg-[var(--primary)]/[0.02]">
+                      <th className="px-6 py-3 text-black dark:text-white">
+                        #
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[var(--text)]/[0.6] uppercase tracking-wider">
-                        Rank
+                      <th className="px-6 py-3 text-black dark:text-white">
+                        Badge Number
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[var(--text)]/[0.6] uppercase tracking-wider">
-                        Name
+                      <th className="px-6 py-3 text-black dark:text-white">
+                        Rank/Name
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[var(--text)]/[0.6] uppercase tracking-wider">
+                      <th className="px-6 py-3 text-black dark:text-white">
                         Contact Info
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[var(--text)]/[0.6] uppercase tracking-wider">
+                      <th className="px-6 py-3 text-black dark:text-white">
                         Hour Patrolled
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[var(--text)]/[0.6] uppercase tracking-wider">
+                      <th className="px-6 py-3 text-black dark:text-white">
                         Man-Hour
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[var(--text)]/[0.6] uppercase tracking-wider">
+                      <th className="px-6 py-3 text-black dark:text-white">
                         Kilometer Patrolled
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--secondary)]/[0.2]">
-                    {personnelData.length > 0 ? (
-                      personnelData.map((person, index) => (
+                    {filteredPersonnel.length > 0 ? (
+                      filteredPersonnel.map((person, index) => (
                         <tr
                           key={index}
                           className="bg-[var(--primary)]/[0.02] hover:bg-[var(--secondary)]/[0.03]"
                         >
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-[var(--text)]">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {index + 1}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
                             {person.badge_number || "N/A"}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--text)]">
-                            {person.rank?.rank_name || "N/A"}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-[var(--text)]">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {person.rank?.rank_name || "N/A"}{" "}
                             {person.fullname || "N/A"}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--text)]">
-                            {person.phone_number || person.email || "N/A"}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {person.phone_number && (
+                              <>
+                                <a
+                                  href={`tel:${person.phone_number}`}
+                                  className="flex items-center gap-2 text-blue-600 hover:text-blue-800"
+                                >
+                                  <Phone className="w-5 h-5" />
+                                  <span>{person.phone_number}</span>
+                                </a>
+                              </>
+                            )}
+                            {person.viber_number && (
+                              <>
+                                <a
+                                  href={`viber://chat?number=${person.viber_number}`}
+                                  className="flex items-center gap-2 text-purple-600 hover:text-purple-800"
+                                >
+                                  <MessageCircle className="w-5 h-5" />
+                                  <span>{person.viber_number}</span>
+                                </a>
+                              </>
+                            )}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--text)]">
-                            {person.hour_patrolled?.toFixed(1) || "0.0"}h
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            {formatHoursToHoursAndMinutes(
+                              person.hour_patrolled,
+                            )}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--text)]">
-                            {person.man_hour?.toFixed(1) || "0.0"}h
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            {formatHoursToHoursAndMinutes(person.man_hour)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--text)]">
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
                             {person.kilometer_patrolled?.toFixed(2) || "0.00"}{" "}
                             km
                           </td>
@@ -680,7 +879,10 @@ export default function AnalyticsPage() {
                       ))
                     ) : (
                       <tr>
-                        <td className="px-6 py-10 text-center text-[var(--text)]/[0.6] colspan=7">
+                        <td
+                          colSpan={7}
+                          className="px-6 py-10 text-center text-[var(--text)]/[0.6]"
+                        >
                           No personnel data available for the selected time
                           range
                         </td>
@@ -691,79 +893,8 @@ export default function AnalyticsPage() {
               </div>
             </div>
           </div>
-
         </div>
       )}
     </div>
-  );
-}
-
-function ActivityRow({
-  title,
-  time,
-  type,
-}: {
-  title: string;
-  time: string;
-  type: string;
-}) {
-  const getIcon = () => {
-    switch (type) {
-      case "alert":
-        return <AlertCircle className="w-5 h-5" />;
-      case "sync":
-        return <Clock className="w-5 h-5" />;
-      case "schedule":
-        return <FileText className="w-5 h-5" />;
-      default:
-        return <Zap className="w-5 h-5" />;
-    }
-  };
-
-  return (
-    <div className="flex items-center justify-between py-4 border-b border-[var(--secondary)]/[0.3] dark:border-[var(--secondary)]/[0.2] last:border-0 hover:bg-[var(--secondary)]/[0.3] dark:hover:bg-[var(--secondary)]/[0.2] px-3 rounded-lg transition-colors duration-200 cursor-default -mx-3">
-      <div className="flex items-center gap-4">
-        <div
-          className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-            type === "alert"
-              ? "bg-red-50/[0.2] dark:bg-red-900/[0.2] text-red-500 dark:text-red-400"
-              : type === "sync"
-                ? "bg-emerald-50/[0.2] dark:bg-emerald-900/[0.2] text-emerald-500 dark:text-emerald-400"
-                : type === "schedule"
-                  ? "bg-blue-50/[0.2] dark:bg-blue-900/[0.2] text-blue-500 dark:text-blue-400"
-                  : "bg-[var(--secondary)]/[0.3] dark:bg-[var(--secondary)]/[0.2] text-[var(--text)]/[0.8] dark:text-[var(--text)]/[0.6]"
-          }`}
-        >
-          {getIcon()}
-        </div>
-        <div>
-          <p className="text-[12px] font-bold text-[var(--text)]/[0.9] line-clamp-1">
-            {title}
-          </p>
-          <p className="text-[14px] text-[var(--text)]/[0.9] font-bold">
-            {time}
-          </p>
-        </div>
-      </div>
-      <ChevronRight className="w-5 h-5 text-[var(--text)]/[0.8] shrink-0 ml-3" />
-    </div>
-  );
-}
-
-function ChevronRight(props: any) {
-  return (
-    <svg
-      {...props}
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m9 18 6-6-6-6" />
-    </svg>
   );
 }

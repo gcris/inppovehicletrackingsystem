@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data, error } = await supabase
         .from("personnel")
-        .select("*, rank:rank_id(*)")
+        .select("*, unit(*), rank(*)")
         .eq("id", uid)
         .maybeSingle();
 
@@ -160,16 +160,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       try {
+        setLoading(true);
         console.log("Control Plane Auth event incoming:", event);
-        if (!mounted) return;
+        if (!mounted) {
+          setLoading(false);
+          return;
+        }
 
         // Avoid re-triggering INITIAL_SESSION if we already handled it in initializeAuth
         if (
           event === "INITIAL_SESSION" ||
           event === "SIGNED_IN" ||
-          event === "SIGNED_OUT"
-        )
+          event === "SIGNED_OUT" ||
+          event === "TOKEN_REFRESHED"
+        ) {
+          setLoading(false);
           return;
+        }
 
         // DO NOT call getSession() here to avoid infinite token-refresh loop on tab focus!
         // We strictly use the session provided by the onAuthStateChange callback.

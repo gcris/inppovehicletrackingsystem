@@ -37,7 +37,8 @@ export default function DashboardPage() {
     activePersonnel: 0,
     ineffectivePersonnel: 0,
     offDutyPersonnel: 0,
-    onDutyShiftPersonnel: 0,
+    onPatrolDutyPersonnel: 0,
+    onOfficeDutyPersonnel: 0,
     mobilePatrolling: "",
     tmrUPatrolling: "",
     footPatrolling: "",
@@ -72,10 +73,6 @@ export default function DashboardPage() {
       let vehiclesQuery = supabase
         .from("mobility_assets")
         .select("*, vehicle_type");
-      let shiftAssignmentsQuery = supabase
-        .from("shift_assignments")
-        .select("personnel_id")
-        .eq("duty_date", format(new Date(), "yyyy-MM-dd"));
 
       // Apply unit filtering for non-admin users
       if (!isAdmin && unitId) {
@@ -88,7 +85,6 @@ export default function DashboardPage() {
           .order("captured_at", { ascending: false })
           .limit(5);
         vehiclesQuery = vehiclesQuery.eq("unit_id", unitId);
-        shiftAssignmentsQuery = shiftAssignmentsQuery.eq("unit_id", unitId);
 
         const { data } = await supabase
           .from("unit")
@@ -101,22 +97,15 @@ export default function DashboardPage() {
         }
       }
 
-      const [
-        personnelRes,
-        schedulesRes,
-        logsRes,
-        vehiclesRes,
-        shiftAssignmentsRes,
-      ] = await Promise.all([
-        personnelQuery,
-        schedulesQuery,
-        logsQuery,
-        vehiclesQuery,
-        shiftAssignmentsQuery,
-      ]);
+      const [personnelRes, schedulesRes, logsRes, vehiclesRes] =
+        await Promise.all([
+          personnelQuery,
+          schedulesQuery,
+          logsQuery,
+          vehiclesQuery,
+        ]);
 
       if (personnelRes.error) throw personnelRes.error;
-      if (shiftAssignmentsRes.error) throw shiftAssignmentsRes.error;
 
       if (personnelRes.data) {
         // Calculate personnel statistics
@@ -128,26 +117,26 @@ export default function DashboardPage() {
         ).length;
         const ineffectivePersonnel = totalPersonnel - activePersonnel;
 
-        // Calculate off duty personnel (Active Duty without shift assignment for today)
-        const activeDutyPersonnel = personnelRes.data.filter(
-          (p) => p.duty_status === "Active Duty",
-        );
+        let onPatrolDutyPersonnelCount = 0;
+        let onOfficeDutyPersonnelCount = 0;
 
-        let offDutyPersonnelCount = 0;
-        let onDutyShiftPersonnelCount = 0;
-        if (shiftAssignmentsRes.data) {
-          const assignedPersonnelIds = new Set(
-            shiftAssignmentsRes.data.map((a) => a.personnel_id),
-          );
-          onDutyShiftPersonnelCount = assignedPersonnelIds.size;
-          offDutyPersonnelCount = activeDutyPersonnel.filter(
-            (person) => !assignedPersonnelIds.has(person.id),
-          ).length;
-        } else {
-          // If no shift assignments data, all active duty are off duty
-          offDutyPersonnelCount = activeDutyPersonnel.length;
-          onDutyShiftPersonnelCount = 0;
+        if (schedulesRes.data) {
+          onPatrolDutyPersonnelCount = schedulesRes.data
+            .filter((s) => s.patrol_type !== "Remain in Office")
+            .reduce((total, schedule) => {
+              return total + (schedule.schedule_assignments?.length || 0);
+            }, 0);
+
+          onOfficeDutyPersonnelCount = schedulesRes.data
+            .filter((s) => s.patrol_type === "Remain in Office")
+            .reduce((total, schedule) => {
+              return total + (schedule.schedule_assignments?.length || 0);
+            }, 0);
         }
+
+        const offDutyPersonnelCount =
+          activePersonnel -
+          (onOfficeDutyPersonnelCount + onPatrolDutyPersonnelCount);
 
         setData((prev) => ({
           ...prev,
@@ -155,7 +144,8 @@ export default function DashboardPage() {
           activePersonnel,
           ineffectivePersonnel,
           offDutyPersonnel: offDutyPersonnelCount,
-          onDutyShiftPersonnel: onDutyShiftPersonnelCount,
+          onPatrolDutyPersonnel: onPatrolDutyPersonnelCount,
+          onOfficeDutyPersonnel: onOfficeDutyPersonnelCount,
           schedules: schedulesRes.data || [],
         }));
       }
@@ -307,11 +297,15 @@ export default function DashboardPage() {
               />
               <SummaryCard
                 label="Actual Present"
-                value={data.onDutyShiftPersonnel.toString()}
+                value={data.activePersonnel.toString()}
+              />
+              <SummaryCard
+                label="Office Duty"
+                value={data.onOfficeDutyPersonnel.toString()}
               />
               <SummaryCard
                 label="Patrol Duty"
-                value={data.activePersonnel.toString()}
+                value={data.onPatrolDutyPersonnel.toString()}
               />
               <SummaryCard
                 label="Off Duty"

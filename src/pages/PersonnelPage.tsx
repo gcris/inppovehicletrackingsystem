@@ -124,7 +124,7 @@ export default function PersonnelPage() {
       // Fetch fundamental data
       let personnelQuery = supabase
         .from("personnel")
-        .select("*, unit(*), rank:rank_id(*)");
+        .select("*, unit(*), rank(*)");
       if (activeTab === "pending") {
         personnelQuery = personnelQuery.eq("is_approved", false);
       }
@@ -420,7 +420,7 @@ export default function PersonnelPage() {
                 placeholder="Search officer name or rank..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-[var(--primary)]/[0.1] dark:bg-[var(--primary)]/[0.2] border border-[var(--secondary)]/[0.3] dark:border-[var(--secondary)]/[0.2] rounded-xl py-2 pl-10 pr-4 font-bold text-[var(--text)] dark:text-[var(--text)]/[0.8] outline-none focus:ring-2 focus-ring-[var(--accent)]/[0.3] w-64 shadow-sm"
+                className="bg-slate-50 dark:bg-slate-600 border border-[var(--secondary)]/[0.3] dark:border-[var(--secondary)]/[0.2] rounded-xl py-2 pl-10 pr-4 font-bold text-[var(--text)] dark:text-[var(--text)]/[0.8] outline-none focus:ring-2 focus-ring-[var(--accent)]/[0.3] w-64 shadow-sm"
               />
             </div>
 
@@ -458,7 +458,9 @@ export default function PersonnelPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-[var(--secondary)]/[0.2] dark:border-[var(--secondary)]/[0.1] bg-[var(--primary)]/[0.05] dark:bg-[var(--primary)]/[0.02]">
-                  <th className="p-4 font-blackst">Personnel</th>
+                  <th className="p-4 font-blackst">No.</th>
+                  <th className="p-4 font-blackst">Badge Number</th>
+                  <th className="p-4 font-blackst">Rank/Name</th>
                   <th className="p-4 font-blackst">Designation</th>
                   <th className="p-4 font-blackst">Unit/Station</th>
                   <th className="p-4 font-blackst">Contact Info</th>
@@ -471,17 +473,35 @@ export default function PersonnelPage() {
                   <tr>
                     <td
                       className="px-6 py-4 text-center text-[var(--text)]/[0.5]"
-                      colSpan={5}
+                      colSpan={7}
                     >
                       No personnel found
                     </td>
                   </tr>
                 ) : (
-                  filteredPersonnel.map((person) => (
+                  filteredPersonnel.map((person, index) => (
                     <tr
                       key={person.id}
-                      className="hover:bg-[var(--secondary)]/[0.05]"
+                      className={`hover:bg-[var(--secondary)]/[0.05] ${person.rank?.level > 7 ? "font-bold" : ""}`}
                     >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <div className="flex flex-col">
+                            <span className="text-[var(--text)]/[0.6]r">
+                              {index + 1}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <div className="flex flex-col">
+                            <span className="text-[var(--text)]/[0.6]r">
+                              {person.badge_number}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           <div className="flex flex-col">

@@ -395,7 +395,7 @@ export default function SchedulePage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xltext-black flex items-center gap-2">
+          <h1 className="text-2xl text-black flex items-center gap-2">
             <CalendarIcon className="w-6 h-6 text-blue-600" />
             Patrol Schedule
           </h1>
@@ -405,19 +405,19 @@ export default function SchedulePage() {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex items-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-1 transition-colors">
+          <div className="flex items-center gap-2 border rounded-lg shadow-sm p-1 transition-colors">
             <button
               onClick={() => setSelectedDate(subDays(selectedDate, 1))}
-              className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-black"
+              className="p-2 dark:text-white hover:bg-slate-400 rounded-lg text-black"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <div className="px-4text-black min-w-[140px] text-center">
+            <div className="font-bold px-4 text-black min-w-[140px] text-center dark:text-white">
               {format(selectedDate, "MMMM d, yyyy")}
             </div>
             <button
               onClick={() => setSelectedDate(addDays(selectedDate, 1))}
-              className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-black"
+              className="p-2 dark:text-white hover:bg-slate-400 rounded-lg text-black"
             >
               <ArrowRight className="w-4 h-4" />
             </button>
@@ -428,7 +428,7 @@ export default function SchedulePage() {
             className="bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-200 dark:shadow-none hover:bg-blue-700 transition-all active:scale-95"
           >
             <Plus className="w-5 h-5" />
-            New Assignment
+            New
           </button>
         </div>
       </div>
@@ -438,21 +438,21 @@ export default function SchedulePage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       ) : (
-        <div className="flex-1">
+        <div className="gap-4">
           <div className="mb-4 flex items-center justify-end">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 border rounded-lg shadow-sm p-1 transition-colors">
               <button
                 onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))}
-                className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-black"
+                className="p-2 dark:text-white hover:bg-slate-400 rounded-lg text-black"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
-              <div className="font-bold px-4text-black min-w-[140px] text-center">
+              <div className="font-bold px-4 text-black min-w-[140px] text-center dark:text-white">
                 {format(selectedDate, "MMMM yyyy")}
               </div>
               <button
                 onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))}
-                className="p-2 hover:bg-slate-50 dark:bg-slate-800 rounded-lg text-black"
+                className="p-2 dark:text-white hover:bg-slate-400 rounded-lg text-black"
               >
                 <ArrowRight className="w-4 h-4" />
               </button>
@@ -481,7 +481,7 @@ export default function SchedulePage() {
                 <div
                   key={day.toISOString()}
                   className={`rounded-xl border p-2 cursor-pointer ${isToday ? "ring-2 ring-blue-500" : ""}
-                           ${isSelected ? "bg-blue-50" : ""}
+                           ${isSelected ? "bg-blue-50 dark:bg-blue-950" : ""}
                            ${!isCurrentMonth ? "opacity-50" : ""}`}
                   onClick={() => {
                     setSelectedDate(day);
@@ -501,7 +501,8 @@ export default function SchedulePage() {
                           <Clock className="w-3 h-3" />
                           <span className="font-medium">
                             {schedule.time_from.slice(0, 5)} -{" "}
-                            {schedule.time_to.slice(0, 5)} {schedule.sector}
+                            {schedule.time_to.slice(0, 5)}{" "}
+                            {schedule.sector || schedule.patrol_type}
                           </span>
                         </div>
                       ))}
@@ -531,7 +532,7 @@ export default function SchedulePage() {
               </h2>
               <button
                 onClick={() => setShowScheduleDetails(false)}
-                className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg text-black"
+                className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg text-black dark:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -634,7 +635,7 @@ export default function SchedulePage() {
                         </div>
                         <div className="text-slate-800 dark:text-slate-200 space-y-1">
                           <p>
-                            <strong>Patrol Type:</strong> {schedule.patrol_type}
+                            <strong>Duty Type:</strong> {schedule.patrol_type}
                           </p>
                           {schedule.mobility && (
                             <p>
@@ -808,6 +809,51 @@ export default function SchedulePage() {
                   </select>
                 </div>
 
+                <div className="space-y-1.5">
+                  <label className="text-slate-800 dark:text-slate-200 ml-1">
+                    Deployment Date
+                  </label>
+                  <input
+                    required
+                    type="date"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors"
+                    value={formData.date}
+                    onChange={(e) =>
+                      setFormData({ ...formData, date: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="pt-4 flex gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-black dark:text-white ml-1">
+                      Duty Start
+                    </label>
+                    <input
+                      required
+                      type="time"
+                      className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 font-bold text-black dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors"
+                      value={formData.time_from}
+                      onChange={(e) =>
+                        setFormData({ ...formData, time_from: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-black dark:text-white ml-1">
+                      Duty End
+                    </label>
+                    <input
+                      required
+                      type="time"
+                      className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 font-bold text-black dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors"
+                      value={formData.time_to}
+                      onChange={(e) =>
+                        setFormData({ ...formData, time_to: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 gap-4">
                   <label
                     htmlFor="patrol_type"
@@ -833,76 +879,72 @@ export default function SchedulePage() {
                   </select>
                 </div>
 
-                {formData.patrol_type !== "Bike Patrol" &&
-                  formData.patrol_type !== "Foot Patrol" &&
-                  formData.patrol_type !== "Checkpoint" && (
-                    <div className="space-y-1.5">
-                      <label className="text-slate-800 dark:text-slate-200 ml-1">
-                        Mobility Asset
-                      </label>
-                      <select
-                        required
-                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors"
-                        value={formData.mobility_id}
-                        onChange={(e) => {
-                          setFormData({
-                            ...formData,
-                            mobility_id: e.target.value,
-                          });
-                        }}
-                      >
-                        <option value="">Select Mobility Asset</option>
-                        {formData.unit_id ? (
-                          mobilityAssets
-                            .filter((a) => {
-                              // Filter by unit first
-                              if (a.unit_id !== formData.unit_id) {
-                                return false;
-                              }
+                {(formData.patrol_type === "TMRU Patrol" ||
+                  formData.patrol_type === "Mobile Patrol") && (
+                  <div className="space-y-1.5">
+                    <label className="text-slate-800 dark:text-slate-200 ml-1">
+                      Mobility Asset
+                    </label>
+                    <select
+                      required
+                      className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors"
+                      value={formData.mobility_id}
+                      onChange={(e) => {
+                        setFormData({
+                          ...formData,
+                          mobility_id: e.target.value,
+                        });
+                      }}
+                    >
+                      <option value="">Select Mobility Asset</option>
+                      {formData.unit_id ? (
+                        mobilityAssets
+                          .filter((a) => {
+                            // Filter by unit first
+                            if (a.unit_id !== formData.unit_id) {
+                              return false;
+                            }
 
-                              // Filter by vehicle type based on patrol type (case-insensitive)
-                              switch (formData.patrol_type.toLowerCase()) {
-                                case "mobile patrol":
-                                  return (
-                                    a.vehicle_type?.toLowerCase() ===
-                                    "mobile patrol"
-                                  );
-                                case "tmru patrol":
-                                  return (
-                                    a.vehicle_type?.toLowerCase() ===
-                                    "motorcycle"
-                                  );
-                                case "bike patrol":
-                                  return (
-                                    a.vehicle_type?.toLowerCase() === "bike"
-                                  );
-                                case "foot patrol":
-                                case "checkpoint":
-                                default:
-                                  // For Foot Patrol and Checkpoint, show all (no vehicle type filter)
-                                  // Note: Checkpoint doesn't show this dropdown at all due to outer condition
-                                  return true;
-                              }
-                            })
-                            .map((a) => (
-                              <option
-                                key={a.id}
-                                value={a.id}
-                                className="bg-white dark:bg-slate-900"
-                              >
-                                {a.plate_number} - {a.vehicle_type}
-                              </option>
-                            ))
-                        ) : (
-                          <>{/* Show empty when no unit is selected */}</>
-                        )}
-                      </select>
-                    </div>
-                  )}
+                            // Filter by vehicle type based on patrol type (case-insensitive)
+                            switch (formData.patrol_type.toLowerCase()) {
+                              case "mobile patrol":
+                                return (
+                                  a.vehicle_type?.toLowerCase() ===
+                                  "mobile patrol"
+                                );
+                              case "tmru patrol":
+                                return (
+                                  a.vehicle_type?.toLowerCase() === "motorcycle"
+                                );
+                              case "bike patrol":
+                                return a.vehicle_type?.toLowerCase() === "bike";
+                              case "foot patrol":
+                              case "checkpoint":
+                              default:
+                                // For Foot Patrol and Checkpoint, show all (no vehicle type filter)
+                                // Note: Checkpoint doesn't show this dropdown at all due to outer condition
+                                return true;
+                            }
+                          })
+                          .map((a) => (
+                            <option
+                              key={a.id}
+                              value={a.id}
+                              className="bg-white dark:bg-slate-900"
+                            >
+                              {a.plate_number} - {a.vehicle_type}
+                            </option>
+                          ))
+                      ) : (
+                        <>{/* Show empty when no unit is selected */}</>
+                      )}
+                    </select>
+                  </div>
+                )}
 
                 <div className="space-y-1.5">
                   <label className="text-slate-800 dark:text-slate-200 ml-1">
-                    Patrol Officers
+                    Patrol Personnel
                   </label>
                   <div className="space-y-2">
                     <div className="relative">
@@ -976,70 +1018,32 @@ export default function SchedulePage() {
                   </p>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-slate-800 dark:text-slate-200 ml-1">
-                    Target Sector
-                  </label>
-                  <div className="relative">
-                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-600" />
-                    <input
-                      required
-                      type="text"
-                      placeholder="e.g. Laoag Central District"
-                      className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 pl-11 pr-4 font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors"
-                      value={formData.sector}
-                      onChange={(e) =>
-                        setFormData({ ...formData, sector: e.target.value })
-                      }
-                    />
+                {formData.patrol_type !== "Remain in Office" && (
+                  <div className="space-y-1.5">
+                    <label className="text-slate-800 dark:text-slate-200 ml-1">
+                      Target Sector/Area
+                    </label>
+                    <div className="relative">
+                      <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-600" />
+                      <input
+                        required
+                        type="text"
+                        placeholder="e.g. Laoag Central District"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 pl-11 pr-4 font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors"
+                        value={formData.sector}
+                        onChange={(e) =>
+                          setFormData({ ...formData, sector: e.target.value })
+                        }
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <div className="space-y-1.5">
-                  <label className="text-slate-800 dark:text-slate-200 ml-1">
-                    Deployment Date
-                  </label>
-                  <input
-                    required
-                    type="date"
-                    className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors"
-                    value={formData.date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, date: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="pt-4 flex gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-black ml-1">Duty Start</label>
-                    <input
-                      required
-                      type="time"
-                      className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 font-bold text-black focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors"
-                      value={formData.time_from}
-                      onChange={(e) =>
-                        setFormData({ ...formData, time_from: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-black ml-1">Duty End</label>
-                    <input
-                      required
-                      type="time"
-                      className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 font-bold text-black focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors"
-                      value={formData.time_to}
-                      onChange={(e) =>
-                        setFormData({ ...formData, time_to: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
                 <div className="pt-4 flex gap-3">
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="flex-1 py-3.5 rounded-xl text-black hover:bg-slate-50 dark:bg-slate-800 transition-colors"
+                    className="flex-1 py-3.5 rounded-xl text-black hover:bg-slate-50 dark:bg-slate-800 transition-colors dark:text-white"
                   >
                     Cancel
                   </button>

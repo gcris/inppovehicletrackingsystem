@@ -21,6 +21,7 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import AccountPage from "./pages/AccountPage";
 import ShiftManagement from "./pages/ShiftManagement";
 import DutyShiftManagement from "./pages/DutyShiftManagement";
+import PersonnelTrackingPage from "./pages/PersonnelTrackingPage";
 import {
   Shield,
   Map as MapIcon,
@@ -64,7 +65,7 @@ function ProtectedRoute({
     return <Navigate to="/login" replace />;
   }
 
-  if (!isApproved) {
+  if (!isApproved && !loading) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
         <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-8 border border-slate-100 dark:border-slate-800">
@@ -226,6 +227,11 @@ function Layout() {
             }
             label="Personnel List"
           />
+          {/* <NavItem
+            to="/personnel-tracking"
+            icon={<User className="w-7 h-7" />}
+            label="Personnel Tracking"
+          /> */}
           <NavItem
             to="/schedule"
             icon={
@@ -351,6 +357,10 @@ function Layout() {
               <Route path="/trackingmap/:id" element={<TrackingMapPage />} />
               <Route path="/schedule" element={<SchedulePage />} />
               <Route path="/personnel" element={<PersonnelPage />} />
+              <Route
+                path="/personnel-tracking"
+                element={<PersonnelTrackingPage />}
+              />
               <Route path="/mobility-assets" element={<MobilityAssetsPage />} />
               {/* <Route path="/team" element={<TeamManagement />} /> */}
               <Route path="/analytics" element={<AnalyticsPage />} />

@@ -9,14 +9,15 @@ import {
   useMap,
 } from "react-leaflet";
 import L from "leaflet";
+
 import {
   supabase,
-  MobilityAsset,
-  VehicleLog,
-  PatrolSchedule,
   Personnel,
+  PersonnelLog,
+  PatrolSchedule,
 } from "../lib/supabase";
 import { format } from "date-fns";
+
 import {
   ChevronLeft,
   Calendar as CalendarIcon,
@@ -64,10 +65,10 @@ function ChangeView({ lat, lng }: { lat: number; lng: number }) {
 }
 
 // Helper to group logs into sessions based on interval
-const groupLogsBySession = (allLogs: VehicleLog[], thresholdMinutes = 10) => {
+const groupLogsBySession = (allLogs: PersonnelLog[], thresholdMinutes = 10) => {
   if (allLogs.length === 0) return [];
-  const sessions: VehicleLog[][] = [];
-  let currentSession: VehicleLog[] = [allLogs[0]];
+  const sessions: PersonnelLog[][] = [];
+  let currentSession: PersonnelLog[] = [allLogs[0]];
 
   for (let i = 1; i < allLogs.length; i++) {
     const prevTime = new Date(allLogs[i - 1].captured_at).getTime();
@@ -85,12 +86,12 @@ const groupLogsBySession = (allLogs: VehicleLog[], thresholdMinutes = 10) => {
   return sessions;
 };
 
-export default function TrackingMapPage() {
-  const { id } = useParams();
+export default function PersonnelTrackingPage() {
+  const { id: personnelId } = useParams();
   const navigate = useNavigate();
-  const [vehicle, setVehicle] = useState<MobilityAsset | null>(null);
-  const [logs, setLogs] = useState<VehicleLog[]>([]);
-  const [sessions, setSessions] = useState<VehicleLog[][]>([]);
+  const [personnel, setPersonnel] = useState<Personnel | null>(null);
+  const [logs, setLogs] = useState<PersonnelLog[]>([]);
+  const [sessions, setSessions] = useState<PersonnelLog[][]>([]);
   const [selectedSessionIndex, setSelectedSessionIndex] = useState<number>(-1);
   const [schedules, setSchedules] = useState<PatrolSchedule[]>([]);
   const [loading, setLoading] = useState(false);
@@ -131,17 +132,17 @@ export default function TrackingMapPage() {
     selectedSessionIndex >= 0 ? sessions[selectedSessionIndex] : [];
 
   useEffect(() => {
-    if (id) {
-      fetchVehicle(id);
-      fetchHistory(id, selectedDate);
+    if (personnelId) {
+      fetchPersonnel(personnelId);
+      fetchPersonnelHistory(personnelId, selectedDate);
     }
-  }, [id, selectedDate]);
+  }, [personnelId, selectedDate]);
 
   useEffect(() => {
-    if (vehicle && vehicle.unit_id && selectedDate) {
-      fetchSchedules(vehicle.unit_id, vehicle.id, selectedDate);
+    if (personnel && selectedDate) {
+      fetchPersonnelSchedules(personnel.id, selectedDate);
     }
-  }, [vehicle, vehicle?.unit_id, selectedDate]);
+  }, [personnel, selectedDate]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -155,55 +156,55 @@ export default function TrackingMapPage() {
     return () => clearInterval(interval);
   }, [isPlaying, currentIndex, activeLogs.length]);
 
-  const fetchVehicle = async (mobilityId: string) => {
+  const fetchPersonnel = async (personnelId: string) => {
     try {
       const { data, error } = await supabase
-        .from("mobility_assets")
+        .from("personnel")
         .select("*")
-        .eq("id", mobilityId)
+        .eq("id", personnelId)
         .single();
-      if (error) console.error("Error fetching mobility asset:", error);
-      else if (data) setVehicle(data);
+      if (error) console.error("Error fetching personnel:", error);
+      else if (data) setPersonnel(data);
     } catch (err) {
-      console.error("Fetch mobility asset failed:", err);
+      console.error("Fetch personnel failed:", err);
     }
   };
 
-  const fetchSchedules = async (
-    unitId: string,
-    mobility_id: string,
+  const fetchPersonnelSchedules = async (
+    personnelId: string,
     dateStr: string,
   ) => {
     try {
+      // For personnel, we need to find schedules where this personnel is assigned
+      // through the schedule_assignments junction table
       const { data, error } = await supabase
         .from("patrol_schedule")
         .select(
           "*, mobility_assets(*), unit(*), schedule_assignments(personnel(*, rank:rank_id(*)))",
         )
-        .eq("unit_id", unitId)
-        .eq("mobility_id", mobility_id)
         .eq("date", dateStr)
+        .contains("schedule_assignments", [{ personnel_id: personnelId }])
         .order("time_from", { ascending: true });
 
-      if (error) console.error("Error fetching schedules:", error);
+      if (error) console.error("Error fetching personnel schedules:", error);
       else if (data) setSchedules(data);
     } catch (err) {
-      console.error("Fetch schedules failed:", err);
+      console.error("Fetch personnel schedules failed:", err);
     }
   };
 
-  const fetchHistory = async (mobilityId: string, dateStr: string) => {
+  const fetchPersonnelHistory = async (
+    personnelId: string,
+    dateStr: string,
+  ) => {
     setLoading(true);
 
     try {
       // Safely offset to Philippines (UTC+8) operational timeframe to retrieve all logs of the selected date
       const localStart = `${dateStr}T00:00:00+08:00`;
-      // const start = new Date(localStart.getTime()).toISOString();
-
       const localEnd = `${dateStr}T23:59:59.999+08:00`;
-      // const end = new Date(localEnd.getTime()).toISOString();
 
-      let allData: VehicleLog[] = [];
+      let allData: PersonnelLog[] = [];
       let pageNum = 1;
       let hasMore = true;
       let totalCount = 0;
@@ -214,16 +215,19 @@ export default function TrackingMapPage() {
         const toRange = pageNum * 1000 - 1;
 
         const { data, error, count } = await supabase
-          .from("vehicle_logs")
+          .from("personnel_logs")
           .select("*", { count: "exact" })
-          .eq("vehicle_id", mobilityId)
+          .eq("personnel_id", personnelId)
           .gte("captured_at", localStart)
           .lte("captured_at", localEnd)
           .order("captured_at", { ascending: true })
           .range(fromRange, toRange);
 
         if (error) {
-          console.error("Error fetching history logs:", error.message);
+          console.error(
+            "Error fetching personnel history logs:",
+            error.message,
+          );
           break;
         }
 
@@ -257,7 +261,7 @@ export default function TrackingMapPage() {
         setCurrentIndex(0);
       }
     } catch (err) {
-      console.error("Fetch history failed:", err);
+      console.error("Fetch personnel history failed:", err);
       setLogs([]);
     } finally {
       setLoading(false);
@@ -278,106 +282,92 @@ export default function TrackingMapPage() {
     return acc;
   }, []);
 
-  // // Calculate overall hour patrolled for the entire day (from vehicle logs)
-  // const vehicleHoursMap = new Map<string, { min: number; max: number }>();
-  // for (const log of logs) {
-  //   const vid = log.vehicle_id;
-  //   const time = new Date(log.captured_at).getTime();
-  //   if (!vehicleHoursMap.has(vid)) {
-  //     vehicleHoursMap.set(vid, { min: time, max: time });
-  //   } else {
-  //     const entry = vehicleHoursMap.get(vid)!;
-  //     if (time < entry.min) entry.min = time;
-  //     if (time > entry.max) entry.max = time;
-  //   }
-  // }
+  // Calculate overall hour patrolled for the entire day (from personnel logs)
+  let overallHourPatrolled = 0;
+  for (const session of sessions) {
+    const start = new Date(session[0].captured_at).getTime();
+    const end = new Date(session[session.length - 1].captured_at).getTime();
+    overallHourPatrolled += (end - start) / (1000 * 60 * 60);
+  }
+  setOverallTotalHourPatrolled(overallHourPatrolled);
 
-  // let overallHourPatrolled = 0;
-  // vehicleHoursMap.forEach(({ min, max }) => {
-  //   overallHourPatrolled += (max - min) / (1000 * 60 * 60); // convert ms to hours
-  // });
+  // Calculate overall man-hour: for each schedule, if it has matching logs,
+  // add (hours during schedule × personnel count) to the total
+  let overallManHour = 0;
+  for (const schedule of schedules) {
+    // Filter logs that fall within this schedule's date and time range
+    const matchingLogs = logs.filter((log) => {
+      const logTime = new Date(log.captured_at);
 
-  // // setOverallTotalHourPatrolled(overallHourPatrolled);
+      // 1. Get the local date string (YYYY-MM-DD) matching your local timezone
+      const logDate = logTime.toLocaleDateString("en-CA", {
+        timeZone: "Asia/Manila",
+      });
+      if (logDate !== schedule.date) return false;
 
-  // // Calculate overall man-hour: for each schedule, if it has matching logs,
-  // // add (hours during schedule × personnel count) to the total
-  // let overallManHour = 0;
-  // for (const schedule of schedules) {
-  //   // Filter logs that fall within this schedule's date and time range
-  //   const matchingLogs = logs.filter((log) => {
-  //     const logTime = new Date(log.captured_at);
+      // 2. Get local hours and minutes directly (Bypasses the UTC string-splitting trap)
+      const logH = parseInt(
+        logTime.toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          hour12: false,
+          timeZone: "Asia/Manila",
+        }),
+        10,
+      );
+      const logM = logTime.getMinutes();
+      const logTotalMinutes = logH * 60 + logM;
 
-  //     // 1. Get the local date string (YYYY-MM-DD) matching your local timezone
-  //     const logDate = logTime.toLocaleDateString("en-CA", {
-  //       timeZone: "Asia/Manila",
-  //     });
-  //     if (logDate !== schedule.date) return false;
+      // --- Your remaining schedule logic stays exactly the same ---
+      const [scheduleStartH, scheduleStartM] = schedule.time_from
+        .split(":")
+        .map(Number);
+      const [scheduleEndH, scheduleEndM] = schedule.time_to
+        .split(":")
+        .map(Number);
+      const scheduleStartMinutes = scheduleStartH * 60 + scheduleStartM;
+      const scheduleEndMinutes = scheduleEndH * 60 + scheduleEndM;
 
-  //     // 2. Get local hours and minutes directly (Bypasses the UTC string-splitting trap)
-  //     const logH = parseInt(
-  //       logTime.toLocaleTimeString("en-US", {
-  //         hour: "2-digit",
-  //         hour12: false,
-  //         timeZone: "Asia/Manila",
-  //       }),
-  //       10,
-  //     );
-  //     const logM = logTime.getMinutes();
-  //     const logTotalMinutes = logH * 60 + logM;
+      if (scheduleEndMinutes < scheduleStartMinutes) {
+        // Overnight shift
+        return (
+          logTotalMinutes >= scheduleStartMinutes ||
+          logTotalMinutes <= scheduleEndMinutes
+        );
+      } else {
+        // Normal shift
+        return (
+          logTotalMinutes >= scheduleStartMinutes &&
+          logTotalMinutes <= scheduleEndMinutes
+        );
+      }
+    });
 
-  //     // --- Your remaining schedule logic stays exactly the same ---
-  //     const [scheduleStartH, scheduleStartM] = schedule.time_from
-  //       .split(":")
-  //       .map(Number);
-  //     const [scheduleEndH, scheduleEndM] = schedule.time_to
-  //       .split(":")
-  //       .map(Number);
-  //     const scheduleStartMinutes = scheduleStartH * 60 + scheduleStartM;
-  //     const scheduleEndMinutes = scheduleEndH * 60 + scheduleEndM;
+    // If this schedule has matching logs, calculate its contribution to man-hours
+    if (matchingLogs.length > 0) {
+      // Calculate hours from the matching logs only
+      const matchingTimes = matchingLogs.map((log) =>
+        new Date(log.captured_at).getTime(),
+      );
+      const minTime = Math.min(...matchingTimes);
+      const maxTime = Math.max(...matchingTimes);
+      const scheduleHours = (maxTime - minTime) / (1000 * 60 * 60); // convert ms to hours
 
-  //     if (scheduleEndMinutes < scheduleStartMinutes) {
-  //       // Overnight shift
-  //       return (
-  //         logTotalMinutes >= scheduleStartMinutes ||
-  //         logTotalMinutes <= scheduleEndMinutes
-  //       );
-  //     } else {
-  //       // Normal shift
-  //       return (
-  //         logTotalMinutes >= scheduleStartMinutes &&
-  //         logTotalMinutes <= scheduleEndMinutes
-  //       );
-  //     }
-  //   });
+      // Count unique personnel in this schedule (should be 1 for personnel tracking)
+      const personnelIds = new Set<string>();
+      for (const assign of schedule.schedule_assignments || []) {
+        if (assign.personnel?.id) {
+          personnelIds.add(assign.personnel.id);
+        }
+      }
+      const personnelCount = personnelIds.size;
 
-  //   // If this schedule has matching logs, calculate its contribution to man-hours
-  //   if (matchingLogs.length > 0) {
-  //     // Calculate hours from the matching logs only
-  //     const matchingTimes = matchingLogs.map((log) =>
-  //       new Date(log.captured_at).getTime(),
-  //     );
-  //     const minTime = Math.min(...matchingTimes);
-  //     const maxTime = Math.max(...matchingTimes);
-  //     const scheduleHours = (maxTime - minTime) / (1000 * 60 * 60); // convert ms to hours
-
-  //     // Count unique personnel in this schedule
-  //     const personnelIds = new Set<string>();
-  //     for (const assign of schedule.schedule_assignments || []) {
-  //       if (assign.personnel?.id) {
-  //         personnelIds.add(assign.personnel.id);
-  //       }
-  //     }
-  //     const personnelCount = personnelIds.size;
-
-  //     // Add to total man-hours
-  //     overallManHour += scheduleHours * personnelCount;
-  //   }
-  // }
-
-  // // setOverallTotalManHour(overallTotalManHour);
+      // Add to total man-hours
+      overallManHour += scheduleHours * personnelCount;
+    }
+  }
+  setOverallTotalManHour(overallManHour);
 
   // Helper function to format hours to "X hour(s) and Y minute(s)" format
-
   const formatHoursToHoursAndMinutes = (hours: number) => {
     const totalMinutes = Math.round(hours * 60);
     const hoursPart = Math.floor(totalMinutes / 60);
@@ -400,7 +390,7 @@ export default function TrackingMapPage() {
     );
   }
 
-  const calculateDistance = (logs: VehicleLog[] | null) => {
+  const calculateDistance = (logs: PersonnelLog[] | null) => {
     if (!logs || logs.length < 2) return 0;
 
     const EARTH_RADIUS_KM = 6371;
@@ -456,18 +446,20 @@ export default function TrackingMapPage() {
           <div>
             <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
               <HistoryIcon className="w-5 h-5 text-blue-600" />
-              Tracking Map
+              Personnel Tracking
             </h1>
             <p className="font-medium">
-              <span className="font-bold">Mobility Asset:</span>{" "}
-              {vehicle?.plate_number || "Loading..."}
+              <span className="font-bold">Personnel:</span>{" "}
+              {personnel?.fullname || "Loading..."}
             </p>
-            {vehicle && (
+            {personnel && (
               <div className="mt-1">
-                <span className="font-bold">Description:</span>{" "}
-                {vehicle.description || "N/A"} &nbsp;|&nbsp;
-                <span className="font-bold">Status:</span>{" "}
-                {vehicle.status || "Serviceable"}
+                <span className="font-bold">Badge:</span>{" "}
+                {personnel.badge_number || "N/A"} &nbsp;|&nbsp;
+                <span className="font-bold">Rank:</span>{" "}
+                {personnel.rank?.rank_name || "N/A"} &nbsp;|&nbsp;
+                <span className="font-bold">Unit:</span>{" "}
+                {personnel.unit_id || "N/A"}
               </div>
             )}
           </div>
@@ -920,20 +912,6 @@ export default function TrackingMapPage() {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function LegendItem({ color, label }: { color: string; label: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div
-        className="w-3 h-1 rounded-full"
-        style={{ backgroundColor: color }}
-      ></div>
-      <span className="font-semibold text-slate-600 dark:text-slate-400">
-        {label}
-      </span>
     </div>
   );
 }

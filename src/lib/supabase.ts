@@ -49,6 +49,7 @@ export type VehicleLog = {
   speed: number;
   network_signal: number;
   captured_at: string;
+  duty_type: string;
 };
 
 export type Unit = {
@@ -104,11 +105,12 @@ export type PatrolSchedule = {
 export type PersonnelLog = {
   id: string;
   personnel_id: string;
-  schedule_id: string;
   latitude: number;
   longitude: number;
-  accuracy: number;
+  speed: number;
+  network_signal: number;
   captured_at: string;
+  duty_type: string;
 };
 
 export type DutyShift = {

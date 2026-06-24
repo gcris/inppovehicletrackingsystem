@@ -19,6 +19,7 @@
 5. Patrol Schedule
 -Add column for replacement and remarks
 -Add teaming and copy paste feature.
+-Automatic duty shifts
 
 6. Analytics
 -list of personnel with number of rank/name, designation, duty schedule, patrol schedule, patrol type, number of hour spend, and km spend.
@@ -34,3 +35,10 @@
 -Make fonts bigger.
 -Implement UI UX PRO MAX design
 -Calculation of Man-hour should based on the patrol schedule (only within/between the given date, time_from, and time_to)
+
+Mobile App
+-SOS in mobile app for emergency purposes
+-Notify the user to turnoff the location when already log out.
+-Optimize the battery consumption when using location
+-Open phone_numner, viber or whatsapp
+-Offline mode and save GPS data and automatically send data when online.

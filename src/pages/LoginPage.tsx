@@ -35,12 +35,14 @@ export default function LoginPage() {
         return;
       }
       try {
+        let loggedInEmail = "";
         const {
           data: { session: activeSession },
         } = await supabase.auth.getSession();
         if (activeSession?.user) {
           const { data: mfaData } =
             await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+          loggedInEmail = activeSession?.user.email || "";
           if (mfaData?.currentLevel === "aal2") {
             setIsMfaVerified(true);
             return;
@@ -73,11 +75,17 @@ export default function LoginPage() {
             // Need to enroll them if they haven't enrolled yet
             const { data: factorData } = await supabase.auth.mfa.enroll({
               factorType: "totp",
+              issuer: "INPPO-Itrack",
+              friendlyName: `INPPO-Geo Tracker`,
             });
+
             if (factorData) {
+              const localSecret = factorData.totp.secret;
+              const customUri = `otpauth://totp/${loggedInEmail}?secret=${localSecret}&issuer=INPPO-Itrack&algorithm=SHA1&digits=6&period=30`;
+
               setUnenrolledMfaData({
                 id: factorData.id,
-                qrCodeUrl: factorData.totp.uri,
+                qrCodeUrl: customUri,
               });
             }
           }
@@ -143,6 +151,8 @@ export default function LoginPage() {
         const { data: factorData, error: enrollError } =
           await supabase.auth.mfa.enroll({
             factorType: "totp",
+            issuer: "INPPO-Itrack",
+            friendlyName: `INPPO-Geo Tracker`,
           });
         if (enrollError) {
           setError(
@@ -150,9 +160,12 @@ export default function LoginPage() {
               enrollError.message,
           );
         } else if (factorData) {
+          const localSecret = factorData.totp.secret;
+          const customUri = `otpauth://totp/${email}?secret=${localSecret}&issuer=INPPO-Itrack&algorithm=SHA1&digits=6&period=30`;
+
           setUnenrolledMfaData({
             id: factorData.id,
-            qrCodeUrl: factorData.totp.uri,
+            qrCodeUrl: customUri,
           });
         }
       }
