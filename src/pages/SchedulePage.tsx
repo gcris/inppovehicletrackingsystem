@@ -441,7 +441,7 @@ export default function SchedulePage() {
                 onChange={(e) => setUnitFilter(e.target.value)}
                 className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl p-1 font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none"
               >
-                <option value="">All Units</option>
+                <option value="">All Units/Station</option>
                 {units.map((unit) => (
                   <option key={unit.id} value={unit.id}>
                     {unit.unit_name}
