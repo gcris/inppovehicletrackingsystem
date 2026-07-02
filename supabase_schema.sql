@@ -48,19 +48,22 @@ create table mobility_assets (
   unit_id uuid references unit(id) on delete cascade
 );
 
-create table vehicle_logs (
+create table patrol_logs (
   id uuid primary key default uuid_generate_v4(),
   vehicle_id uuid references mobility_assets(id) on delete cascade,
   latitude float8 not null,
   longitude float8 not null,
   speed numeric default 0,
   network_signal int4 default 0,
-  captured_at timestamptz default now()
+  captured_at timestamptz default now(),
+  remarks text,
+  duty_type text,
+  personnel_id uuid references personnel(id) on delete restrict on update cascade
 );
 
 -- 2. Indexes
-create index idx_vehicle_logs_vehicle_captured on vehicle_logs(vehicle_id, captured_at desc);
-create index idx_vehicle_logs_captured on vehicle_logs(captured_at desc);
+create index idx_patrol_logs_vehicle_captured on patrol_logs(vehicle_id, captured_at desc);
+create index idx_patrol_logs_captured on patrol_logs(captured_at desc);
 create index idx_patrol_schedule_date_unit on patrol_schedule(date, unit_id);
 create index idx_patrol_schedule_personnel_date on patrol_schedule(mobility_id, date);
 create index idx_mobility_assets_unit on mobility_assets(unit_id);
@@ -71,7 +74,7 @@ alter table unit enable row level security;
 alter table personnel enable row level security;
 alter table patrol_schedule enable row level security;
 alter table mobility_assets enable row level security;
-alter table vehicle_logs enable row level security;
+alter table patrol_logs enable row level security;
 
 -- Helper function to check if user is admin
 create or replace function is_admin()
@@ -123,17 +126,17 @@ create policy "Users see their unit mobility assets" on mobility_assets for sele
 create policy "Commanders manage their unit mobility assets" on mobility_assets for all using (unit_id = get_user_unit());
 
 -- Vehicle Logs Policies
-create policy "Admins see all logs" on vehicle_logs for all using (is_admin());
-create policy "Users see their unit logs" on vehicle_logs for select using (
+create policy "Admins see all logs" on patrol_logs for all using (is_admin());
+create policy "Users see their unit logs" on patrol_logs for select using (
   exists (
     select 1 from mobility_assets v
-    where v.id = vehicle_logs.vehicle_id
+    where v.id = patrol_logs.vehicle_id
     and v.unit_id = get_user_unit()
   )
 );
 
--- Realtime: Enable realtime for vehicle_logs
-alter publication supabase_realtime add table vehicle_logs;
+-- Realtime: Enable realtime for patrol_logs
+alter publication supabase_realtime add table patrol_logs;
 alter publication supabase_realtime add table mobility_assets;
 
 -- 3. Duty Shifts Table

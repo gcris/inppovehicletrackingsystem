@@ -74,8 +74,7 @@ export default function SchedulePage() {
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [mobilityAssets, setMobilityAssets] = useState<MobilityAsset[]>([]);
   const [loading, setLoading] = useState(true);
-  // const [selectedDate, setSelectedDate] = useState(new Date());
-  const [unitFilter, setUnitFilter] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(new Date()));
   const [monthlySchedules, setMonthlySchedules] = useState<PatrolSchedule[]>(
     [],
@@ -115,10 +114,10 @@ export default function SchedulePage() {
 
   useEffect(() => {
     fetchSchedules();
-  }, [currentMonth, isAdmin, unitId, unitFilter]); // Re-fetch when month, auth, or filter changes
+  }, [currentMonth, isAdmin, unitId]); // Re-fetch when month or auth changes
 
   useEffect(() => {
-    // setSelectedDate(startOfMonth(currentMonth));
+    setSelectedDate(startOfMonth(currentMonth));
   }, [currentMonth]);
 
   const fetchInitialData = async () => {
@@ -132,15 +131,9 @@ export default function SchedulePage() {
       let mobilityAssetsQuery = supabase.from("mobility_assets").select("*");
 
       if (!isAdmin && unitId) {
-        // Non-admin users: filter by their unit
         unitsQuery = unitsQuery.eq("id", unitId);
         personnelQuery = personnelQuery.eq("unit_id", unitId);
         mobilityAssetsQuery = mobilityAssetsQuery.eq("unit_id", unitId);
-      } else if (isAdmin && unitFilter) {
-        // Admin users: filter by selected unit if any
-        unitsQuery = unitsQuery.eq("id", unitFilter);
-        personnelQuery = personnelQuery.eq("unit_id", unitFilter);
-        mobilityAssetsQuery = mobilityAssetsQuery.eq("unit_id", unitFilter);
       }
 
       const [unitsRes, personnelRes, mobilityAssetsRes] = await Promise.all([
@@ -178,13 +171,9 @@ export default function SchedulePage() {
         .gte("date", format(startOfMonth(currentMonth), "yyyy-MM-dd"))
         .lte("date", format(endOfMonth(currentMonth), "yyyy-MM-dd"));
 
-      // Apply unit filtering
+      // Apply unit filtering for non-admin users
       if (!isAdmin && unitId) {
-        // Non-admin users: filter by their unit
         schedulesQuery = schedulesQuery.eq("unit_id", unitId);
-      } else if (isAdmin && unitFilter) {
-        // Admin users: filter by selected unit if any
-        schedulesQuery = schedulesQuery.eq("unit_id", unitFilter);
       }
 
       const { data, error } = await schedulesQuery;
@@ -338,7 +327,7 @@ export default function SchedulePage() {
         unit_id: unitId || "",
         personnel_ids: [],
         mobility_id: "",
-        date: format(new Date(), "yyyy-MM-dd"),
+        date: format(selectedDate, "yyyy-MM-dd"),
         time_from: "08:00",
         time_to: "17:00",
         sector: "",
@@ -416,72 +405,24 @@ export default function SchedulePage() {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Date navigation (commented out) */}
-          {/* <div className="flex items-center gap-2 border rounded-lg shadow-sm p-1 transition-colors">
-              <button
-                onClick={() => setSelectedDate(subDays(selectedDate, 1))}
-                className="p-2 dark:text-white hover:bg-slate-400 rounded-lg text-black"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-              <div className="font-bold px-4 text-black min-w-[140px] text-center dark:text-white">
-                {format(selectedDate, "MMMM d, yyyy")}
-              </div>
-              <button
-                onClick={() => setSelectedDate(addDays(selectedDate, 1))}
-                className="p-2 dark:text-white hover:bg-slate-400 rounded-lg text-black"
-              >
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div> */}
-
-          {/* Unit Filter */}
-          {isAdmin ? (
-            <div className="flex items-center gap-2 border rounded-lg shadow-sm p-1 transition-colors">
-              <select
-                value={unitFilter}
-                onChange={(e) => setUnitFilter(e.target.value)}
-                className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl p-1 font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none"
-              >
-                <option value="">All Units</option>
-                {units.map((unit) => (
-                  <option key={unit.id} value={unit.id}>
-                    {unit.unit_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 border rounded-lg shadow-sm p-1 transition-colors">
-              <label className="text-black">Unit:</label>
-              <select
-                disabled
-                className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2 px-3 font-bold text-slate-900 dark:text-white"
-              >
-                <option value={unitId ?? ""}>
-                  {units.find((u) => u.id === unitId)?.unit_name || unitId}
-                </option>
-              </select>
-            </div>
-          )}
-
           <div className="flex items-center gap-2 border rounded-lg shadow-sm p-1 transition-colors">
             <button
-              onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))}
+              onClick={() => setSelectedDate(subDays(selectedDate, 1))}
               className="p-2 dark:text-white hover:bg-slate-400 rounded-lg text-black"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
             <div className="font-bold px-4 text-black min-w-[140px] text-center dark:text-white">
-              {format(currentMonth, "MMMM yyyy")}
+              {format(selectedDate, "MMMM d, yyyy")}
             </div>
             <button
-              onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))}
+              onClick={() => setSelectedDate(addDays(selectedDate, 1))}
               className="p-2 dark:text-white hover:bg-slate-400 rounded-lg text-black"
             >
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
+
           <button
             onClick={() => setShowModal(true)}
             className="bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-200 dark:shadow-none hover:bg-blue-700 transition-all active:scale-95"
@@ -498,6 +439,25 @@ export default function SchedulePage() {
         </div>
       ) : (
         <div className="gap-4">
+          <div className="mb-4 flex items-center justify-end">
+            <div className="flex items-center gap-2 border rounded-lg shadow-sm p-1 transition-colors">
+              <button
+                onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))}
+                className="p-2 dark:text-white hover:bg-slate-400 rounded-lg text-black"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <div className="font-bold px-4 text-black min-w-[140px] text-center dark:text-white">
+                {format(selectedDate, "MMMM yyyy")}
+              </div>
+              <button
+                onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))}
+                className="p-2 dark:text-white hover:bg-slate-400 rounded-lg text-black"
+              >
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
           <div className="grid grid-cols-7 gap-2">
             {/* Day headers */}
             {[...Array(7)].map((_, index) => (
@@ -512,6 +472,7 @@ export default function SchedulePage() {
             }).map((day) => {
               const isCurrentMonth = isSameMonth(day, currentMonth);
               const isToday = isSameDay(day, new Date());
+              const isSelected = isSameDay(day, selectedDate);
               const daySchedules = monthlySchedules.filter((schedule) =>
                 isSameDay(new Date(schedule.date), day),
               );
@@ -520,10 +481,10 @@ export default function SchedulePage() {
                 <div
                   key={day.toISOString()}
                   className={`rounded-xl border p-2 cursor-pointer ${isToday ? "ring-2 ring-blue-500" : ""}
-                           ${/* isSelected ? "bg-blue-50 dark:bg-blue-950" : "" */ ""}
+                           ${isSelected ? "bg-blue-50 dark:bg-blue-950" : ""}
                            ${!isCurrentMonth ? "opacity-50" : ""}`}
                   onClick={() => {
-                    // setSelectedDate(day);
+                    setSelectedDate(day);
                     setShowScheduleDetails(true);
                   }}
                 >
@@ -567,8 +528,7 @@ export default function SchedulePage() {
             {/* HEADER SECTION (Remains locked in place at the top) */}
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
               <h2 className="ltext-black">
-                Patrol Schedules{" "}
-                {/* for {format(selectedDate, "MMMM d, yyyy")} */}
+                Patrol Schedules for {format(selectedDate, "MMMM d, yyyy")}
               </h2>
               <button
                 onClick={() => setShowScheduleDetails(false)}
@@ -581,7 +541,7 @@ export default function SchedulePage() {
             {/* SCROLLABLE BODY CONTAINER (This scales dynamically and adds a vertical scrollbar when needed) */}
             <div className="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
               {monthlySchedules.filter((schedule) =>
-                isSameDay(new Date(schedule.date), new Date()),
+                isSameDay(new Date(schedule.date), selectedDate),
               ).length === 0 ? (
                 <p className="text-black text-center">
                   No patrols scheduled for this date.
@@ -590,7 +550,7 @@ export default function SchedulePage() {
                 <>
                   {monthlySchedules
                     .filter((schedule) =>
-                      isSameDay(new Date(schedule.date), new Date()),
+                      isSameDay(new Date(schedule.date), selectedDate),
                     )
                     .map((schedule) => (
                       <div
@@ -778,7 +738,7 @@ export default function SchedulePage() {
         <div className="fixed inset-0 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50 transition-colors">
-              <h2 className="text-slate-900 dark:text-white">
+              <h2 className="ltext-slate-900 dark:text-white">
                 New Patrol Assignment
               </h2>
               <button
@@ -915,12 +875,7 @@ export default function SchedulePage() {
                     <option value="TMRU Patrol">TMRU Patrol</option>
                     <option value="Bike Patrol">Bike Patrol</option>
                     <option value="Foot Patrol">Foot Patrol</option>
-                    <option value="Seaborne Patrol">Seaborne Patrol</option>
                     <option value="Checkpoint">Checkpoint</option>
-                    <option value="Simulation Exercise">
-                      Simulation Exercise
-                    </option>
-                    <option value="Special Event">Special Event</option>
                   </select>
                 </div>
 

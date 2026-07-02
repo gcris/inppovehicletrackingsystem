@@ -5,22 +5,11 @@ import { useAuth } from "../components/AuthProvider";
 import {
   Car,
   Search,
-  Filter,
-  Shield,
-  User,
-  AlertTriangle,
-  Clock,
   RefreshCcw,
-  Navigation,
-  CheckCircle2,
-  MoreVertical,
   Trash2,
   Edit2,
-  Activity,
   LocateFixed,
-  Cross,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
 
 export default function MobilityAssetsPage() {
   const [vehicles, setVehicles] = useState<(MobilityAsset & { unit?: Unit })[]>(
@@ -33,11 +22,13 @@ export default function MobilityAssetsPage() {
     (MobilityAsset & { unit?: Unit }) | null
   >(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [unitFilter, setUnitFilter] = useState<string>("");
   const [formData, setFormData] = useState({
     plate_number: "",
     unit_id: "",
     vehicle_type: "",
     description: "",
+    status: "Serviceable", // Added status field
   });
 
   const [unitList, setUnitList] = useState<Unit[]>([]);
@@ -54,18 +45,11 @@ export default function MobilityAssetsPage() {
   useEffect(() => {
     fetchVehicles();
     fetchSupportData();
-  }, []);
+  }, [isAdmin, unitId, unitFilter]);
 
   const fetchSupportData = async () => {
     try {
-      // Apply unit filtering for non-admin users
-      let unitQuery = supabase.from("unit").select("*");
-
-      if (!isAdmin && unitId) {
-        unitQuery = unitQuery.eq("id", unitId);
-      }
-
-      const [uRes] = await Promise.all([unitQuery]);
+      const [uRes] = await Promise.all([supabase.from("unit").select("*")]);
 
       if (uRes.error) console.error("Error fetching units:", uRes.error);
       else if (uRes.data) setUnitList(uRes.data);
@@ -83,9 +67,11 @@ export default function MobilityAssetsPage() {
         .select("*, unit(*)")
         .order("plate_number", { ascending: true });
 
-      // Apply unit filtering for non-admin users
+      // Apply unit filtering
       if (!isAdmin && unitId) {
         vehiclesQuery = vehiclesQuery.eq("unit_id", unitId);
+      } else if (isAdmin && unitFilter) {
+        vehiclesQuery = vehiclesQuery.eq("unit_id", unitFilter);
       }
 
       const { data, error } = await vehiclesQuery;
@@ -126,6 +112,7 @@ export default function MobilityAssetsPage() {
           unit_id: editingVehicle.unit_id,
           vehicle_type: editingVehicle.vehicle_type,
           description: editingVehicle.description,
+          status: editingVehicle.status,
         })
         .eq("id", editingVehicle.id);
 
@@ -136,6 +123,7 @@ export default function MobilityAssetsPage() {
         unit_id: unitId || "",
         vehicle_type: "",
         description: "",
+        status: "Serviceable",
       });
       fetchVehicles();
     } catch (err: any) {
@@ -162,6 +150,7 @@ export default function MobilityAssetsPage() {
         unit_id: unitId || "",
         vehicle_type: "",
         description: "",
+        status: "",
       });
       fetchVehicles();
     } catch (err: any) {
@@ -209,6 +198,37 @@ export default function MobilityAssetsPage() {
             />
           </div>
 
+          {isAdmin ? (
+            <div className="flex items-center gap-2 border rounded-lg shadow-sm p-1 transition-colors">
+              <select
+                value={unitFilter}
+                onChange={(e) => setUnitFilter(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl p-1 font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none"
+              >
+                <option value="">All Units</option>
+                {unitList.map((unit) => (
+                  <option key={unit.id} value={unit.id}>
+                    {unit.unit_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 border rounded-lg shadow-sm p-1 transition-colors">
+              <label className="text-slate-800 dark:text-slate-200">
+                Unit:
+              </label>
+              <select
+                disabled
+                className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2 px-3 font-bold text-slate-900 dark:text-white"
+              >
+                <option value={unitId ?? ""}>
+                  {unitList.find((u) => u.id === unitId)?.unit_name ?? unitId}
+                </option>
+              </select>
+            </div>
+          )}
+
           <button
             onClick={fetchVehicles}
             className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-500 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors shadow-sm"
@@ -239,6 +259,9 @@ export default function MobilityAssetsPage() {
                   </th>
                   <th className="p-4  text-slate-800 dark:text-slate-200 ">
                     Mobility Type
+                  </th>
+                  <th className="p-4  text-slate-800 dark:text-slate-200 ">
+                    Status
                   </th>
                   <th className="p-4  text-slate-800 dark:text-slate-200 text-center">
                     Action
@@ -272,6 +295,11 @@ export default function MobilityAssetsPage() {
                       <td className="p-4">
                         <span className="text-slate-800 dark:text-slate-200">
                           {vehicle.vehicle_type || "Not Specified"}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span className="text-slate-800 dark:text-slate-200">
+                          {vehicle.status || "N/A"}
                         </span>
                       </td>
                       <td className="p-4 flex items-center justify-center gap-2">
@@ -408,6 +436,34 @@ export default function MobilityAssetsPage() {
                   <option value="Mobile Patrol">Mobile Patrol</option>
                   <option value="Motorcycle">Motorcycle</option>
                   <option value="Bike">Bike</option>
+                  <option value="ATV">ATV</option>
+                  <option value="Rescue Boat">Rescue Boat</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="  text-slate-800 dark:text-slate-200 tml-1">
+                  Status
+                </label>
+                <select
+                  value={editingVehicle.status!}
+                  onChange={(e) =>
+                    setEditingVehicle({
+                      ...editingVehicle,
+                      status: e.target.value,
+                    })
+                  }
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                >
+                  <option value="">Select Status</option>
+                  <option value="Serviceable">Serviceable</option>
+                  <option value="Unserviceable">Unserviceable</option>
+                  <option value="Beyond Economic Repair">
+                    Under maintenance
+                  </option>
+                  <option value="Beyond Economic Repair">
+                    Beyond Economic Repair
+                  </option>
                 </select>
               </div>
 

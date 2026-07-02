@@ -1,0 +1,5 @@
+Fixed JSX syntax errors in SchedulePage.tsx:
+- Line 577: Fixed ternary operator parentheses
+- Lines 609, 618: Removed trailing commas in filter calls
+- Lines 774-779: Removed misplaced closing brace in conditional
+- Lines 781, 794-798: Fixed JSX structure in ScheduleDetailsModal

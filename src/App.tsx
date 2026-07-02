@@ -19,9 +19,6 @@ import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import AccountPage from "./pages/AccountPage";
-import ShiftManagement from "./pages/ShiftManagement";
-import DutyShiftManagement from "./pages/DutyShiftManagement";
-import PersonnelTrackingPage from "./pages/PersonnelTrackingPage";
 import {
   Shield,
   Map as MapIcon,
@@ -44,6 +41,7 @@ import {
 } from "lucide-react";
 import MobilityAssetsPage from "./pages/MobilityAssetsPage";
 import TeamManagement from "./pages/TeamManagement";
+import CalendarPage from "./pages/CalendarPage";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -254,6 +252,17 @@ function Layout() {
             }
             label="Mobility Assets"
           />
+          <NavItem
+            to="/calendar"
+            icon={
+              <img
+                src="/assets/calendar.png"
+                alt="Calendar"
+                className="w-7 h-7"
+              />
+            }
+            label="Calendar"
+          />
           {/* <NavItem
             to="/team"
             icon={<Group className="w-7 h-7" />}
@@ -357,18 +366,9 @@ function Layout() {
               <Route path="/trackingmap/:id" element={<TrackingMapPage />} />
               <Route path="/schedule" element={<SchedulePage />} />
               <Route path="/personnel" element={<PersonnelPage />} />
-              <Route
-                path="/personnel-tracking"
-                element={<PersonnelTrackingPage />}
-              />
               <Route path="/mobility-assets" element={<MobilityAssetsPage />} />
-              {/* <Route path="/team" element={<TeamManagement />} /> */}
+              <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
-              {/* <Route path="/shift-management" element={<ShiftManagement />} />
-              <Route
-                path="/duty-shift-management"
-                element={<DutyShiftManagement />}
-              /> */}
               <Route path="/account" element={<AccountPage />} />
               <Route
                 path="*"

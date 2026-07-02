@@ -35,13 +35,13 @@ export type MobilityAsset = {
   plate_number: string;
   vehicle_type: string; // e.g., 'Mobile Patrol', 'TMRU', 'Bike Patrol', 'Other'
   unit_id: string;
-  personnel_id: string | null; // Reference to personnel
-  last_log?: VehicleLog;
+  last_log?: PatrolLog;
   description: string | null;
   status: string | null;
+  unit?: Unit; // Optional reference to unit
 };
 
-export type VehicleLog = {
+export type PatrolLog = {
   id: string;
   vehicle_id: string;
   latitude: number;
@@ -50,6 +50,8 @@ export type VehicleLog = {
   network_signal: number;
   captured_at: string;
   duty_type: string;
+  remarks: string;
+  personnel_id: string;
 };
 
 export type Unit = {
@@ -71,6 +73,7 @@ export type Personnel = {
   rank?: Rank;
   fullname: string;
   unit_id: string;
+  unit?: Unit;
   is_approved: boolean;
   role: "user" | "admin";
   email: string | null;
@@ -100,17 +103,6 @@ export type PatrolSchedule = {
     personnel_id: string;
     personnel?: Personnel;
   }[];
-};
-
-export type PersonnelLog = {
-  id: string;
-  personnel_id: string;
-  latitude: number;
-  longitude: number;
-  speed: number;
-  network_signal: number;
-  captured_at: string;
-  duty_type: string;
 };
 
 export type DutyShift = {
@@ -147,4 +139,20 @@ export type TeamMember = {
   personnel_id: string;
   is_team_leader: boolean;
   personnel?: Personnel;
+};
+
+export type Calendar = {
+  id: string;
+  created_at: string;
+  title: string | null;
+  description: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  venue: string | null;
+  file_link: string | null;
+  category: string | null;
+  distributions: string | null;
+  user_id: string;
+  unit_id: string; // Added for unit filtering as requested
+  unit: Unit | null; // Optional reference to unit
 };

@@ -3,9 +3,10 @@ import {
   supabase,
   Unit,
   MobilityAsset,
-  VehicleLog,
+  PatrolLog,
   Personnel,
   PatrolSchedule,
+  Calendar,
 } from "../lib/supabase";
 import { useAuth } from "../components/AuthProvider";
 import {
@@ -25,8 +26,10 @@ import {
   CheckCircle,
   Motorbike,
   PowerOff,
+  Calendar as CalendarIcon,
+  Building,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
 import { Link } from "react-router-dom";
 
 export default function DashboardPage() {
@@ -44,12 +47,17 @@ export default function DashboardPage() {
     footPatrolling: "",
     bikePatrolling: "",
     checkpoint: "",
+    seabornePatrolling: "",
+    simex: "",
     mobilePatrolVehicles: 0,
     tmrUPatrolVehicles: 0,
     bikePatrolVehicles: 0,
+    atvPatrolVehicles: 0,
+    rescueBoatPatrolVehicles: 0,
     recentLogs: [] as any[],
     schedules: [] as any[],
   });
+  const [calendarEvents, setCalendarEvents] = useState<Calendar[]>([]);
   const [unitName, setUnitName] = useState("");
 
   useEffect(() => {
@@ -66,7 +74,7 @@ export default function DashboardPage() {
         .select("*, unit(*), schedule_assignments(personnel(*, rank(*)))")
         .eq("date", format(new Date(), "yyyy-MM-dd"));
       let logsQuery = supabase
-        .from("vehicle_logs")
+        .from("patrol_logs")
         .select("*, mobility_assets(unit_id, plate_number, vehicle_type)")
         .order("captured_at", { ascending: false })
         .limit(5);
@@ -80,7 +88,7 @@ export default function DashboardPage() {
         schedulesQuery = schedulesQuery.eq("unit_id", unitId);
         // For logs, we need to filter by mobility asset's unit_id
         logsQuery = supabase
-          .from("vehicle_logs")
+          .from("patrol_logs")
           .select("*, mobility_assets(unit_id, plate_number, vehicle_type)")
           .order("captured_at", { ascending: false })
           .limit(5);
@@ -192,19 +200,40 @@ export default function DashboardPage() {
             return total + (schedule.schedule_assignments?.length || 0);
           }, 0);
 
+        const seabornePatrollingPersonnel = schedules
+          .filter((s) => s.patrol_type === "Seaborne Patrol")
+          .reduce((total, schedule) => {
+            return total + (schedule.schedule_assignments?.length || 0);
+          }, 0);
+
         const checkpointPersonnel = schedules
           .filter((s) => s.patrol_type === "Checkpoint")
           .reduce((total, schedule) => {
             return total + (schedule.schedule_assignments?.length || 0);
           }, 0);
 
+        const simexPersonnel = schedules
+          .filter((s) => s.patrol_type === "Simulation Exercise")
+          .reduce((total, schedule) => {
+            return total + (schedule.schedule_assignments?.length || 0);
+          }, 0);
+
+        const specialEventPersonnel = schedules
+          .filter((s) => s.patrol_type === "Special Event")
+          .reduce((total, schedule) => {
+            return total + (schedule.schedule_assignments?.length || 0);
+          }, 0);
+
         setData((prev) => ({
           ...prev,
-          mobilePatrolling: `${mobilePatrollingSchedules} | ${mobilePatrollingPersonnel}`,
-          tmrUPatrolling: `${tmrUPatrollingSchedules} | ${tmrUPatrollingPersonnel}`,
-          footPatrolling: `${footPatrollingPersonnel}`,
-          bikePatrolling: `${bikePatrollingPersonnel}`,
-          checkpoint: `${checkpointSchedules} | ${checkpointPersonnel}`,
+          mobilePatrolling: `No. of Scheduled: ${mobilePatrollingSchedules}\nTotal no. of Personnel: ${mobilePatrollingPersonnel}`,
+          tmrUPatrolling: `No. of Scheduled: ${tmrUPatrollingSchedules}\nTotal no. of Personnel: ${tmrUPatrollingPersonnel}`,
+          footPatrolling: `Total no. of Personnel: ${footPatrollingPersonnel}`,
+          bikePatrolling: `Total no. of Personnel: ${bikePatrollingPersonnel}`,
+          seabornePatrolling: `Total no. of Personnel: ${seabornePatrollingPersonnel}`,
+          checkpoint: `No. of Scheduled: ${checkpointSchedules} \n Total no. of Personnel: ${checkpointPersonnel}`,
+          simex: `Total no. of Personnel: ${simexPersonnel}`,
+          specialEvent: `Total no. of Personnel: ${specialEventPersonnel}`,
           schedules: schedulesRes.data || [],
         }));
       }
@@ -232,16 +261,54 @@ export default function DashboardPage() {
         const tmrUPatrolVehicles = vehiclesRes.data.filter(
           (v) => v.vehicle_type === "Motorcycle",
         ).length;
-        const bikePatrolVehicles = vehiclesRes.data.filter(
+        const bikeVehicles = vehiclesRes.data.filter(
           (v) => v.vehicle_type === "Bike",
+        ).length;
+        const atvVehicles = vehiclesRes.data.filter(
+          (v) => v.vehicle_type === "ATV",
+        ).length;
+        const rescueBoatVehicles = vehiclesRes.data.filter(
+          (v) => v.vehicle_type === "Rescue Boat",
         ).length;
 
         setData((prev) => ({
           ...prev,
           mobilePatrolVehicles,
           tmrUPatrolVehicles,
-          bikePatrolVehicles,
+          bikePatrolVehicles: bikeVehicles,
+          atvPatrolVehicles: atvVehicles,
+          rescueBoatPatrolVehicles: rescueBoatVehicles,
         }));
+      }
+
+      // Fetch calendar events for today
+      try {
+        const startOfToday = startOfDay(new Date());
+        const endOfToday = endOfDay(new Date());
+        let calendarQuery = supabase
+          .from("calendar")
+          .select(
+            `
+            *,
+            unit:unit_id(unit_name)
+          `,
+          )
+          .gte("start_date", startOfToday.toISOString())
+          .lt("start_date", endOfToday.toISOString());
+
+        // Apply unit filtering for non-admin users
+        if (!isAdmin && unitId) {
+          calendarQuery = calendarQuery.eq("unit_id", unitId);
+        }
+
+        const { data: calendarData, error: calendarError } =
+          await calendarQuery;
+
+        if (calendarError) throw calendarError;
+        if (calendarData) setCalendarEvents(calendarData);
+      } catch (err: any) {
+        console.error("Error fetching calendar events:", err);
+        // Non-fatal: we don't want to break the dashboard if calendar fails
       }
     } catch (err: any) {
       console.error("Error fetching dashboard data:", err);
@@ -277,50 +344,94 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="flex-1 space-y-6">
-          <div className="mb-4 flex items-center gap-3">
-            <img
-              src="/assets/total-strength.png"
-              alt="Vehicle Statistics"
-              className="w-8 h-8 object-contain"
-            />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 ">
+            <div className="lg:col-span-8">
+              <div className="mb-4 flex items-center gap-3">
+                <img
+                  src="/assets/total-strength.png"
+                  alt="Vehicle Statistics"
+                  className="w-8 h-8 object-contain"
+                />
 
-            <div>
-              <h2 className="text-xl font-bold text-gray-800">Personnel</h2>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">Personnel</h2>
+                </div>
+              </div>
+              {/* Statistics Cards */}
+              <div className="grid grid-cols-1 gap-4 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+                  <SummaryCard
+                    label="Total Strength"
+                    value={data.totalStrength.toString()}
+                  />
+                  <SummaryCard
+                    label="Actual Present"
+                    value={data.activePersonnel.toString()}
+                  />
+                  <SummaryCard
+                    label="Office Duty"
+                    value={data.onOfficeDutyPersonnel.toString()}
+                  />
+                  <SummaryCard
+                    label="Patrol Duty"
+                    value={data.onPatrolDutyPersonnel.toString()}
+                  />
+                  <SummaryCard
+                    label="Off Duty"
+                    value={data.offDutyPersonnel.toString()}
+                  />
+                  <SummaryCard
+                    label="Ineffective Personnel"
+                    value={data.ineffectivePersonnel.toString()}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="lg:col-span-4 lg:border-l lg:border-gray-300 dark:lg:border-gray-700 lg:pl-8">
+              <div className="mb-4 flex items-center gap-3">
+                <img
+                  src="/assets/mobility-assets.png"
+                  alt="Vehicle Statistics"
+                  className="w-8 h-8 object-contain"
+                />
+
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">
+                    Mobility Asset
+                  </h2>
+                </div>
+              </div>
+
+              {/* Vehicle Statistics Cards */}
+              <div className="grid grid-cols-1 gap-4 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
+                  <SummaryCard
+                    label="Mobile Patrol"
+                    value={data.mobilePatrolVehicles.toString()}
+                  />
+                  <SummaryCard
+                    label="Motorcycle"
+                    value={data.tmrUPatrolVehicles.toString()}
+                  />
+                  <SummaryCard
+                    label="Bike"
+                    value={data.bikePatrolVehicles.toString()}
+                  />
+                  <SummaryCard
+                    label="ATV"
+                    value={data.atvPatrolVehicles?.toString() || "0"}
+                  />
+                  <SummaryCard
+                    label="Rescue Boat"
+                    value={data.rescueBoatPatrolVehicles?.toString() || "0"}
+                  />
+                </div>
+              </div>
             </div>
           </div>
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-1 gap-4 mb-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-              <SummaryCard
-                label="Total Strength"
-                value={data.totalStrength.toString()}
-              />
-              <SummaryCard
-                label="Actual Present"
-                value={data.activePersonnel.toString()}
-              />
-              <SummaryCard
-                label="Office Duty"
-                value={data.onOfficeDutyPersonnel.toString()}
-              />
-              <SummaryCard
-                label="Patrol Duty"
-                value={data.onPatrolDutyPersonnel.toString()}
-              />
-              <SummaryCard
-                label="Off Duty"
-                value={data.offDutyPersonnel.toString()}
-              />
-              <SummaryCard
-                label="Ineffective Personnel"
-                value={data.ineffectivePersonnel.toString()}
-              />
-            </div>
 
-            <hr className="mt-4 border-gray-600" />
-          </div>
-
-          <div className="mb-4 flex items-center gap-3">
+          <div className="mb-4 flex items-center gap-3 lg:border-t lg:border-gray-300 dark:lg:border-gray-700 lg:pt-4">
             <img
               src="/assets/patrol-schedule.png"
               alt="Vehicle Statistics"
@@ -340,93 +451,101 @@ export default function DashboardPage() {
               <SummaryCard
                 label="Mobile Patrolling"
                 value={data.mobilePatrolling}
+                fontSize="lg"
               />
               <SummaryCard
                 label="TMRU Patrolling"
                 value={data.tmrUPatrolling}
+                fontSize="lg"
               />
               <SummaryCard
                 label="Foot Patrolling"
                 value={data.footPatrolling}
+                fontSize="lg"
               />
               <SummaryCard
                 label="Bike Patrolling"
                 value={data.bikePatrolling}
-              />
-              <SummaryCard label="Checkpoint" value={data.checkpoint} />
-            </div>
-            <hr className="mt-4 border-gray-600" />
-          </div>
-
-          <div className="mb-4 flex items-center gap-3">
-            <img
-              src="/assets/mobility-assets.png"
-              alt="Vehicle Statistics"
-              className="w-8 h-8 object-contain"
-            />
-
-            <div>
-              <h2 className="text-xl font-bold text-gray-800">
-                Mobility Asset
-              </h2>
-            </div>
-          </div>
-
-          {/* Vehicle Statistics Cards */}
-          <div className="grid grid-cols-1 gap-4 mb-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
-              <SummaryCard
-                label="Mobile Patrol"
-                value={data.mobilePatrolVehicles.toString()}
+                fontSize="lg"
               />
               <SummaryCard
-                label="TMRU"
-                value={data.tmrUPatrolVehicles.toString()}
+                label="Checkpoint"
+                value={data.checkpoint}
+                fontSize="lg"
               />
               <SummaryCard
-                label="Bike Patrol"
-                value={data.bikePatrolVehicles.toString()}
+                label="Seaborne Patrolling"
+                value={data.seabornePatrolling}
+                fontSize="lg"
+              />
+              <SummaryCard
+                label="Simulation Exercise"
+                value={data.simex}
+                fontSize="lg"
               />
             </div>
-
-            <hr className="mt-4 border-gray-600" />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Recent Vehicle Activity */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:border-t lg:border-gray-300 dark:lg:border-gray-700 lg:pt-8">
+            {/* Calendar Activities */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-colors">
               <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <h3 className="font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                  <Navigation className="w-4 h-4 text-blue-600" />
-                  Recent Vehicle Movement
+                  <CalendarIcon className="w-4 h-4 text-blue-600" />
+                  Calendar Activities
                 </h3>
               </div>
               <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                {data.recentLogs?.map((log) => (
-                  <div
-                    key={log.id}
-                    className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                  >
-                    <div className="flex items-center gap-4 text-md">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center">
-                        <Car className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="font-black text-slate-900 dark:text-slate-200 transition-colors">
-                          {log.mobility_assets?.plate_number}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <span>{log.speed} km/h</span>
+                {calendarEvents.length > 0 ? (
+                  calendarEvents.map((event) => (
+                    <div
+                      key={event.id}
+                      className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    >
+                      <div className="flex items-center gap-4 text-md">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center">
+                          <CalendarIcon className="w-5 h-5 text-blue-500" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-900 dark:text-slate-200">
+                            {event.title}
+                          </p>
+                          {event.description && (
+                            <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-1">
+                              {event.description}
+                            </p>
+                          )}
+                          <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            <span className="font-medium">
+                              {format(new Date(event.start_date!), "hh:mm a")}
+                            </span>
+                            {" – "}
+                            <span className="font-medium">
+                              {format(new Date(event.end_date!), "hh:mm a")}
+                            </span>
+                          </div>
+                          {event.venue && (
+                            <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                              <MapPin className="w-3 h-3 mr-1" /> {event.venue}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          {event.unit?.unit_name && (
+                            <div className="text-sm text-slate-500 dark:text-slate-400">
+                              <Building className="w-3 h-3 mr-1" />{" "}
+                              {event.unit.unit_name}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-slate-700 dark:text-slate-300">
-                        {format(new Date(log.captured_at), "HH:mm")}H
-                      </p>
-                    </div>
+                  ))
+                ) : (
+                  <div className="p-8 text-center text-slate-500 dark:text-slate-400">
+                    No calendar events for today
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
@@ -513,13 +632,23 @@ export default function DashboardPage() {
   );
 }
 
-function SummaryCard({ label, value }: { label: string; value: string }) {
+function SummaryCard({
+  label,
+  value,
+  fontSize,
+}: {
+  label: string;
+  value: string;
+  fontSize?: string;
+}) {
   return (
     <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4 transition-colors w-full">
       {/* Middle: Content Block (Stretches to fill space) */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 whitespace-pre-line">
         <p className="mb-0.5">{label}</p>
-        <h3 className="text-5xl font-bold text-slate-900 dark:text-white leading-tight">
+        <h3
+          className={`text-${fontSize || "4xl"} font-bold text-slate-900 dark:text-white leading-tight`}
+        >
           {value}
         </h3>
       </div>

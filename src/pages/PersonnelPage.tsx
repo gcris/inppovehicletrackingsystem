@@ -482,7 +482,7 @@ export default function PersonnelPage() {
                   filteredPersonnel.map((person, index) => (
                     <tr
                       key={person.id}
-                      className={`hover:bg-[var(--secondary)]/[0.05] ${person.rank?.level > 7 ? "font-bold" : ""}`}
+                      className={`hover:bg-[var(--secondary)]/[0.05] ${person.rank?.level! > 7 ? "font-bold" : ""}`}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">

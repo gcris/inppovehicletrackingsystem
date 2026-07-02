@@ -75,13 +75,13 @@ export default function LoginPage() {
             // Need to enroll them if they haven't enrolled yet
             const { data: factorData } = await supabase.auth.mfa.enroll({
               factorType: "totp",
-              issuer: "INPPO-Itrack",
-              friendlyName: `INPPO-Geo Tracker`,
+              issuer: "INPPO",
+              friendlyName: `Project J.O.E.M.A.R`,
             });
 
             if (factorData) {
               const localSecret = factorData.totp.secret;
-              const customUri = `otpauth://totp/${loggedInEmail}?secret=${localSecret}&issuer=INPPO-Itrack&algorithm=SHA1&digits=6&period=30`;
+              const customUri = `otpauth://totp/${loggedInEmail}?secret=${localSecret}&issuer=INPPO&algorithm=SHA1&digits=6&period=30`;
 
               setUnenrolledMfaData({
                 id: factorData.id,
@@ -151,8 +151,8 @@ export default function LoginPage() {
         const { data: factorData, error: enrollError } =
           await supabase.auth.mfa.enroll({
             factorType: "totp",
-            issuer: "INPPO-Itrack",
-            friendlyName: `INPPO-Geo Tracker`,
+            issuer: "INPPO",
+            friendlyName: `Project J.O.E.M.A.R`,
           });
         if (enrollError) {
           setError(
@@ -161,7 +161,7 @@ export default function LoginPage() {
           );
         } else if (factorData) {
           const localSecret = factorData.totp.secret;
-          const customUri = `otpauth://totp/${email}?secret=${localSecret}&issuer=INPPO-Itrack&algorithm=SHA1&digits=6&period=30`;
+          const customUri = `otpauth://totp/${email}?secret=${localSecret}&issuer=INPPO&algorithm=SHA1&digits=6&period=30`;
 
           setUnenrolledMfaData({
             id: factorData.id,

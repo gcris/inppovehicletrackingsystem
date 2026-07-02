@@ -6,7 +6,7 @@ import { Map as MapIcon } from "lucide-react";
 
 export default function LiveMapPage() {
   const { vehicles, logs } = useVehicleRealtime();
-  const { personnel, personnelLogs } = usePersonnelRealtime();
+  const { personnel } = usePersonnelRealtime();
 
   // Calculate vehicles with no movement (stale data - no updates in 5+ minutes)
   const vehicleNoMovementCount = Object.values(logs).reduce((count, log) => {
@@ -22,26 +22,6 @@ export default function LiveMapPage() {
     return count + (!isStale ? 1 : 0);
   }, 0);
 
-  // Calculate personnel with no movement (stale data - no updates in 5+ minutes)
-  const personnelNoMovementCount = Object.values(personnelLogs).reduce(
-    (count, log) => {
-      const lastUpdated = new Date(log.captured_at);
-      const isStale = Date.now() - lastUpdated.getTime() > 5 * 60 * 1000; // 5 minutes
-      return count + (isStale ? 1 : 0);
-    },
-    0,
-  );
-
-  // Calculate personnel with movement (not stale)
-  const personnelMovingCount = Object.values(personnelLogs).reduce(
-    (count, log) => {
-      const lastUpdated = new Date(log.captured_at);
-      const isStale = Date.now() - lastUpdated.getTime() > 5 * 60 * 1000; // 5 minutes
-      return count + (!isStale ? 1 : 0);
-    },
-    0,
-  );
-
   return (
     <div className="flex flex-col gap-6 h-full min-h-[750px] pb-6">
       <div>
@@ -53,12 +33,7 @@ export default function LiveMapPage() {
       {/* Map Container Area */}
       <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-2 min-h-[500px] transition-colors">
         <div className="flex-1 relative mt-2 min-h-[400px]">
-          <TrackingMap
-            vehicles={vehicles}
-            logs={logs}
-            personnel={personnel}
-            personnelLogs={personnelLogs}
-          />
+          <TrackingMap vehicles={vehicles} logs={logs} personnel={personnel} />
         </div>
       </div>
     </div>

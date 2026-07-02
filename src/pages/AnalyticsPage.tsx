@@ -3,7 +3,7 @@ import {
   supabase,
   MobilityAsset,
   Unit,
-  VehicleLog,
+  PatrolLog,
   PatrolSchedule,
   Personnel,
 } from "../lib/supabase";
@@ -25,7 +25,7 @@ import { format, subDays, formatDistanceToNow } from "date-fns";
 import { start } from "repl";
 
 // Type definition for vehicle logs with joined mobility asset data
-type VehicleLogSelection = VehicleLog & {
+type VehicleLogSelection = PatrolLog & {
   mobility_assets: {
     unit_id: string;
   };
@@ -147,7 +147,7 @@ export default function AnalyticsPage() {
 
       if (patrolSchedulesError) throw patrolSchedulesError;
 
-      let vehicleLogs: VehicleLog[] = [];
+      let vehicleLogs: PatrolLog[] = [];
       let pageNum = 1;
       let hasMore = true;
       let totalCount = 0;
@@ -158,7 +158,7 @@ export default function AnalyticsPage() {
         const toRange = pageNum * 1000 - 1;
 
         const { data, error, count } = await supabase
-          .from("vehicle_logs")
+          .from("patrol_logs")
           .select("*, mobility_assets(unit_id)")
           .gte("captured_at", rangeStart)
           .lte("captured_at", rangeEnd)
@@ -198,7 +198,9 @@ export default function AnalyticsPage() {
             .map(
               (assignment: { personnel_id: string }) => assignment.personnel_id,
             )
-            .filter((id): id is string => id !== null && id !== undefined);
+            .filter(
+              (id: string): id is string => id !== null && id !== undefined,
+            );
           if (schedule.id && personnelIds.length > 0) {
             scheduleToPersonnelMap[schedule.id] = personnelIds;
           }
@@ -220,7 +222,7 @@ export default function AnalyticsPage() {
           logsByVehicle[log.vehicle_id].push(log);
         });
 
-        // Calculate hour patrolled and man-hour from vehicle_logs that match patrol_schedule for this person
+        // Calculate hour patrolled and man-hour from patrol_logs that match patrol_schedule for this person
         let hourPatrolled = 0;
         let manHour = 0;
 
@@ -401,7 +403,7 @@ export default function AnalyticsPage() {
         scheduleQuery = scheduleQuery.eq("unit_id", unitIdSafe);
       }
 
-      let vehicleLogs: VehicleLog[] = [];
+      let vehicleLogs: PatrolLog[] = [];
       let pageNum = 1;
       let hasMore = true;
       let totalCount = 0;
@@ -412,7 +414,7 @@ export default function AnalyticsPage() {
         const toRange = pageNum * 1000 - 1;
 
         const { data, error, count } = await supabase
-          .from("vehicle_logs")
+          .from("patrol_logs")
           .select("*, mobility_assets(unit_id)")
           .gte("captured_at", rangeStart)
           .lte("captured_at", rangeEnd)
@@ -455,7 +457,7 @@ export default function AnalyticsPage() {
         unit: Unit;
         schedule_assignments: { personnel: { id: string } }[];
       })[];
-      const logs = vehicleLogs as (VehicleLog & {
+      const logs = vehicleLogs as (PatrolLog & {
         mobility_assets: { unit_id: string };
       })[];
 
