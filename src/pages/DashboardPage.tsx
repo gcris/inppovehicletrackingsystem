@@ -287,14 +287,9 @@ export default function DashboardPage() {
         const endOfToday = endOfDay(new Date());
         let calendarQuery = supabase
           .from("calendar")
-          .select(
-            `
-            *,
-            unit:unit_id(unit_name)
-          `,
-          )
-          .gte("start_date", startOfToday.toISOString())
-          .lt("start_date", endOfToday.toISOString());
+          .select("*,unit:unit_id(unit_name)")
+          .lte("start_date", startOfToday.toISOString())
+          .gte("end_date", endOfToday.toISOString());
 
         // Apply unit filtering for non-admin users
         if (!isAdmin && unitId) {
@@ -487,12 +482,12 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:border-t lg:border-gray-300 dark:lg:border-gray-700 lg:pt-8">
-            {/* Calendar Activities */}
+            {/* Calendar Events/Activities */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col transition-colors">
               <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <h3 className="font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
                   <CalendarIcon className="w-4 h-4 text-blue-600" />
-                  Calendar Activities
+                  Calendar Events/Activities
                 </h3>
               </div>
               <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
@@ -500,41 +495,41 @@ export default function DashboardPage() {
                   calendarEvents.map((event) => (
                     <div
                       key={event.id}
-                      className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                      /* Updated: Added 'relative overflow-hidden' and adjusted padding to 'pl-6 pr-4 py-4' */
+                      className="relative pl-6 pr-4 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors overflow-hidden"
                     >
-                      <div className="flex items-center gap-4 text-md">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center">
-                          <CalendarIcon className="w-5 h-5 text-blue-500" />
-                        </div>
-                        <div>
+                      {/* Left-Edge Ribbon Indicator */}
+                      <div className="absolute left-0 top-0 bottom-0 w-1.5">
+                        <LegendItem category={event.category!} />
+                      </div>
+
+                      <div className="flex items-center gap-4 w-full">
+                        {/* Left: Main Details Block (Takes up 3/4 width) */}
+                        <div className="w-3/4 min-w-0">
                           <p className="font-medium text-slate-900 dark:text-slate-200">
-                            {event.title}
+                            {event.title}{" "}
+                            {format(new Date(event.start_date!), "hh:mm a")}{" "}
+                            {format(new Date(event.end_date!), "hh:mm a")}
                           </p>
                           {event.description && (
-                            <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-1">
-                              {event.description}
+                            <p className="text-slate-500 dark:text-slate-400 line-clamp-1">
+                              Description: {event.description}
                             </p>
                           )}
-                          <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                            <span className="font-medium">
-                              {format(new Date(event.start_date!), "hh:mm a")}
-                            </span>
-                            {" – "}
-                            <span className="font-medium">
-                              {format(new Date(event.end_date!), "hh:mm a")}
-                            </span>
-                          </div>
                           {event.venue && (
-                            <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                              <MapPin className="w-3 h-3 mr-1" /> {event.venue}
+                            <div className="mt-1 text-slate-500 dark:text-slate-400">
+                              Venue: {event.venue}
                             </div>
                           )}
                         </div>
-                        <div className="text-right">
+
+                        {/* Right: Unit Name Block (Takes up exactly 1/4 width) */}
+                        <div className="w-1/4 text-right min-w-0">
                           {event.unit?.unit_name && (
-                            <div className="text-sm text-slate-500 dark:text-slate-400">
-                              <Building className="w-3 h-3 mr-1" />{" "}
-                              {event.unit.unit_name}
+                            <div className="text-slate-500 dark:text-slate-400 flex items-center justify-end gap-1 truncate">
+                              <span className="truncate">
+                                {event.unit.unit_name}
+                              </span>
                             </div>
                           )}
                         </div>
@@ -654,4 +649,18 @@ function SummaryCard({
       </div>
     </div>
   );
+}
+
+function LegendItem({ category }: { category: string }) {
+  const colorClass =
+    category === "Rush/Urgent"
+      ? "bg-red-500"
+      : category === "Priority"
+        ? "bg-orange-500"
+        : category === "Daily Routine"
+          ? "bg-blue-500"
+          : "bg-gray-400";
+
+  // Use w-full h-full so it conforms to whichever container size you pick above!
+  return <div className={`w-full h-full ${colorClass}`} />;
 }

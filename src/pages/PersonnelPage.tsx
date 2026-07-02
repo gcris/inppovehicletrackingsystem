@@ -1,36 +1,19 @@
 import React, { useState, useEffect } from "react";
-import {
-  supabase,
-  Personnel,
-  Unit,
-  PatrolSchedule,
-  Rank,
-} from "../lib/supabase";
+import { supabase, Personnel, Unit, Rank } from "../lib/supabase";
 import { AuthProvider, useAuth } from "../components/AuthProvider";
 import {
   Users,
   Search,
   Filter,
   Shield,
-  Car,
-  Calendar,
-  ChevronRight,
-  User as UserIcon,
   Phone,
-  Mail,
-  Badge,
-  Clock,
   MessageCircle,
   Edit,
-  Delete,
-  ListRestart,
   RefreshCw,
   Trash,
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
-import { format } from "date-fns";
-
 export default function PersonnelPage() {
   const [personnel, setPersonnel] = useState<
     (Personnel & {
@@ -124,7 +107,9 @@ export default function PersonnelPage() {
       // Fetch fundamental data
       let personnelQuery = supabase
         .from("personnel")
-        .select("*, unit(*), rank(*)");
+        .select("*, unit(*), rank(*)")
+        .order("unit_id", { ascending: true }); // <-- Added database-level sorting here
+
       if (activeTab === "pending") {
         personnelQuery = personnelQuery.eq("is_approved", false);
       }
@@ -140,14 +125,23 @@ export default function PersonnelPage() {
       if (rankRes.error) throw rankRes.error;
 
       if (personnelRes.data) {
-        // Sort by rank level descending (highest first), null ranks treated as lowest
         const sortedPersonnel = [...personnelRes.data].sort((a, b) => {
+          // 1. PRIMARY SORT: Group completely by unit_id (ascending)
+          const unitA = a.unit_id ?? 0;
+          const unitB = b.unit_id ?? 0;
+
+          if (unitA !== unitB) {
+            return unitA - unitB;
+          }
+
+          // 2. SECONDARY SORT: Order by rank level within that same unit (highest rank first)
           const rankA = a.rank?.level ?? -Infinity;
           const rankB = b.rank?.level ?? -Infinity;
-          return rankB - rankA; // descending
+          return rankB - rankA;
         });
+
         const enrichedPersonnel = sortedPersonnel.map((p) => {
-          return { ...p }; // Only include personnel and unit data, exclude vehicles and todaySchedule
+          return { ...p };
         });
         setPersonnel(enrichedPersonnel);
       }
@@ -386,8 +380,8 @@ export default function PersonnelPage() {
                 onClick={() => setActiveTab("all")}
                 className={`px-4 py-1.5 rounded-lg font-blacktracking-tighter transition-all ${
                   activeTab === "all"
-                    ? "bg-[var(--primary)]/[0.9] dark:bg-[var(--primary)]/[0.8] text-[var(--accent)] shadow-sm"
-                    : "text-[var(--text)]/[0.5] hover:text-[var(--text)]/[0.7] dark:hover:text-[var(--text)]/[0.4]"
+                    ? "bg-[var(--primary)]/[0.9] dark:bg-[var(--primary)]/[0.8] text-white shadow-sm"
+                    : "text-black hover:text-[var(--text)]/[0.7] dark:hover:text-[var(--text)]/[0.4]"
                 }`}
               >
                 All Directory
@@ -396,8 +390,8 @@ export default function PersonnelPage() {
                 onClick={() => setActiveTab("pending")}
                 className={`px-4 py-1.5 rounded-lg font-blacktracking-tighter transition-all ${
                   activeTab === "pending"
-                    ? "bg-[var(--primary)]/[0.9] dark:bg-[var(--primary)]/[0.8] text-[var(--accent)] shadow-sm"
-                    : "text-[var(--text)]/[0.5] hover:text-[var(--text)]/[0.7] dark:hover:text-[var(--text)]/[0.4]"
+                    ? "bg-[var(--primary)]/[0.9] dark:bg-[var(--primary)]/[0.8] text-white shadow-sm"
+                    : "text-black hover:text-[var(--text)]/[0.7] dark:hover:text-[var(--text)]/[0.4]"
                 }`}
               >
                 Pending Approvals
@@ -568,38 +562,36 @@ export default function PersonnelPage() {
                             <Shield className="w-5 h-5" />
                           </button>
                         ) : null}
-                        {!isAdmin || person.is_approved ? (
+                        <button
+                          onClick={() => {
+                            setEditingPerson(person);
+                            setShowAddModal(true);
+                          }}
+                          title="Edit Officer"
+                          className="p-2 text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                        {isAdmin && (
                           <>
                             <button
-                              onClick={() => {
-                                setEditingPerson(person);
-                                setShowAddModal(true);
-                              }}
-                              title="Edit Officer"
-                              className="p-2 text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                              onClick={() => handleDelete(person.id)}
+                              title="Delete Officer"
+                              className="p-2 text-slate-800 dark:text-slate-200 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
                             >
-                              <Edit className="w-5 h-5" />
+                              <Trash className="w-5 h-5" />
                             </button>
-                            {isAdmin && (
-                              <>
-                                <button
-                                  onClick={() => handleDelete(person.id)}
-                                  title="Delete Officer"
-                                  className="p-2 text-slate-800 dark:text-slate-200 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
-                                >
-                                  <Trash className="w-5 h-5" />
-                                </button>
-                                <button
-                                  onClick={() => handleResetMFA(person.id)}
-                                  title="Reset MFA"
-                                  className="p-2 text-slate-800 dark:text-slate-200 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all"
-                                >
-                                  <RefreshCw className="w-5 h-5" />
-                                </button>
-                              </>
+                            {person.is_approved && (
+                              <button
+                                onClick={() => handleResetMFA(person.id)}
+                                title="Reset MFA"
+                                className="p-2 text-slate-800 dark:text-slate-200 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all"
+                              >
+                                <RefreshCw className="w-5 h-5" />
+                              </button>
                             )}
                           </>
-                        ) : null}
+                        )}
                       </td>
                     </tr>
                   ))

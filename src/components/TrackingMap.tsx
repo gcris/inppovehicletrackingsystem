@@ -289,9 +289,8 @@ export default function TrackingMap({
 
                     <Link
                       to={`/trackingmap/${vehicleId}`}
-                      className="text-white-800 dark:text-slate-200 flex items-center justify-center gap-3 w-full py-3 px-6 rounded-xl bg-[var(--accent)]/[0.2] dark:[var(--accent)]/[0.8] hover:bg-[var(--accent)]/[0.3] transition-colors duration-200"
+                      className="text-lg text-white-800 dark:text-slate-200 flex items-center justify-center gap-3 w-full py-3 px-6 rounded-xl bg-[var(--accent)]/[0.2] dark:[var(--accent)]/[0.8] hover:bg-[var(--accent)]/[0.3] transition-colors duration-200"
                     >
-                      <History className="w-4 h-4" />
                       View History Replay
                     </Link>
 

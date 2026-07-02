@@ -40,7 +40,6 @@ import {
   Group,
 } from "lucide-react";
 import MobilityAssetsPage from "./pages/MobilityAssetsPage";
-import TeamManagement from "./pages/TeamManagement";
 import CalendarPage from "./pages/CalendarPage";
 
 interface ProtectedRouteProps {

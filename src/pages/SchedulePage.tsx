@@ -41,6 +41,7 @@ import {
   ArrowRight,
   ArrowBigLeft,
   ArrowBigRight,
+  Trash,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -85,7 +86,6 @@ export default function SchedulePage() {
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
-  const [showScheduleDetails, setShowScheduleDetails] = useState(false);
   const [editScheduleId, setEditScheduleId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -176,7 +176,8 @@ export default function SchedulePage() {
           "*, mobility_assets(*), unit(*), schedule_assignments(*, personnel(*, rank:rank_id(*)))",
         )
         .gte("date", format(startOfMonth(currentMonth), "yyyy-MM-dd"))
-        .lte("date", format(endOfMonth(currentMonth), "yyyy-MM-dd"));
+        .lte("date", format(endOfMonth(currentMonth), "yyyy-MM-dd"))
+        .order("date", { ascending: true });
 
       // Apply unit filtering
       if (!isAdmin && unitId) {
@@ -369,9 +370,6 @@ export default function SchedulePage() {
 
     setEditScheduleId(schedule.id);
     setShowModal(true);
-
-    // Close the details modal if open
-    setShowScheduleDetails(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -497,277 +495,161 @@ export default function SchedulePage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       ) : (
-        <div className="gap-4">
-          <div className="grid grid-cols-7 gap-2">
-            {/* Day headers */}
-            {[...Array(7)].map((_, index) => (
-              <div key={index} className="text-center font-bold text-black">
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][index]}
-              </div>
-            ))}
-            {/* Day cells */}
-            {eachDayOfInterval({
-              start: startOfMonth(currentMonth),
-              end: endOfMonth(currentMonth),
-            }).map((day) => {
-              const isCurrentMonth = isSameMonth(day, currentMonth);
-              const isToday = isSameDay(day, new Date());
-              const daySchedules = monthlySchedules.filter((schedule) =>
-                isSameDay(new Date(schedule.date), day),
-              );
+        <div className="space-y-4">
+          {/* Schedule Table */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                <thead className="bg-slate-50 dark:bg-slate-900">
+                  <tr>
+                    <th className="px-6 py-3 text-left font-medium text-slate-800 dark:text-slate-200">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left font-medium text-slate-800 dark:text-slate-200">
+                      Time
+                    </th>
+                    <th className="px-6 py-3 text-left font-medium text-slate-800 dark:text-slate-200">
+                      Sector/Area
+                    </th>
+                    <th className="px-6 py-3 text-left font-medium text-slate-800 dark:text-slate-200">
+                      Duty Type
+                    </th>
+                    <th className="px-6 py-3 text-left font-medium text-slate-800 dark:text-slate-200">
+                      Personnel
+                    </th>
+                    <th className="px-6 py-3 text-left font-medium text-slate-800 dark:text-slate-200">
+                      Unit/Station
+                    </th>
+                    <th className="px-6 py-3 text-left font-medium text-slate-800 dark:text-slate-200">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                  {monthlySchedules.length > 0 ? (
+                    monthlySchedules.map((schedule) => {
+                      const scheduleDate = new Date(schedule.date);
+                      const personnelCount =
+                        schedule.schedule_assignments?.length || 0;
 
-              return (
-                <div
-                  key={day.toISOString()}
-                  className={`rounded-xl border p-2 cursor-pointer ${isToday ? "ring-2 ring-blue-500" : ""}
-                           ${/* isSelected ? "bg-blue-50 dark:bg-blue-950" : "" */ ""}
-                           ${!isCurrentMonth ? "opacity-50" : ""}`}
-                  onClick={() => {
-                    // setSelectedDate(day);
-                    setShowScheduleDetails(true);
-                  }}
-                >
-                  <div className="text-xl text-right">
-                    {isCurrentMonth && format(day, "d")}
-                  </div>
-                  {daySchedules.length > 0 && (
-                    <div className="mt-1 flex flex-col gap-1">
-                      {daySchedules.slice(0, 3).map((schedule) => (
-                        <div
+                      return (
+                        <tr
                           key={schedule.id}
-                          className="s flex items-center gap-1"
+                          className="hover:bg-slate-50 dark:hover:bg-slate-800/50"
                         >
-                          <Clock className="w-3 h-3" />
-                          <span className="font-medium">
+                          <td className="px-6 py-4 whitespace-nowrap font-medium text-slate-900 dark:text-white">
+                            {format(scheduleDate, "MMM d, yyyy")}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-slate-800 dark:text-slate-200">
                             {schedule.time_from.slice(0, 5)} -{" "}
-                            {schedule.time_to.slice(0, 5)}{" "}
-                            {schedule.sector || schedule.patrol_type}
-                          </span>
-                        </div>
-                      ))}
-                      {daySchedules.length > 3 && (
-                        <div className="italic">
-                          +{daySchedules.length - 3} more
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Schedule Details Modal */}
-      {showScheduleDetails && (
-        <div className="fixed inset-0 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 ">
-          {/* Added flex flex-col and max-h-[85vh] to keep the modal strictly bounded within the viewport */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-            {/* HEADER SECTION (Remains locked in place at the top) */}
-            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
-              <h2 className="ltext-black">
-                Patrol Schedules{" "}
-                {/* for {format(selectedDate, "MMMM d, yyyy")} */}
-              </h2>
-              <button
-                onClick={() => setShowScheduleDetails(false)}
-                className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg text-black dark:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* SCROLLABLE BODY CONTAINER (This scales dynamically and adds a vertical scrollbar when needed) */}
-            <div className="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
-              {monthlySchedules.filter((schedule) =>
-                isSameDay(new Date(schedule.date), new Date()),
-              ).length === 0 ? (
-                <p className="text-black text-center">
-                  No patrols scheduled for this date.
-                </p>
-              ) : (
-                <>
-                  {monthlySchedules
-                    .filter((schedule) =>
-                      isSameDay(new Date(schedule.date), new Date()),
-                    )
-                    .map((schedule) => (
-                      <div
-                        key={schedule.id}
-                        className="border rounded-xl p-4 bg-white dark:bg-slate-900 shadow-sm"
+                            {schedule.time_to.slice(0, 5)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-slate-800 dark:text-slate-200">
+                            {schedule.sector ||
+                              schedule.patrol_type ||
+                              "Not specified"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-slate-800 dark:text-slate-200">
+                            {schedule.patrol_type}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-slate-800 dark:text-slate-200">
+                            {personnelCount}
+                            {" Personnel"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-slate-800 dark:text-slate-200">
+                            {schedule.unit?.unit_name || "N/A"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap font-medium space-x-3">
+                            <button
+                              onClick={() => {
+                                const personnelIds = [
+                                  ...new Set(
+                                    schedule.schedule_assignments?.map(
+                                      (a) => a.personnel_id,
+                                    ) || [],
+                                  ),
+                                ];
+                                setFormData({
+                                  unit_id: schedule.unit_id,
+                                  personnel_ids: personnelIds,
+                                  patrol_type: schedule.patrol_type,
+                                  mobility_id: schedule.mobility_id || "",
+                                  date: schedule.date,
+                                  time_from: schedule.time_from,
+                                  time_to: schedule.time_to,
+                                  sector: schedule.sector || "",
+                                  // personnelSearch: ""
+                                });
+                                setEditScheduleId(schedule.id);
+                                setShowModal(true);
+                              }}
+                              className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-200"
+                              title="Edit schedule"
+                            >
+                              <Edit2 className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setTimeout(() => {
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    unit_id: schedule.unit_id,
+                                    personnel_ids: schedule.schedule_assignments
+                                      ? [
+                                          ...new Set(
+                                            schedule.schedule_assignments.map(
+                                              (a) => a.personnel_id,
+                                            ),
+                                          ),
+                                        ]
+                                      : [],
+                                    patrol_type: schedule.patrol_type,
+                                    mobility_id: schedule.mobility_id || "",
+                                    date: format(new Date(), "yyyy-MM-dd"),
+                                    time_from: schedule.time_from,
+                                    time_to: schedule.time_to,
+                                    sector: schedule.sector,
+                                    personnelSearch: "",
+                                  }));
+                                  setShowModal(true);
+                                }, 100);
+                              }}
+                              className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-800 dark:text-slate-200"
+                              title="Copy schedule"
+                            >
+                              <Copy className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    "Are you sure you want to cancel this schedule?",
+                                  )
+                                ) {
+                                  handleDelete(schedule.id);
+                                }
+                              }}
+                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200"
+                              title="Delete schedule"
+                            >
+                              <Trash className="w-5 h-5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="px-6 py-10 text-center text-slate-800 dark:text-slate-200"
                       >
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-black text-black">
-                            {schedule.sector}
-                          </h3>
-                          <div className="flex items-center gap-2">
-                            <span className="text-slate-800 dark:text-slate-200 font-medium">
-                              {schedule.time_from.slice(0, 5)} -{" "}
-                              {schedule.time_to.slice(0, 5)}
-                            </span>
-                            <div className="flex space-x-1">
-                              <button
-                                onClick={() => {
-                                  setShowScheduleDetails(false);
-                                  setTimeout(() => {
-                                    handleEditSchedule(schedule);
-                                  }, 100);
-                                }}
-                                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-800 dark:text-slate-200"
-                                title="Edit schedule"
-                              >
-                                <Edit2 className="w-5 h-5" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setShowScheduleDetails(false);
-                                  setTimeout(() => {
-                                    setFormData((prev) => ({
-                                      ...prev,
-                                      unit_id: schedule.unit_id,
-                                      personnel_ids:
-                                        schedule.schedule_assignments
-                                          ? [
-                                              ...new Set(
-                                                schedule.schedule_assignments.map(
-                                                  (a) => a.personnel_id,
-                                                ),
-                                              ),
-                                            ]
-                                          : [],
-                                      patrol_type: schedule.patrol_type,
-                                      mobility_id: schedule.mobility_id || "",
-                                      date: format(new Date(), "yyyy-MM-dd"), // Today's date
-                                      time_from: schedule.time_from,
-                                      time_to: schedule.time_to,
-                                      sector: schedule.sector,
-                                      personnelSearch: "",
-                                    }));
-                                    setShowModal(true);
-                                  }, 100);
-                                }}
-                                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-800 dark:text-slate-200"
-                                title="Copy schedule"
-                              >
-                                <Copy className="w-5 h-5" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (
-                                    confirm(
-                                      "Are you sure you want to delete this schedule?",
-                                    )
-                                  ) {
-                                    setShowScheduleDetails(false);
-                                    setTimeout(() => {
-                                      handleDelete(schedule.id);
-                                    }, 100);
-                                  }
-                                }}
-                                className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg text-red-500 dark:text-red-400"
-                                title="Delete schedule"
-                              >
-                                <Trash2 className="w-5 h-5" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-slate-800 dark:text-slate-200 space-y-1">
-                          <p>
-                            <strong>Duty Type:</strong> {schedule.patrol_type}
-                          </p>
-                          {schedule.mobility && (
-                            <p>
-                              <strong>Vehicle:</strong>{" "}
-                              {schedule.mobility.plate_number} -{" "}
-                              {schedule.mobility.vehicle_type}
-                            </p>
-                          )}
-                          {schedule.description && (
-                            <p>
-                              <strong>Description:</strong>{" "}
-                              {schedule.description}
-                            </p>
-                          )}
-
-                          <div className="mt-3 pt-2 border-t border-slate-200 dark:border-slate-700">
-                            <div className="mb-1">
-                              <span className="text-slate-800 dark:text-slate-200">
-                                Assigned Personnel
-                              </span>
-                            </div>
-                            {schedule.schedule_assignments &&
-                            schedule.schedule_assignments.length > 0 ? (
-                              <div className="space-y-1">
-                                {[...schedule.schedule_assignments]
-                                  .sort(sortAssignmentsByPersonnelRankThenName)
-                                  .map((assign, index) => (
-                                    <div
-                                      key={index}
-                                      className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700"
-                                    >
-                                      <div className="text-slate-800 dark:text-slate-200 truncate">
-                                        {assign.personnel?.rank?.rank_name ||
-                                          "---"}{" "}
-                                        {assign.personnel?.fullname}
-                                      </div>
-
-                                      <div className="text-slate-800 dark:text-slate-200 truncate">
-                                        {assign.personnel?.designation}
-                                      </div>
-
-                                      <div className="flex items-center gap-3">
-                                        {/* Standard Call Action */}
-                                        {assign.personnel?.phone_number && (
-                                          <a
-                                            href={`tel:${assign.personnel?.phone_number}`}
-                                            className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 hover:underline"
-                                            title={`Call ${assign.personnel?.fullname}`}
-                                          >
-                                            <Phone className="w-4 h-4 shrink-0" />
-                                            <span className="hidden sm:inline">
-                                              {assign.personnel?.phone_number}
-                                            </span>
-                                          </a>
-                                        )}
-
-                                        {/* Viber Action */}
-                                        {assign.personnel?.viber_number && (
-                                          <a
-                                            href={`viber://chat?number=${assign.personnel?.viber_number}`}
-                                            className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400 hover:underline"
-                                            title={`Viber message ${assign.personnel?.fullname}`}
-                                          >
-                                            <MessageCircle className="w-4 h-4 shrink-0" />
-                                            <span className="hidden sm:inline">
-                                              {assign.personnel?.viber_number}
-                                            </span>
-                                          </a>
-                                        )}
-
-                                        {/* Fallback if numbers are absent */}
-                                        {!assign.personnel?.phone_number &&
-                                          !assign.personnel?.viber_number && (
-                                            <span className="text-slate-800 dark:text-slate-200 italic">
-                                              No Contact Info
-                                            </span>
-                                          )}
-                                      </div>
-                                    </div>
-                                  ))}
-                              </div>
-                            ) : (
-                              <p className="text-slate-800 dark:text-slate-200 italic s">
-                                No personnel assigned
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                </>
-              )}
+                        No schedules found for the selected period.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

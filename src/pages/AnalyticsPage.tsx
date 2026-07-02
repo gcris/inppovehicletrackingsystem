@@ -25,8 +25,11 @@ import { format, subDays, formatDistanceToNow } from "date-fns";
 import { start } from "repl";
 
 // Type definition for vehicle logs with joined mobility asset data
-type VehicleLogSelection = PatrolLog & {
+type PatrolLogSelection = PatrolLog & {
   mobility_assets: {
+    unit_id: string;
+  };
+  personnel: {
     unit_id: string;
   };
 };
@@ -53,12 +56,12 @@ function calculateDistance(
 
 // Helper to group logs into sessions based on interval
 const groupLogsBySession = (
-  allLogs: VehicleLogSelection[],
+  allLogs: PatrolLogSelection[],
   thresholdMinutes = 10,
 ) => {
   if (allLogs.length === 0) return [];
-  const sessions: VehicleLogSelection[][] = [];
-  let currentSession: VehicleLogSelection[] = [allLogs[0]];
+  const sessions: PatrolLogSelection[][] = [];
+  let currentSession: PatrolLogSelection[] = [allLogs[0]];
 
   for (let i = 1; i < allLogs.length; i++) {
     const prevTime = new Date(allLogs[i - 1].captured_at).getTime();
@@ -147,19 +150,19 @@ export default function AnalyticsPage() {
 
       if (patrolSchedulesError) throw patrolSchedulesError;
 
-      let vehicleLogs: PatrolLog[] = [];
+      let patrolLogs: PatrolLog[] = [];
       let pageNum = 1;
       let hasMore = true;
       let totalCount = 0;
 
       // Loop to fetch everything, bypassing the 1000 limit, max 10000 points to prevent browser crash
-      while (hasMore && vehicleLogs.length < 10000) {
+      while (hasMore && patrolLogs.length < 10000) {
         const fromRange = (pageNum - 1) * 1000;
         const toRange = pageNum * 1000 - 1;
 
         const { data, error, count } = await supabase
           .from("patrol_logs")
-          .select("*, mobility_assets(unit_id)")
+          .select("*, mobility_assets (*), personnel (*)")
           .gte("captured_at", rangeStart)
           .lte("captured_at", rangeEnd)
           .order("captured_at", { ascending: true })
@@ -175,9 +178,8 @@ export default function AnalyticsPage() {
         }
 
         if (data && data.length > 0) {
-          vehicleLogs = [...vehicleLogs, ...data];
+          patrolLogs = [...patrolLogs, ...data];
           pageNum++;
-          // If we got less than 1000, we've reached the end
           if (data.length < 1000) {
             hasMore = false;
           }
@@ -186,12 +188,12 @@ export default function AnalyticsPage() {
         }
       }
 
-      // Cast vehicleLogs to the correct type for processing
-      const typedVehicleLogs = vehicleLogs as VehicleLogSelection[];
+      // Cast vehicle logs to the correct type for processing
+      const typedVehicleLogs = patrolLogs as PatrolLogSelection[];
 
       // Process data to calculate metrics per personnel
       const processedPersonnel = personnelData.map((person) => {
-        // Create maps for efficient lookup (shared between hour and distance calculations)
+        // Create maps for efficient lookup
         const scheduleToPersonnelMap: Record<string, string[]> = {};
         (patrolSchedules || []).forEach((schedule) => {
           const personnelIds = (schedule.schedule_assignments || [])
@@ -214,7 +216,7 @@ export default function AnalyticsPage() {
         });
 
         // Group logs by vehicle
-        const logsByVehicle: Record<string, VehicleLogSelection[]> = {};
+        const logsByVehicle: Record<string, PatrolLogSelection[]> = {};
         typedVehicleLogs.forEach((log) => {
           if (!logsByVehicle[log.vehicle_id]) {
             logsByVehicle[log.vehicle_id] = [];
@@ -222,7 +224,7 @@ export default function AnalyticsPage() {
           logsByVehicle[log.vehicle_id].push(log);
         });
 
-        // Calculate hour patrolled and man-hour from patrol_logs that match patrol_schedule for this person
+        // Setup individual aggregators for formulas 1 & 2
         let hourPatrolled = 0;
         let manHour = 0;
 
@@ -231,8 +233,8 @@ export default function AnalyticsPage() {
           string,
           { startTime: number; endTime: number }
         > = {};
-        // Also create a map for personnel count per schedule
         const schedulePersonnelCountMap: Record<string, number> = {};
+
         (patrolSchedules || []).forEach((schedule) => {
           if (schedule.time_from && schedule.time_to) {
             const [fH, fM] = schedule.time_from.split(":").map(Number);
@@ -241,11 +243,12 @@ export default function AnalyticsPage() {
             let endMinutes = tH * 60 + tM;
             if (endMinutes < startMinutes) endMinutes += 24 * 60; // Overnight shift
             scheduleTimeMap[schedule.id] = {
-              startTime: startMinutes * 60 * 1000, // Convert to milliseconds
+              startTime: startMinutes * 60 * 1000,
               endTime: endMinutes * 60 * 1000,
             };
           }
-          // Calculate personnel count for this schedule
+
+          // Calculate unique personnel count assigned to this schedule
           const personnelCount =
             schedule.schedule_assignments?.reduce(
               (count: number, assignment: { personnel_id: string }) => {
@@ -256,14 +259,14 @@ export default function AnalyticsPage() {
           schedulePersonnelCountMap[schedule.id] = personnelCount;
         });
 
-        // For each schedule assignment of this person, find matching vehicle logs
+        // Loop through schedules to calculate individual times
         (patrolSchedules || []).forEach((schedule) => {
-          // Check if this person is assigned to this schedule
           const personAssignments =
             schedule.schedule_assignments?.filter(
               (assignment: { personnel_id: string }) =>
                 assignment.personnel_id === person.id,
             ) || [];
+
           if (
             personAssignments.length > 0 &&
             schedule.id &&
@@ -272,7 +275,7 @@ export default function AnalyticsPage() {
             const scheduleTime = scheduleTimeMap[schedule.id];
             const personnelCount = schedulePersonnelCountMap[schedule.id] || 0;
 
-            // Filter vehicle logs that occurred during this schedule's time on this date
+            // Filter patrol logs matching this schedule window
             const matchingLogs = typedVehicleLogs.filter((log) => {
               const logTime = new Date(log.captured_at).getTime();
               const baseDate = new Date(
@@ -284,7 +287,6 @@ export default function AnalyticsPage() {
               return logTime >= startTime && logTime <= endTime;
             });
 
-            // Calculate time duration from matching logs
             if (matchingLogs.length > 1) {
               const firstLogTime = new Date(
                 matchingLogs[0].captured_at,
@@ -292,22 +294,23 @@ export default function AnalyticsPage() {
               const lastLogTime = new Date(
                 matchingLogs[matchingLogs.length - 1].captured_at,
               ).getTime();
-              let durationMinutes = (lastLogTime - firstLogTime) / (1000 * 60); // Convert to minutes
+              let durationMinutes = (lastLogTime - firstLogTime) / (1000 * 60);
 
-              // Only count if we have valid duration (non-negative)
               if (durationMinutes >= 0) {
                 const durationHours = durationMinutes / 60;
+
+                // Formula 1: Total Hour Patrol (per person)
                 hourPatrolled += durationHours;
-                // Man-hour calculation: hour patrolled × number of personnel assigned to schedule
+
+                // Formula 2: Total Man-Hour (Hour Patrol * Scheduled Personnel Count)
                 manHour += durationHours * personnelCount;
               }
             }
           }
         });
 
-        // Calculate kilometer patrolled from vehicle logs
+        // Formula 3: Total Kilometer Patrolled from consecutive log updates
         let kilometerPatrolled = 0;
-        // Calculate distance for each vehicle's logs
         Object.keys(logsByVehicle).forEach((vehicleId: string) => {
           const vehicleLogs = logsByVehicle[vehicleId] || [];
           const scheduleId = assetToScheduleMap[vehicleId];
@@ -321,12 +324,11 @@ export default function AnalyticsPage() {
               const prev = vehicleLogs[i - 1];
               const curr = vehicleLogs[i];
 
-              // Only calculate distance if within reasonable time gap (e.g., 5 minutes)
               const timeDiff =
                 new Date(curr.captured_at).getTime() -
                 new Date(prev.captured_at).getTime();
               if (timeDiff <= 5 * 60 * 1000) {
-                // 5 minutes in milliseconds
+                // 5 minutes threshold
                 const distance = calculateDistance(
                   prev.latitude,
                   prev.longitude,
@@ -339,7 +341,6 @@ export default function AnalyticsPage() {
           }
         });
 
-        // Convert rank array to single object (take first element if exists)
         const rankData =
           Array.isArray(person.rank) && person.rank.length > 0
             ? person.rank[0]
@@ -349,7 +350,7 @@ export default function AnalyticsPage() {
           ...person,
           rank: rankData,
           hour_patrolled: Number(hourPatrolled.toFixed(1)),
-          man_hour: Number(hourPatrolled.toFixed(1)), // Individual man-hour equals hours worked
+          man_hour: Number(manHour.toFixed(1)), // Fixed: Correctly maps to calculated man-hour variable now
           kilometer_patrolled: Number(kilometerPatrolled.toFixed(2)),
         };
       });
@@ -357,7 +358,6 @@ export default function AnalyticsPage() {
       setPersonnelData(processedPersonnel);
     } catch (err) {
       console.error("Error fetching personnel report:", err);
-      // Set empty array on error to avoid breaking UI
       setPersonnelData([]);
     }
   };
@@ -459,6 +459,7 @@ export default function AnalyticsPage() {
       })[];
       const logs = vehicleLogs as (PatrolLog & {
         mobility_assets: { unit_id: string };
+        personnel: { unit_id: string };
       })[];
 
       // Filter logs to only include those from user's unit (for non-admin)
@@ -633,7 +634,7 @@ export default function AnalyticsPage() {
 
         const avgSpeedCalc =
           sortedLogData.reduce(
-            (a: number, b: VehicleLogSelection) => a + Number(b.speed || 0),
+            (a: number, b: PatrolLogSelection) => a + Number(b.speed || 0),
             0,
           ) / sortedLogData.length;
         avgSpeed = Number(avgSpeedCalc.toFixed(1));
