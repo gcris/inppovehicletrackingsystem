@@ -1,262 +1,361 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase, MobilityAsset, PatrolLog, Personnel } from "../lib/supabase";
 import { useAuth } from "../components/AuthProvider";
 
 export function useVehicleRealtime() {
-  const [vehicles, setVehicles] = useState<Record<string, MobilityAsset>>({});
-  const [logs, setLogs] = useState<Record<string, PatrolLog>>({});
-  const [personnel, setPersonnel] = useState<Record<string, Personnel>>({});
   const { unitId, isAdmin } = useAuth();
 
+  // ============================
+  // State
+  // ============================
+
+  const [vehicles, setVehicles] = useState<Record<string, MobilityAsset>>({});
+
+  const [logs, setLogs] = useState<Record<string, PatrolLog>>({});
+
+  const [personnel, setPersonnel] = useState<Record<string, Personnel>>({});
+
+  // ============================
+  // Refs (always latest state)
+  // ============================
+
+  const vehiclesRef = useRef<Record<string, MobilityAsset>>({});
+
+  const personnelRef = useRef<Record<string, Personnel>>({});
+
+  const logsRef = useRef<Record<string, PatrolLog>>({});
+
   useEffect(() => {
-    const fetchInitialData = async () => {
+    vehiclesRef.current = vehicles;
+  }, [vehicles]);
+
+  useEffect(() => {
+    personnelRef.current = personnel;
+  }, [personnel]);
+
+  useEffect(() => {
+    logsRef.current = logs;
+  }, [logs]);
+
+  // ============================
+  // Load Initial Data
+  // ============================
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadInitialData = async () => {
       try {
-        // Fetch mobility assets first to get the vehicle ids we care about
-        let vehiclesQuery = supabase
+        //-----------------------------------------
+        // Load Vehicles
+        //-----------------------------------------
+
+        let vehicleQuery = supabase
           .from("mobility_assets")
           .select("*, unit(*)");
+
+        if (!isAdmin && unitId) {
+          vehicleQuery = vehicleQuery.eq("unit_id", unitId);
+        }
+
+        const { data: vehicleData, error: vehicleError } = await vehicleQuery;
+
+        if (vehicleError) throw vehicleError;
+
+        //-----------------------------------------
+        // Load Personnel
+        //-----------------------------------------
+
         let personnelQuery = supabase.from("personnel").select("*, unit(*)");
 
         if (!isAdmin && unitId) {
-          vehiclesQuery = vehiclesQuery.eq("unit_id", unitId);
           personnelQuery = personnelQuery.eq("unit_id", unitId);
         }
-        const { data: vehicleData, error: vError } = await vehiclesQuery;
-        const { data: personnelData, error: pError } = await personnelQuery;
-        if (vError) throw vError;
-        if (pError) throw pError;
-        // Set vehicles state
-        if (vehicleData) {
-          const vehicleMap = vehicleData.reduce(
-            (acc, v) => ({ ...acc, [v.id]: v }),
-            {},
-          );
-          setVehicles(vehicleMap);
-        }
 
-        // Set personnel state
-        if (personnelData) {
-          const personnelMap = personnelData.reduce(
-            (acc, p) => ({ ...acc, [p.id]: p }),
-            {},
-          );
+        const { data: personnelData, error: personnelError } =
+          await personnelQuery;
+
+        if (personnelError) throw personnelError;
+
+        //-----------------------------------------
+        // Convert to Maps
+        //-----------------------------------------
+
+        const vehicleMap: Record<string, MobilityAsset> = {};
+
+        vehicleData?.forEach((vehicle) => {
+          vehicleMap[vehicle.id] = vehicle;
+        });
+
+        const personnelMap: Record<string, Personnel> = {};
+
+        personnelData?.forEach((member) => {
+          personnelMap[member.id] = member;
+        });
+
+        if (!cancelled) {
+          setVehicles(vehicleMap);
           setPersonnel(personnelMap);
         }
 
-        // Get vehicle ids for filtering logs
-        const vehicleIds = vehicleData?.map((v) => v.id) || [];
-        console.log("vehicleIds: ", vehicleIds);
-        const personnelIds = personnelData?.map((p) => p.id) || [];
+        //-----------------------------------------
+        // Load Latest Logs
+        //-----------------------------------------
 
         const twoDaysAgo = new Date();
         twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-        const timeLimitIsoString = twoDaysAgo.toISOString();
 
-        // Fetch vehicle logs
-        let logsQuery = supabase.from("latest_asset_logs").select("*"); //.gt("captured_at", timeLimitIsoString)  ;
+        let logQuery = supabase
+          .from("latest_asset_logs")
+          .select("*")
+          .gt("captured_at", twoDaysAgo.toISOString());
 
-        if (!isAdmin && unitId) {
-          const orConditions = [];
-          // FIX 1: Only exit early if BOTH asset arrays are completely empty
-          if (vehicleIds.length === 0 && personnelIds.length === 0) {
-            setLogs({});
-            return;
-          }
+        const { data: logData, error: logError } = await logQuery;
 
-          // FIX 2: Use a clean .join(",") without mapping double quotes around UUIDs
-          if (vehicleIds.length > 0) {
-            const vehicleStr = vehicleIds.join(",");
-            orConditions.push(`vehicle_id.in.(${vehicleStr})`);
-          }
-
-          if (personnelIds.length > 0) {
-            const personnelStr = personnelIds.join(",");
-            orConditions.push(`personnel_id.in.(${personnelStr})`);
-          }
-
-          if (orConditions.length > 0) {
-            logsQuery = logsQuery.or(orConditions.join(","));
-          }
-        }
-
-        const { data: logData, error: lError } = await logsQuery;
-        if (lError) throw lError;
+        if (logError) throw logError;
 
         const latestLogs: Record<string, PatrolLog> = {};
 
-        if (logData) {
-          logData.forEach((log: PatrolLog) => {
-            const lat = Number(log.latitude);
-            const lng = Number(log.longitude);
+        logData?.forEach((log) => {
+          const trackingKey = log.vehicle_id ?? log.personnel_id;
 
-            // Skip if coordinates are invalid
-            if (isNaN(lat) || isNaN(lng)) {
-              return;
+          if (!trackingKey) return;
+
+          const lat = Number(log.latitude);
+          const lng = Number(log.longitude);
+
+          if (Number.isNaN(lat) || Number.isNaN(lng)) {
+            return;
+          }
+
+          if (!isAdmin && unitId) {
+            if (log.vehicle_id) {
+              const vehicle = vehicleMap[log.vehicle_id];
+
+              if (!vehicle || vehicle.unit_id !== unitId) {
+                return;
+              }
             }
 
-            // 1. Generate a unique key: use vehicle_id if available, fallback to personnel_id for foot patrols
-            const trackingKey = log.vehicle_id || log.personnel_id;
+            if (log.personnel_id) {
+              const officer = personnelMap[log.personnel_id];
 
-            // Safety check: skip if the log somehow lacks both identifiers
-            if (!trackingKey) {
-              return;
+              if (!officer || officer.unit_id !== unitId) {
+                return;
+              }
             }
+          }
 
-            // 2. Use the trackingKey instead of log.vehicle_id
-            const existingLog = latestLogs[trackingKey];
+          const existing = latestLogs[trackingKey];
 
-            // Update if no existing log or if new log is more recent
-            if (
-              !existingLog ||
-              new Date(log.captured_at) > new Date(existingLog.captured_at)
-            ) {
-              latestLogs[trackingKey] = log;
-            }
-          });
+          if (
+            !existing ||
+            new Date(log.captured_at) > new Date(existing.captured_at)
+          ) {
+            latestLogs[trackingKey] = log;
+          }
+        });
+
+        if (!cancelled) {
+          setLogs(latestLogs);
         }
-
-        setLogs(latestLogs);
-        console.log(latestLogs);
       } catch (err) {
-        console.error("Error fetching initial data:", err);
+        console.error("Realtime initialization failed:", err);
       }
     };
 
-    fetchInitialData();
+    loadInitialData();
 
-    // Subscribe to real-time updates for mobility assets
+    // =====================================================
+    // REALTIME SUBSCRIPTIONS
+    // =====================================================
+
     const vehiclesChannel = supabase
-      .channel(`mobility-assets-changes`)
+      .channel("mobility-assets-realtime")
+
+      //------------------------------------------
+      // VEHICLE INSERT
+      //------------------------------------------
+
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "mobility_assets" },
-        (payload) => {
-          try {
-            const newVehicle = payload.new as MobilityAsset;
-            if (!isAdmin && unitId) {
-              if (newVehicle.unit_id === unitId) {
-                setVehicles((prev) => ({
-                  ...prev,
-                  [newVehicle.id]: newVehicle,
-                }));
-              }
-            } else {
-              setVehicles((prev) => ({ ...prev, [newVehicle.id]: newVehicle }));
-            }
-          } catch (err) {
-            console.error("Error in mobility_assets INSERT handler:", err);
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "mobility_assets",
+        },
+        ({ new: newVehicle }) => {
+          const vehicle = newVehicle as MobilityAsset;
+
+          if (!isAdmin && unitId && vehicle.unit_id !== unitId) {
+            return;
           }
+
+          setVehicles((prev) => ({
+            ...prev,
+            [vehicle.id]: vehicle,
+          }));
         },
       )
+
+      //------------------------------------------
+      // VEHICLE UPDATE
+      //------------------------------------------
+
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "mobility_assets" },
-        (payload) => {
-          try {
-            const updatedVehicle = payload.new as MobilityAsset;
-            if (!isAdmin && unitId) {
-              if (updatedVehicle.unit_id === unitId) {
-                setVehicles((prev) => ({
-                  ...prev,
-                  [updatedVehicle.id]: updatedVehicle,
-                }));
-              } else {
-                // Remove if no longer in unit
-                setVehicles((prev) => {
-                  const { [updatedVehicle.id]: removed, ...rest } = prev;
-                  return rest;
-                });
-              }
-            } else {
-              setVehicles((prev) => ({
-                ...prev,
-                [updatedVehicle.id]: updatedVehicle,
-              }));
-            }
-          } catch (err) {
-            console.error("Error in mobility_assets UPDATE handler:", err);
-          }
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "mobility_assets",
         },
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "mobility_assets" },
-        (payload) => {
-          try {
-            const deletedVehicle = payload.old as MobilityAsset;
+        ({ new: updatedVehicle }) => {
+          const vehicle = updatedVehicle as MobilityAsset;
+
+          if (!isAdmin && unitId && vehicle.unit_id !== unitId) {
             setVehicles((prev) => {
-              const { [deletedVehicle.id]: removed, ...rest } = prev;
-              return rest;
+              const clone = { ...prev };
+              delete clone[vehicle.id];
+              return clone;
             });
-          } catch (err) {
-            console.error("Error in mobility_assets DELETE handler:", err);
+
+            return;
           }
+
+          setVehicles((prev) => ({
+            ...prev,
+            [vehicle.id]: vehicle,
+          }));
         },
       )
-      .subscribe();
 
-    // Subscribe to real-time updates for vehicle logs
-    const logsChannel = supabase
-      .channel(`vehicle-logs-changes`)
+      //------------------------------------------
+      // VEHICLE DELETE
+      //------------------------------------------
+
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "patrol_logs" },
-        (payload) => {
-          try {
-            const newLog = payload.new as PatrolLog;
-            const lat = Number(newLog.latitude);
-            const lng = Number(newLog.longitude);
-            // Skip if coordinates are invalid
-            if (isNaN(lat) || isNaN(lng)) {
-              return;
-            }
-            if (!isAdmin && unitId) {
-              // Check if the vehicle belongs to the user's unit using the vehicles state
-              const vehicle = vehicles[newLog.vehicle_id];
-              if (vehicle && vehicle.unit_id === unitId) {
-                // Update if no existing log or if new log is more recent
-                const existingLog = logs[newLog.vehicle_id];
-                if (
-                  !existingLog ||
-                  newLog.captured_at > existingLog.captured_at
-                ) {
-                  setLogs((prev) => ({
-                    ...prev,
-                    [newLog.vehicle_id]: newLog,
-                  }));
-                }
-              }
-              // If vehicle is not in state, we assume it's not in our unit (or we haven't received it yet).
-              // We rely on the mobility_assets subscription to eventually bring the vehicle into state.
-            } else {
-              // Admin sees all logs
-              // Update if no existing log or if new log is more recent
-              const existingLog = logs[newLog.vehicle_id];
-              if (
-                !existingLog ||
-                newLog.captured_at > existingLog.captured_at
-              ) {
-                setLogs((prev) => ({
-                  ...prev,
-                  [newLog.vehicle_id]: newLog,
-                }));
-              }
-            }
-          } catch (err) {
-            console.error("Error in patrol_logs INSERT handler:", err);
-          }
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "mobility_assets",
+        },
+        ({ old }) => {
+          const vehicle = old as MobilityAsset;
+
+          setVehicles((prev) => {
+            const clone = { ...prev };
+            delete clone[vehicle.id];
+            return clone;
+          });
         },
       )
-      // Note: We are not handling UPDATE or DELETE for patrol_logs as the table is assumed to be append-only.
-      // If updates or deletes are possible, we should add handlers for them.
+
       .subscribe();
 
-    // Cleanup subscriptions
-    return () => {
-      supabase.removeChannel(vehiclesChannel);
-      supabase.removeChannel(logsChannel);
-    };
-  }, [isAdmin, unitId]); // Re-run effect if isAdmin or unitId changes
+    // =====================================================
+    // PATROL LOG REALTIME
+    // =====================================================
 
-  return { vehicles, logs, personnel };
+    const patrolChannel = supabase
+      .channel("patrol-logs-realtime")
+
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "patrol_logs",
+        },
+        ({ new: inserted }) => {
+          const log = inserted as PatrolLog;
+
+          //------------------------------------------
+          // Validate Coordinates
+          //------------------------------------------
+
+          const lat = Number(log.latitude);
+          const lng = Number(log.longitude);
+
+          if (Number.isNaN(lat) || Number.isNaN(lng)) {
+            return;
+          }
+
+          //------------------------------------------
+          // Support Vehicle OR Foot Patrol
+          //------------------------------------------
+
+          const trackingKey = log.vehicle_id ?? log.personnel_id;
+
+          if (!trackingKey) {
+            return;
+          }
+
+          //------------------------------------------
+          // Unit Filtering
+          //------------------------------------------
+
+          if (!isAdmin && unitId) {
+            if (log.vehicle_id) {
+              const vehicle = vehiclesRef.current[log.vehicle_id];
+
+              if (!vehicle || vehicle.unit_id !== unitId) {
+                return;
+              }
+            }
+
+            if (log.personnel_id) {
+              const officer = personnelRef.current[log.personnel_id];
+
+              if (!officer || officer.unit_id !== unitId) {
+                return;
+              }
+            }
+          }
+
+          //------------------------------------------
+          // Update only if newer
+          //------------------------------------------
+
+          setLogs((prev) => {
+            const existing = prev[trackingKey];
+
+            if (
+              existing &&
+              new Date(existing.captured_at) >= new Date(log.captured_at)
+            ) {
+              return prev;
+            }
+
+            return {
+              ...prev,
+              [trackingKey]: log,
+            };
+          });
+        },
+      )
+
+      .subscribe();
+
+    // =====================================================
+    // CLEANUP
+    // =====================================================
+
+    return () => {
+      cancelled = true;
+
+      supabase.removeChannel(vehiclesChannel);
+      supabase.removeChannel(patrolChannel);
+    };
+  }, [isAdmin, unitId]);
+
+  // =====================================================
+  // RETURN
+  // =====================================================
+
+  return {
+    vehicles,
+    logs,
+    personnel,
+  };
 }

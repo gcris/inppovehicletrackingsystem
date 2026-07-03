@@ -128,7 +128,7 @@ function LegendItem({
       {icon ? (
         <div className="w-10 h-10 flex items-center justify-center border border-slate-800 dark:border-slate-200 rounded-full flex-shrink-0">
           {React.createElement(icon, {
-            className: `w-6 h-6 ${label === "DISTRESS SIGNAL" ? "text-red-500 animate-pulse" : "text-slate-500"}`,
+            className: `w-6 h-6 ${label === "DISTRESS SIGNAL" ? "text-red-500 animate-pulse" : "text-slate-800 dark:text-slate-200"}`,
           })}
         </div>
       ) : (
@@ -137,7 +137,7 @@ function LegendItem({
         ></div>
       )}
 
-      <span className="font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+      <span className="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider whitespace-nowrap">
         {label}
         {number != undefined ? ` (${number})` : ""}
       </span>

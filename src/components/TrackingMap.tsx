@@ -157,9 +157,16 @@ export default function TrackingMap({
   const center: [number, number] = [18.196, 120.5927]; // Ilocos Norte Coordinates
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
     setIsMounted(true);
+
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 1000); // or 30000
+
+    return () => clearInterval(timer);
   }, []);
 
   if (!isMounted) {
@@ -202,7 +209,8 @@ export default function TrackingMap({
             if (isNaN(lat) || isNaN(lng)) return null;
 
             const lastUpdated = new Date(log.captured_at);
-            const isStale = Date.now() - lastUpdated.getTime() > 5 * 60 * 1000;
+            const age = now - lastUpdated.getTime();
+            const isStale = age > 5 * 60 * 1000;
 
             return (
               <Marker
