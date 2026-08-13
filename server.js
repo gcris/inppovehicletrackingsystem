@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
+import WebSocket from "ws";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -20,7 +21,11 @@ async function startServer() {
   app.use(express.json());
 
   // Initialize Supabase admin client
-  const supabaseAdmin = createClient(supabaseUrl, supabaseAnonKey);
+  const supabaseAdmin = createClient(supabaseUrl, supabaseAnonKey, {
+    realtime: {
+      transport: WebSocket,
+    },
+  });
 
   // Add health check API endpoint first
   app.get("/api/health", (req, res) => {

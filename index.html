@@ -3,24 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>INPPO PATROL</title>
+    <title>Ilocos Norte PPO</title>
     <script>
       // Global error listener to recover from transient script-load faults
-      window.addEventListener('error', function(event) {
-        console.error('HTML Global Error Caught:', event.error || event.message);
-        handleStartupError(event.error || event.message);
-      }, true);
+      window.addEventListener(
+        "error",
+        function (event) {
+          console.error(
+            "HTML Global Error Caught:",
+            event.error || event.message,
+          );
+          handleStartupError(event.error || event.message);
+        },
+        true,
+      );
 
-      window.addEventListener('unhandledrejection', function(event) {
-        console.error('HTML Global Promise Rejection:', event.reason);
+      window.addEventListener("unhandledrejection", function (event) {
+        console.error("HTML Global Promise Rejection:", event.reason);
         event.preventDefault();
         handleStartupError(event.reason);
       });
 
       function handleStartupError(error) {
         // If the error indicates a resource loading failure (like transient Vite bundler connection loss)
-        setTimeout(function() {
-          var root = document.getElementById('root');
+        setTimeout(function () {
+          var root = document.getElementById("root");
           if (root && root.innerHTML === "") {
             root.innerHTML = `
               <div style="min-height: 100vh; background-color: #f8fafc; display: flex; align-items: center; justify-content: center; padding: 24px; font-family: system-ui, -apple-system, sans-serif;">
@@ -40,7 +47,7 @@
                 </div>
               </div>
             `;
-            setTimeout(function() {
+            setTimeout(function () {
               window.location.reload();
             }, 1500); // Auto-reload after 1.5 seconds to refresh the session
           }
@@ -53,4 +60,3 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

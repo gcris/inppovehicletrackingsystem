@@ -45,8 +45,116 @@ create table mobility_assets (
   load_status text default 'Normal' check (load_status in ('Normal', 'Expired', 'Maintenance')),
   created_at timestamptz default now(),
   personnel_id uuid references personnel(id) on delete set null,
-  unit_id uuid references unit(id) on delete cascade
+  unit_id uuid references unit(id) on delete cascade,
+
+  -- Maintenance tracking fields
+  current_odometer numeric default 0, -- Current odometer reading in km
+  -- PMS fields (maintained for backward compatibility)
+  last_pms_date date, -- Date of last PMS
+  last_pms_odometer numeric default 0, -- Odometer at last PMS
+  pms_interval_km numeric default 5000, -- Interval in km for PMS (e.g., 5000)
+  pms_interval_months integer default 6, -- Interval in months for PMS (e.g., 6)
+  next_pms_odometer numeric, -- Calculated: last_pms_odometer + pms_interval_km
+  next_pms_date date -- Calculated: last_pms_date + pms_interval_months
 );
+
+-- Maintenance history tracking
+create table mobility_assets_maintenance_history (
+  id uuid primary key default uuid_generate_v4(),
+  mobility_asset_id uuid references mobility_assets(id) on delete cascade,
+  changed_at timestamptz default now(),
+  changed_by uuid references auth.users(id),
+
+  -- Maintenance fields history
+  last_pms_date date,
+  last_pms_odometer numeric,
+  pms_interval_km numeric,
+  pms_interval_months integer,
+  next_pms_odometer numeric,
+  next_pms_date date,
+
+  -- For tracking what changed
+  changed_fields text[] -- Array of field names that were modified
+);
+
+-- Enable RLS on maintenance history table
+alter table mobility_assets_maintenance_history enable row level security;
+
+-- Policies for maintenance history
+create policy "Admins see all maintenance history" on mobility_assets_maintenance_history for all using (is_admin());
+create policy "Users see their unit maintenance history" on mobility_assets_maintenance_history for select using (
+  exists (
+    select 1 from mobility_assets v
+    where v.id = mobility_asset_id
+    and v.unit_id = get_user_unit()
+  )
+);
+
+-- Trigger function to log maintenance changes
+create or replace function log_mobility_asset_maintenance_change()
+returns trigger as $$
+declare
+  changed_fields text[] := '{}';
+begin
+  -- Check each maintenance field for changes and build array of changed fields
+  if old.last_pms_date is distinct from new.last_pms_date then
+    changed_fields := array_append(changed_fields, 'last_pms_date');
+  end if;
+
+  if old.last_pms_odometer is distinct from new.last_pms_odometer then
+    changed_fields := array_append(changed_fields, 'last_pms_odometer');
+  end if;
+
+  if old.pms_interval_km is distinct from new.pms_interval_km then
+    changed_fields := array_append(changed_fields, 'pms_interval_km');
+  end if;
+
+  if old.pms_interval_months is distinct from new.pms_interval_months then
+    changed_fields := array_append(changed_fields, 'pms_interval_months');
+  end if;
+
+  if old.next_pms_odometer is distinct from new.next_pms_odometer then
+    changed_fields := array_append(changed_fields, 'next_pms_odometer');
+  end if;
+
+  if old.next_pms_date is distinct from new.next_pms_date then
+    changed_fields := array_append(changed_fields, 'next_pms_date');
+  end if;
+
+  -- Only log if any maintenance fields changed
+  if array_length(changed_fields, 1) > 0 then
+    insert into mobility_assets_maintenance_history (
+      mobility_asset_id,
+      changed_by,
+      last_pms_date,
+      last_pms_odometer,
+      pms_interval_km,
+      pms_interval_months,
+      next_pms_odometer,
+      next_pms_date,
+      changed_fields
+    ) values (
+      new.id,
+      coalesce(nullif(auth.uid(), '')::uuid, null),
+      new.last_pms_date,
+      new.last_pms_odometer,
+      new.pms_interval_km,
+      new.pms_interval_months,
+      new.next_pms_odometer,
+      new.next_pms_date,
+      changed_fields
+    );
+  end if;
+
+  return new;
+end;
+$$ language plpgsql security definer;
+
+-- Create trigger to fire after updates to maintenance fields
+create trigger mobility_assets_maintenance_changes
+after update of last_pms_date, last_pms_odometer, pms_interval_km, pms_interval_months, next_pms_odometer, next_pms_date
+on mobility_assets
+for each row execute function log_mobility_asset_maintenance_change();
 
 create table patrol_logs (
   id uuid primary key default uuid_generate_v4(),

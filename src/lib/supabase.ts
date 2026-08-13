@@ -3,8 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || "";
 const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || "";
 
-export const isMock =
-  supabaseUrl === "" ||
+export const isMock = supabaseUrl === "" ||
   supabaseUrl === "your-project-url" ||
   supabaseUrl.includes("your-project-url");
 
@@ -39,6 +38,82 @@ export type MobilityAsset = {
   description: string | null;
   status: string | null;
   unit?: Unit; // Optional reference to unit
+
+  // Base fields from mobility_assets table (aligned with database schema)
+  current_odometer: number; // Current odometer reading in km (INTEGER NOT NULL DEFAULT 0)
+  created_at: string | null; // Timestamp when record was created
+  updated_at: string | null; // Timestamp when record was last updated
+
+  // Vehicle Details & Identity
+  year_model: string | null;
+  or_number: string | null;
+  cr_number: string | null;
+  engine_number: string | null;
+  chassis_number: string | null;
+
+  // Source & Registration
+  source: "Organic" | "Loaned" | "Donated" | null;
+  date_of_last_registration: string | null; // Format: ISO date string 'YYYY-MM-DD'
+  date_registration_expires: string | null; // Format: ISO date string 'YYYY-MM-DD'
+
+  // Insurance
+  insurance_provider: string | null;
+  insurance_coverage_date: string | null; // Format: ISO date string 'YYYY-MM-DD'
+
+  // Driver & Personnel
+  driver_id: string | null; // References personnel (id)
+  driver?: Personnel; // Optional related Personnel object
+  maintenance_reminders: [];
+  maintenance_summary: {
+    dueSoon: string;
+    overdue: string;
+    good: string;
+  };
+
+  updated_by: string | null; // References personnel (id)
+  updated_by_personnel?: Personnel | null; // Optional related Personnel object
+};
+
+// Maintenance history tracking
+export type MaintenanceHistory = {
+  id: string;
+  mobility_asset_id: string;
+  changed_at: string;
+  changed_by: string; // References personnel
+  personnel: Personnel | null;
+  // Maintenance fields history (generic for any maintenance type)
+  last_service_date: string | null; // Date of last service (ISO string)
+  last_service_odometer: number; // Odometer at last service
+  next_service_odometer: number | null; // Calculated: last_service_odometer + interval_km
+  next_service_date: string | null; // Calculated: last_service_date + interval_months
+
+  // Related data (optional, from joins)
+  mobility_asset?: MobilityAsset;
+  maintenance_type?: MaintenanceType;
+
+  items: MaintenanceHistoryItem[];
+
+  service_center: string;
+  service_center_name: string;
+  service_center_location: string;
+  proof_photo_url: string;
+};
+
+export type MaintenanceHistoryItem = {
+  id: string;
+  maintenance_history_id: string;
+  maintenance_type_id: string;
+  created_at: string;
+
+  maintenance_type: MaintenanceType;
+};
+
+export type MaintenanceType = {
+  id: string;
+  name: string;
+  description: string | null;
+  default_interval_km: number;
+  default_interval_months: number;
 };
 
 export type PatrolLog = {
@@ -50,13 +125,16 @@ export type PatrolLog = {
   network_signal: number;
   captured_at: string;
   duty_type: string;
-  remarks: string;
+  status: string;
   personnel_id: string;
+  description: string;
 };
 
 export type Unit = {
   id: string;
   unit_name: string;
+  level: number;
+  classification: number | null; // Added classification column
 };
 
 export type Rank = {
@@ -75,13 +153,21 @@ export type Personnel = {
   unit_id: string;
   unit?: Unit;
   is_approved: boolean;
-  role: "user" | "admin";
+  role: "operation" | "admin" | "supply" | "admin_supply";
   email: string | null;
   phone_number: string | null;
   viber_number: string | null;
   designation: string | null;
   duty_status: string;
   remarks: string | null;
+  photo_url: string | null;
+
+  is_blocked: boolean;
+  blocked_at: string | null;
+  blocked_by: string | null;
+  block_reason: string | null;
+  mfa_enabled: boolean;
+  photo_bucket: string | null;
 };
 
 export type PatrolSchedule = {
@@ -151,8 +237,83 @@ export type Calendar = {
   venue: string | null;
   file_link: string | null;
   category: string | null;
-  distributions: string | null;
+  distributions: string[] | null; // Changed from string | null to string[] | null for unit tagging
   user_id: string;
   unit_id: string; // Added for unit filtering as requested
   unit: Unit | null; // Optional reference to unit
 };
+
+// Added designation type
+export type Designation = {
+  id: string;
+  unit_classification: number; // Note: keeping the typo as in the database
+  name: string;
+};
+
+export interface VehicleInspectionCategory {
+  id: string;
+  name: string;
+  description?: string | null;
+  display_order: number;
+  created_at?: string;
+}
+
+export interface VehicleInspectionItem {
+  id: string;
+  category_id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  display_order: number;
+  is_required: boolean;
+  is_active: boolean;
+  created_at?: string;
+
+  category?: VehicleInspectionCategory;
+  unit_id: string;
+}
+
+export interface VehicleInspection {
+  id: string;
+
+  mobility_asset_id: string;
+  mobility_asset?: MobilityAsset;
+
+  unit_id: string;
+  unit: Unit;
+
+  inspected_at: string;
+
+  inspected_by: string;
+  supervisor_name: string;
+
+  designated_driver_id?: string | null;
+  designated_driver?: Personnel | null;
+
+  alternate_driver_id?: string | null;
+  alternate_driver?: Personnel | null;
+
+  overall_status: "PASSED" | "FAILED" | "WITH_DEFECTS";
+
+  remarks?: string | null;
+
+  created_at?: string;
+  updated_at?: string;
+
+  results?: VehicleInspectionResult[];
+}
+
+export interface VehicleInspectionResult {
+  id: string;
+
+  inspection_id: string;
+
+  inspection_item_id: string;
+  inspection_item?: VehicleInspectionItem;
+
+  status: "COMPLIED" | "UNCOMPLIED" | "NOT_APPLICABLE";
+
+  remarks?: string | null;
+
+  created_at?: string;
+}

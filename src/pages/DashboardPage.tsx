@@ -393,7 +393,7 @@ export default function DashboardPage() {
 
                 <div>
                   <h2 className="text-xl font-bold text-gray-800">
-                    Mobility Asset
+                    Mobility Assets
                   </h2>
                 </div>
               </div>

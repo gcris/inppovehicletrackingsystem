@@ -26,48 +26,6 @@ export function usePersonnelRealtime() {
           );
           setPersonnel(personnelMap);
         }
-
-        // // Get personnel ids for filtering logs
-        // const personnelIds = personnelData?.map((p) => p.id) || [];
-
-        // // Fetch patrol logs
-        // let logsQuery = supabase
-        //   .from("patrol_logs")
-        //   .select("*")
-        //   .order("captured_at", { ascending: false });
-        // // Note: Removed limit to avoid missing latest logs for personnel beyond the limit.
-        // // This may fetch many logs if there are many personnel and frequent logging.
-        // // Consider implementing pagination or a more efficient query if performance becomes an issue.
-        // if (!isAdmin && unitId) {
-        //   if (personnelIds.length === 0) {
-        //     return;
-        //   }
-        // }
-
-        // const { data: logData, error: lError } = await logsQuery;
-        // if (lError) throw lError;
-
-        // // Process logs to get the latest log per personnel
-        // const latestLogs: Record<string, PatrolLog> = {};
-        // console.log("logData: ", logData);
-        // if (logData) {
-        //   logData.forEach((log: PatrolLog) => {
-        //     const lat = Number(log.latitude);
-        //     const lng = Number(log.longitude);
-        //     // Skip if coordinates are invalid
-        //     if (isNaN(lat) || isNaN(lng)) {
-        //       return;
-        //     }
-        //     // Update if no existing log or if new log is more recent
-        //     // const existingLog = latestLogs[log.personnel_id];
-        //     if (!latestLogs[log.personnel_id]) {
-        //       latestLogs[log.personnel_id] = log;
-        //     }
-        //   });
-        // }
-
-        // console.log("latestLogs: ", latestLogs);
-        // setPersonnelLogs(latestLogs);
       } catch (err) {
         console.error("Error fetching initial personnel data:", err);
       }

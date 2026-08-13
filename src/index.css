@@ -185,3 +185,10 @@ h6 {
   --tw-shadow-color: hsl(var(--accent) / 0.08);
   --tw-shadow: var(--tw-shadow-colored);
 }
+
+@media print {
+  .print-no-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

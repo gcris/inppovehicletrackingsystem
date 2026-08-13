@@ -65,7 +65,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
               </button>
               <button
                 onClick={() => {
-                  localStorage.clear();
                   window.location.href = "/";
                 }}
                 className="flex items-center justify-center gap-2 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"

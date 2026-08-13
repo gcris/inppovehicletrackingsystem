@@ -5,27 +5,16 @@ import { formatDistanceToNow } from "date-fns";
 import {
   Signal,
   Navigation,
-  History,
   Maximize2,
   Minimize2,
   Notebook,
   ShieldCheck,
-  User,
-  LucideIcon,
-  Car,
-  Motorbike,
-  PersonStanding,
-  Bike,
-  Siren,
   Network,
-  Waves,
-  Activity,
-  Star,
-  Footprints,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { renderToString } from "react-dom/server";
+import { snapToRoad } from "../lib/snapToRoad";
+import { createMarkerIcon } from "../helper/MarkerIcon";
 
 // Isolate Leaflet SSR crash by ensuring it only runs in the browser
 if (typeof window !== "undefined") {
@@ -76,6 +65,13 @@ function AutoFlyToEmergency({
     );
 
     if (emergencyLog) {
+      const logDate = new Date(emergencyLog.captured_at);
+      const now = new Date();
+
+      const ONE_HOUR_IN_MS = 60 * 60 * 1000;
+      const animate_ping = now.getTime() - logDate.getTime() <= ONE_HOUR_IN_MS;
+      if (!animate_ping) return;
+
       const lat = Number(emergencyLog.latitude);
       const lng = Number(emergencyLog.longitude);
 
@@ -91,62 +87,23 @@ function AutoFlyToEmergency({
   return null;
 }
 
-// Map of duty types to their respective SVG icons
-export const dutyTypeIconMap: Record<string, LucideIcon> = {
-  "Mobile Patrol": Car,
-  "TMRU Patrol": Motorbike,
-  "Foot Patrol": Footprints,
-  "Bike Patrol": Bike,
-  "Seaborne Patrol": Waves,
-  Checkpoint: ShieldCheck,
-  "Simulation Exercise": Activity,
-  "Special Event": Star,
-  EMERGENCY_SOS: Siren,
-};
-
-// Custom icon based on duty type and stale status
-export const createMarkerIcon = (duty_type: string, isStale: boolean) => {
-  if (typeof window === "undefined") return new L.Icon.Default();
-
-  const color =
-    duty_type === "EMERGENCY_SOS" ? "#ef4444" : isStale ? "#6b6b6b" : "#10b981";
-
-  const IconComponent = dutyTypeIconMap[duty_type] || Car;
-
-  const innerSvgString = renderToString(
-    <IconComponent
-      size={duty_type === "EMERGENCY_SOS" ? 40 : 25}
-      strokeWidth={2.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />,
-  );
-
-  return L.divIcon({
-    className: "custom-div-icon",
-    html: `
-      <div class="relative flex items-center justify-center" style="position: relative; display: flex; align-items: center; justify-content: center;">
-        ${
-          duty_type === "EMERGENCY_SOS"
-            ? `<div class="absolute w-10 h-10 rounded-full animate-ping" style="position: absolute; width: 60px; height: 60px; border-radius: 50%; background-color: ${color}; opacity: 0.6;"></div>`
-            : ""
-        }
-        <div class="w-8 h-8 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-white" 
-             style="width: 42px; height: 42px; border-radius: 50%; border: 2px solid #ffffff; background-color: ${color}; display: flex; align-items: center; justify-content: center; color: #ffffff; ${isStale ? "opacity: 0.8;" : ""}">
-          ${innerSvgString}
-        </div>
-        <div class="absolute -bottom-1 w-2 h-2 rotate-45" style="position: absolute; bottom: -4px; width: 8px; height: 8px; transform: rotate(45deg); background-color: ${color};"></div>
-      </div>
-    `,
-    iconSize: [42, 42],
-    iconAnchor: [21, 42],
-    popupAnchor: [0, -42],
-  });
-};
-
 interface MapProps {
   vehicles: Record<string, MobilityAsset>;
   logs: Record<string, PatrolLog>;
+}
+
+function getOffsetPosition(
+  lat: number,
+  lng: number,
+  index: number,
+  total: number,
+): [number, number] {
+  if (total <= 1) return [lat, lng];
+
+  const radius = 0.00003; // ~3 meters
+  const angle = (2 * Math.PI * index) / total;
+
+  return [lat + radius * Math.cos(angle), lng + radius * Math.sin(angle)];
 }
 
 export default function TrackingMap({
@@ -158,6 +115,10 @@ export default function TrackingMap({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [description, setDescription] = useState<string>();
+  const [snappedPositions, setSnappedPositions] = useState<
+    Record<string, { lat: number; lng: number }>
+  >({});
 
   useEffect(() => {
     setIsMounted(true);
@@ -169,17 +130,70 @@ export default function TrackingMap({
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function updatePositions() {
+      const positions: Record<string, { lat: number; lng: number }> = {};
+
+      await Promise.all(
+        Object.entries(logs).map(async ([index, log]) => {
+          const lat = Number(log.latitude);
+          const lng = Number(log.longitude);
+
+          if (isNaN(lat) || isNaN(lng)) return;
+
+          positions[index] = { lat, lng };
+        }),
+      );
+
+      if (!cancelled) {
+        setSnappedPositions(positions);
+      }
+    }
+
+    updatePositions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [logs]);
+
   if (!isMounted) {
     return (
       <div className="w-full h-full min-h-[500px] bg-[var(--background)]/90 dark:bg-[var(--primary)]/[0.9] animate-pulse rounded-3xl" />
     );
   }
 
+  const groupedMarkers = new Map<
+    string,
+    {
+      vehicleId: string;
+      log: PatrolLog;
+    }[]
+  >();
+
+  Object.entries(logs).forEach(([vehicleId, log]) => {
+    const lat = Number(log.latitude).toFixed(5);
+    const lng = Number(log.longitude).toFixed(5);
+
+    const key = `${lat},${lng}`;
+
+    if (!groupedMarkers.has(key)) {
+      groupedMarkers.set(key, []);
+    }
+
+    groupedMarkers.get(key)!.push({
+      vehicleId,
+      log,
+    });
+  });
+
   return (
     <div
       className={`${
         isFullscreen
-          ? "fixed inset-0 z-[9999] bg-[var(--background)]/[0.95] dark:bg-[var(--primary)]/[0.95] p-6"
+          ? "fixed inset-0 z-[9999] bg-[var(--background)]/[0.95] dark:bg-[var(--primary)]/[0.95] p-1"
           : "h-full w-full rounded-3xl overflow-hidden border border-[var(--secondary)]/[0.35] dark:border-[var(--secondary)]/[0.25] shadow-[var(--accent)]/[0.15] dark:shadow-[var(--accent)]/[0.08] z-0 relative bg-[var(--background)]/[0.9] dark:bg-[var(--primary)]/[0.85]"
       } transition-[width,height,transform] duration-300`}
     >
@@ -193,125 +207,140 @@ export default function TrackingMap({
           <ResizeMap isFullscreen={isFullscreen} />
           <AutoFlyToEmergency patrolLogs={logs} />
 
-          <TileLayer
-            attribution="&copy; CARTO"
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          />
-
           {/* Vehicle Markers */}
-          {Object.entries(logs).map(([vehicleId, log]) => {
-            const vehicle = vehicles[vehicleId];
-            const personnelInfo = personnel[log?.personnel_id || ""];
-            if (!vehicle && !personnelInfo) return null;
+          {Array.from(groupedMarkers.entries()).map(([, group]) => {
+            return group.map(({ vehicleId, log }, index) => {
+              const vehicle = vehicles[vehicleId];
+              const personnelInfo = personnel[log?.personnel_id || ""];
+              if (!vehicle && !personnelInfo) return null;
 
-            const lat = Number(log.latitude);
-            const lng = Number(log.longitude);
-            if (isNaN(lat) || isNaN(lng)) return null;
+              const lat = Number(log.latitude);
+              const lng = Number(log.longitude);
+              if (isNaN(lat) || isNaN(lng)) return null;
 
-            const lastUpdated = new Date(log.captured_at);
-            const age = now - lastUpdated.getTime();
-            const isStale = age > 5 * 60 * 1000;
+              const lastUpdated = new Date(log.captured_at);
+              const age = now - lastUpdated.getTime();
+              const isStale = age > 5 * 60 * 1000;
 
-            return (
-              <Marker
-                key={vehicleId}
-                position={[lat, lng]}
-                icon={createMarkerIcon(log.duty_type, isStale)}
-              >
-                <Popup className="custom-popup">
-                  <div className="p-4 min-w-[260px] min-h-[200px] bg-white dark:bg-slate-900">
-                    <div className="flex items-center justify-between mb-4 border-b border-[var(--secondary)]/[0.2] pb-3">
-                      <span className="font-black text-xl text-[var(--text)]">
-                        {vehicle?.plate_number ||
-                          personnelInfo?.rank?.rank_name +
-                            " " +
-                            personnelInfo?.fullname ||
-                          "Unknown"}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mb-4 border-b border-[var(--secondary)]/[0.2] pb-3">
-                      <span className="font-black text-md text-[var(--text)]">
-                        {vehicle
-                          ? vehicle.unit?.unit_name || "Unknown Unit"
-                          : personnelInfo?.unit?.unit_name || "Unknown Unit"}
-                      </span>
-                      <span
-                        className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${
-                          isStale
-                            ? "bg-[var(--secondary)]/[0.15] text-[var(--text)]/[0.6]"
-                            : "bg-[var(--accent)]/[0.15] text-[var(--accent)]"
-                        }`}
-                      >
-                        {isStale ? "No Movement" : "Moving"}
-                      </span>
-                    </div>
-                    <div className="space-y-3 text-[var(--text)]/[0.9] mb-5">
-                      {vehicle && vehicle.description && (
+              // Calculate offset position to prevent marker overlap
+              const [displayLat, displayLng] = getOffsetPosition(
+                lat,
+                lng,
+                index,
+                group.length,
+              );
+
+              return (
+                <Marker
+                  key={`${vehicleId}-${index}`} // Unique key for each marker in group
+                  position={[
+                    snappedPositions[vehicleId]?.lat ?? displayLat,
+                    snappedPositions[vehicleId]?.lng ?? displayLng,
+                  ]}
+                  icon={createMarkerIcon(
+                    log.duty_type,
+                    log.captured_at,
+                    log.status,
+                    isStale,
+                  )}
+                >
+                  <Popup className="custom-popup">
+                    <div className="p-4 min-w-[260px] min-h-[200px] bg-white dark:bg-slate-900">
+                      <div className="flex items-center justify-between mb-4 border-b border-[var(--secondary)]/[0.2] pb-3">
+                        <span className="font-black text-xl text-[var(--text)]">
+                          {vehicle?.plate_number ||
+                            personnelInfo?.rank?.rank_name +
+                              " " +
+                              personnelInfo?.fullname ||
+                            "Unknown"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mb-4 border-b border-[var(--secondary)]/[0.2] pb-3">
+                        <span className="font-black text-md text-[var(--text)]">
+                          {vehicle
+                            ? vehicle.unit?.unit_name || "Unknown Unit"
+                            : personnelInfo?.unit?.unit_name || "Unknown Unit"}
+                        </span>
+                        <span
+                          className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                            isStale
+                              ? "bg-[var(--secondary)]/[0.15] text-[var(--text)]/[0.6]"
+                              : "bg-[var(--accent)]/[0.15] text-[var(--accent)]"
+                          }`}
+                        >
+                          {isStale ? "No Movement" : "Moving"}
+                        </span>
+                      </div>
+                      <div className="space-y-3 text-[var(--text)]/[0.9] mb-5">
+                        {vehicle && vehicle.description && (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <Notebook className="w-4 h-4" />
+                              <span className="font-medium">Description</span>
+                            </div>
+                            <span className="font-black text-[var(--text)]">
+                              {vehicle.description}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <Notebook className="w-4 h-4" />
-                            <span className="font-medium">Description</span>
+                            <Navigation className="w-4 h-4" />
+                            <span className="font-medium">Current Speed</span>
                           </div>
                           <span className="font-black text-[var(--text)]">
-                            {vehicle.description}
+                            {log.speed.toFixed(2)} km/h
                           </span>
                         </div>
-                      )}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <Navigation className="w-4 h-4" />
-                          <span className="font-medium">Current Speed</span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Network className="w-4 h-4" />
+                            <span className="font-medium">Network Signal</span>
+                          </div>
+                          <span className="font-black text-[var(--text)]">
+                            {log.network_signal > 5
+                              ? log.network_signal
+                              : log.network_signal + "/4"}
+                          </span>
                         </div>
-                        <span className="font-black text-[var(--text)]">
-                          {log.speed.toFixed(2)} km/h
-                        </span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <ShieldCheck className="w-4 h-4" />
+                            <span className="font-medium">Duty Type</span>
+                          </div>
+                          <span className="font-black text-[var(--text)]">
+                            {log.duty_type}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Signal className="w-4 h-4" />
+                            <span className="font-medium">Last Update</span>
+                          </div>
+                          <span className="font-bold text-[var(--text)]">
+                            {formatDistanceToNow(lastUpdated)} ago
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <Network className="w-4 h-4" />
-                          <span className="font-medium">Network Signal</span>
-                        </div>
-                        <span className="font-black text-[var(--text)]">
-                          {log.network_signal}/4
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <ShieldCheck className="w-4 h-4" />
-                          <span className="font-medium">Duty Type</span>
-                        </div>
-                        <span className="font-black text-[var(--text)]">
-                          {log.duty_type}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <Signal className="w-4 h-4" />
-                          <span className="font-medium">Last Update</span>
-                        </div>
-                        <span className="font-bold text-[var(--text)]">
+
+                      <Link
+                        to={`/trackingmap/${vehicleId}`}
+                        className="text-[16px] text-white-800 dark:text-slate-200 flex items-center justify-center gap-3 w-full py-3 px-6 rounded-xl transition-colors duration-200"
+                      >
+                        View History Replay
+                      </Link>
+
+                      {isStale && (
+                        <div className="text-red-800 dark:text-slate-200 mt-4 p-3 leading-tight rounded-xl border border-red-50/[0.3]">
+                          No Movement: Showing last known position from{" "}
                           {formatDistanceToNow(lastUpdated)} ago
-                        </span>
-                      </div>
+                        </div>
+                      )}
                     </div>
-
-                    <Link
-                      to={`/trackingmap/${vehicleId}`}
-                      className="text-lg text-white-800 dark:text-slate-200 flex items-center justify-center gap-3 w-full py-3 px-6 rounded-xl bg-[var(--accent)]/[0.2] dark:[var(--accent)]/[0.8] hover:bg-[var(--accent)]/[0.3] transition-colors duration-200"
-                    >
-                      View History Replay
-                    </Link>
-
-                    {isStale && (
-                      <div className="text-red-800 dark:text-slate-200 mt-4 p-3 leading-tight rounded-xl border border-red-50/[0.3]">
-                        No Movement: Showing last known position from{" "}
-                        {formatDistanceToNow(lastUpdated)} ago
-                      </div>
-                    )}
-                  </div>
-                </Popup>
-              </Marker>
-            );
+                  </Popup>
+                </Marker>
+              );
+            });
           })}
         </MapContainer>
 

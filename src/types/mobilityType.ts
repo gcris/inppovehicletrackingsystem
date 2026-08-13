@@ -1,0 +1,16 @@
+export const mobilityType = [
+  "All-Terrain Vehicle (ATV)",
+  "Bike",
+  "Bus",
+  "Heavy Motorcycle",
+  "Light Motorcycle Category (LMC)",
+  "Light Personnel Troop Carrier",
+  "Light Tactical Vehicle (LTV)",
+  "Motorcycle",
+  "Patrol Car",
+  "Patrol Jeep",
+  "Personnel Carrier",
+  "Personnel Troop Carrier",
+  "Rescue Boat",
+  "Truck",
+];

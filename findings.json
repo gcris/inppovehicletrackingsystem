@@ -3,7 +3,7 @@
     "file": "C:/Users\Computer/Desktop/projects/inppovehicletrackingsystem/src/pages/MobilityAssetsPage.tsx",
     "line": 230,
     "summary": "Removed Personnel In-Charge column that displayed which personnel was assigned to each vehicle",
-    "failure_scenario": "User views fleet overview and cannot see which personnel is responsible for each vehicle, leading to unclear accountability and inability to quickly identify vehicle-personnel assignments"
+    "failure_scenario": "User views mobility overview and cannot see which personnel is responsible for each vehicle, leading to unclear accountability and inability to quickly identify vehicle-personnel assignments"
   },
   {
     "file": "C:/Users\Computer/Desktop/projects/inppovehicletrackingsystem/src/pages/MobilityAssetsPage.tsx",
