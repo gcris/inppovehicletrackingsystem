@@ -33,6 +33,7 @@ import UserManagementPage from "./pages/admin/UserManagementPage";
 import { useVehicleRealtime } from "./hooks/useVehicleRealtime";
 import SidebarNotifications from "./components/layout/SidebarNotifications";
 import { Sidebar } from "./components/layout/Sidebar";
+import { useInactivityLogout } from "./hooks/useInactivityLogout";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -43,8 +44,15 @@ function ProtectedRoute({
   children,
   requiredRole = null,
 }: ProtectedRouteProps) {
-  const { user, loading, isApproved, clearAuthCache, isMfaVerified, role } =
-    useAuth();
+  const {
+    user,
+    loading,
+    isApproved,
+    clearAuthCache,
+    isMfaVerified,
+    role,
+    isPnpIdExpires,
+  } = useAuth();
   if (loading) return null;
 
   if (!user) return <Navigate to="/login" replace />;
@@ -67,6 +75,32 @@ function ProtectedRoute({
           <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium">
             Your account is currently waiting for administrator approval. Once
             approved, you will have access to the system.
+          </p>
+          <button
+            onClick={clearAuthCache}
+            className="flex items-center justify-center gap-2 w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isPnpIdExpires && !loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-8 border border-slate-100 dark:border-slate-800">
+          <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="w-10 h-10 text-amber-600 dark:text-amber-500" />
+          </div>
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">
+            PNP ID Expires
+          </h2>
+          <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium">
+            We detect that your PNP ID in our system is expired. Please contact
+            the administrator to help you with this problem.
           </p>
           <button
             onClick={clearAuthCache}
@@ -113,6 +147,8 @@ function ProtectedRoute({
 }
 
 function Layout() {
+  useInactivityLogout(true);
+
   const { user, profile, isAdmin, clearAuthCache } = useAuth();
   const theme = useTheme();
   const { toggleTheme } = useThemeActions();

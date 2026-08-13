@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { mobilityType } from "../../types/mobilityType";
+import { Loader2 } from "lucide-react";
 
 // Form state interface aligned with your state structure
 export type MobilityFormData = {
@@ -20,6 +21,7 @@ export type MobilityFormData = {
   chassis_number: string;
   insurance_provider: string;
   insurance_coverage_date: string;
+  remarks: string;
 };
 
 export interface UnitOption {
@@ -47,8 +49,9 @@ interface MobilityFormModalProps {
   personnelList?: PersonnelOption[];
   closeModal: () => void;
   handleInputChange: (field: keyof MobilityFormData, value: any) => void;
-  handleAddVehicle: (e: React.SyntheticEvent) => void;
-  handleUpdateVehicle: (e: React.SyntheticEvent) => void;
+  handleAddVehicle: (e: React.SyntheticEvent) => Promise<void>;
+  handleUpdateVehicle: (e: React.SyntheticEvent) => Promise<void>;
+  getStatusColor: (status: string) => string;
 }
 
 export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
@@ -63,12 +66,14 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
   handleInputChange,
   handleAddVehicle,
   handleUpdateVehicle,
+  getStatusColor,
 }) => {
   if (!open) return null;
 
   type MobilityFormErrors = Partial<Record<keyof MobilityFormData, string>>;
 
   const [errors, setErrors] = useState<MobilityFormErrors>({});
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const filteredPersonnel = useMemo(() => {
     let filtered = personnelList;
@@ -110,6 +115,10 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
 
     if (formData.current_odometer < 0) {
       newErrors.current_odometer = "Invalid odometer reading.";
+    }
+
+    if (formData.status !== "Serviceable" && !formData.remarks) {
+      newErrors.remarks = `Please specify the reason why this mobility is ${formData.status}`;
     }
 
     if (!formData.description.trim()) {
@@ -164,15 +173,25 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.SyntheticEvent) => {
+  const handleSubmit = async (e: React.SyntheticEvent) => {
+    if (isLoading) return;
+
+    setIsLoading(true);
+    console.log("isLoading: ", isLoading);
     e.preventDefault();
 
-    if (!validateForm()) return;
+    try {
+      if (!validateForm()) return;
 
-    if (editingVehicle) {
-      handleUpdateVehicle(e);
-    } else {
-      handleAddVehicle(e);
+      if (editingVehicle) {
+        await handleUpdateVehicle(e);
+      } else {
+        await handleAddVehicle(e);
+      }
+    } catch (error) {
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -222,7 +241,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Plate Number */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Plate Number
                   </label>
                   <input
@@ -247,15 +266,13 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                     Number is not available, please indicate the MV File Number.
                   </p>
                   {errors.plate_number && (
-                    <p className="mt-1 text-sm text-red-500">
-                      {errors.plate_number}
-                    </p>
+                    <p className="mt-1 text-red-500">{errors.plate_number}</p>
                   )}
                 </div>
 
                 {/* Vehicle Type */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Mobility Type
                   </label>
                   <select
@@ -276,15 +293,13 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                     ))}
                   </select>
                   {errors.vehicle_type && (
-                    <p className="mt-1 text-sm text-red-500">
-                      {errors.vehicle_type}
-                    </p>
+                    <p className="mt-1 text-red-500">{errors.vehicle_type}</p>
                   )}
                 </div>
 
                 {/* Year Model */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Year Model
                   </label>
                   <input
@@ -302,15 +317,13 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                     placeholder="2024"
                   />
                   {errors.year_model && (
-                    <p className="mt-1 text-sm text-red-500">
-                      {errors.year_model}
-                    </p>
+                    <p className="mt-1 text-red-500">{errors.year_model}</p>
                   )}
                 </div>
 
                 {/* Source */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Source
                   </label>
                   <select
@@ -331,7 +344,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
 
                 {/* Current Odometer */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Current Odometer Reading (km)
                   </label>
                   <input
@@ -353,7 +366,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                     placeholder="14,200"
                   />
                   {errors.current_odometer && (
-                    <p className="mt-1 text-sm text-red-500">
+                    <p className="mt-1 text-red-500">
                       {errors.current_odometer}
                     </p>
                   )}
@@ -361,7 +374,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
 
                 {/* Status */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Status
                   </label>
                   <select
@@ -381,7 +394,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
 
                 {/* Description */}
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Description
                   </label>
                   <input
@@ -399,11 +412,44 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                     placeholder="Specify the description of the vehicle. Example: 4x4 Double Cab"
                   />
                   {errors.description && (
-                    <p className="mt-1 text-sm text-red-500">
-                      {errors.description}
-                    </p>
+                    <p className="mt-1 text-red-500">{errors.description}</p>
                   )}
                 </div>
+
+                {/* Remarks */}
+                {formData.status !== "Serviceable" && (
+                  <div className="md:col-span-2">
+                    <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Remarks
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.remarks}
+                      onChange={(e) =>
+                        handleInputChange("remarks", e.target.value)
+                      }
+                      className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                      ${
+                        errors.remarks ? "border-red-500" : "border-slate-300"
+                      }`}
+                      placeholder={`Specify the reason why this mobility is ${formData.status}.`}
+                    />
+                    <p className="mt-2 italic">
+                      Note: Specify the reason why this mobility is{" "}
+                      <span
+                        className={`rounded-full px-3 py-1 font-semibold ${getStatusColor(
+                          formData.status,
+                        )}`}
+                      >
+                        {formData.status}
+                      </span>
+                      .
+                    </p>
+                    {errors.remarks && (
+                      <p className="mt-1 text-red-500">{errors.remarks}</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -418,7 +464,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Unit */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Unit/Station
                   </label>
                   <select
@@ -441,15 +487,13 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                     ))}
                   </select>
                   {errors.unit_id && (
-                    <p className="mt-1 text-sm text-red-500">
-                      {errors.unit_id}
-                    </p>
+                    <p className="mt-1 text-red-500">{errors.unit_id}</p>
                   )}
                 </div>
 
                 {/* Driver */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Official Driver
                   </label>
                   <select
@@ -473,9 +517,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                     ))}
                   </select>
                   {errors.driver_id && (
-                    <p className="mt-1 text-sm text-red-500">
-                      {errors.driver_id}
-                    </p>
+                    <p className="mt-1 text-red-500">{errors.driver_id}</p>
                   )}
                 </div>
               </div>
@@ -492,7 +534,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* OR Number */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     OR Number
                   </label>
                   <input
@@ -508,15 +550,13 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                       }`}
                   />
                   {errors.or_number && (
-                    <p className="mt-1 text-sm text-red-500">
-                      {errors.or_number}
-                    </p>
+                    <p className="mt-1 text-red-500">{errors.or_number}</p>
                   )}
                 </div>
 
                 {/* CR Number */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     CR Number
                   </label>
                   <input
@@ -532,15 +572,13 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                       }`}
                   />
                   {errors.cr_number && (
-                    <p className="mt-1 text-sm text-red-500">
-                      {errors.cr_number}
-                    </p>
+                    <p className="mt-1 text-red-500">{errors.cr_number}</p>
                   )}
                 </div>
 
                 {/* Date of Registration Expires */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Date of Last Registration
                   </label>
                   <input
@@ -567,7 +605,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                       }`}
                   />
                   {errors.date_of_last_registration && (
-                    <p className="mt-1 text-sm text-red-500">
+                    <p className="mt-1 text-red-500">
                       {errors.date_of_last_registration}
                     </p>
                   )}
@@ -575,7 +613,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
 
                 {/* Date Registration Expires */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Date Registration Expires
                   </label>
                   <input
@@ -595,7 +633,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                       }`}
                   />
                   {errors.date_registration_expires && (
-                    <p className="mt-1 text-sm text-red-500">
+                    <p className="mt-1 text-red-500">
                       {errors.date_registration_expires}
                     </p>
                   )}
@@ -603,7 +641,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
 
                 {/* Engine Number */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Engine Number
                   </label>
                   <input
@@ -621,15 +659,13 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                       }`}
                   />
                   {errors.engine_number && (
-                    <p className="mt-1 text-sm text-red-500">
-                      {errors.engine_number}
-                    </p>
+                    <p className="mt-1 text-red-500">{errors.engine_number}</p>
                   )}
                 </div>
 
                 {/* Chassis Number */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Chassis Number
                   </label>
                   <input
@@ -647,9 +683,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                       }`}
                   />
                   {errors.chassis_number && (
-                    <p className="mt-1 text-sm text-red-500">
-                      {errors.chassis_number}
-                    </p>
+                    <p className="mt-1 text-red-500">{errors.chassis_number}</p>
                   )}
                 </div>
               </div>
@@ -666,7 +700,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Insurance Provider */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Insurance Provider
                   </label>
                   <input
@@ -684,7 +718,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                       }`}
                   />
                   {errors.insurance_provider && (
-                    <p className="mt-1 text-sm text-red-500">
+                    <p className="mt-1 text-red-500">
                       {errors.insurance_provider}
                     </p>
                   )}
@@ -692,7 +726,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
 
                 {/* Coverage Until */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Insurance Coverage Until
                   </label>
                   <input
@@ -712,7 +746,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                       }`}
                   />
                   {errors.insurance_coverage_date && (
-                    <p className="mt-1 text-sm text-red-500">
+                    <p className="mt-1 text-red-500">
                       {errors.insurance_coverage_date}
                     </p>
                   )}
@@ -721,13 +755,13 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                 {/* Preview */}
                 <div className="md:col-span-2 rounded-xl bg-slate-50 dark:bg-slate-800 p-4 border border-slate-200 dark:border-slate-700">
                   <div className="flex flex-col gap-1">
-                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                    <span className="text-slate-500 dark:text-slate-400">
                       Insurance Summary
                     </span>
                     <span className="font-semibold text-slate-900 dark:text-white">
                       {formData.insurance_provider || "No provider selected"}
                     </span>
-                    <span className="text-sm text-slate-600 dark:text-slate-300">
+                    <span className="text-slate-600 dark:text-slate-300">
                       Coverage Until:&nbsp;
                       {formData.insurance_coverage_date || "-"}
                     </span>
@@ -746,6 +780,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
               <button
                 type="button"
                 onClick={closeModal}
+                disabled={isLoading}
                 className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-6 py-3 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
               >
                 Cancel
@@ -754,8 +789,12 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
               <button
                 type="submit"
                 className="rounded-xl bg-blue-600 px-6 py-3 text-white hover:bg-blue-700 transition font-medium"
+                disabled={isLoading}
               >
-                {editingVehicle ? "Update Vehicle" : "Add Vehicle"}
+                {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span className={isLoading ? "hidden" : "inline-block"}>
+                  {editingVehicle ? "Update" : "Save"}
+                </span>
               </button>
             </div>
           </form>

@@ -72,6 +72,8 @@ export type MobilityAsset = {
 
   updated_by: string | null; // References personnel (id)
   updated_by_personnel?: Personnel | null; // Optional related Personnel object
+
+  remarks: string | null; // Only when UNSER/ BER
 };
 
 // Maintenance history tracking
@@ -168,6 +170,11 @@ export type Personnel = {
   block_reason: string | null;
   mfa_enabled: boolean;
   photo_bucket: string | null;
+
+  // PNP ID
+  id_card_number: string;
+  date_issued: string;
+  expiration_date: string;
 };
 
 export type PatrolSchedule = {

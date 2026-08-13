@@ -13,6 +13,8 @@ type Props = {
   value: number;
   bg_color: string;
   border_color: string;
+  expiring_soon?: number | 0;
+  expired?: number | 0;
 };
 
 export default function MobilityStatCard({
@@ -20,10 +22,14 @@ export default function MobilityStatCard({
   value,
   bg_color,
   border_color,
+  expiring_soon,
+  expired,
 }: Props) {
+  const query = title.includes("Total") ? "" : title;
+  const colspan = title.includes("Total") ? "row-span-2" : "";
   return (
     <Link
-      to={`/mobility-assets?query=${encodeURIComponent(title)}`}
+      to={`/mobility-assets?query=${encodeURIComponent(query)}`}
       className={`
         group relative block overflow-hidden rounded-2xl
         border ${border_color}
@@ -32,6 +38,7 @@ export default function MobilityStatCard({
         transition-all duration-300
         hover:-translate-y-1
         hover:shadow-lg
+        ${colspan}
       `}
     >
       {/* Decorative top gradient */}
@@ -48,7 +55,7 @@ export default function MobilityStatCard({
       />
 
       {/* Decorative circle */}
-      <div
+      {/* <div
         className="
           absolute -right-8 -top-8
           h-24 w-24 rounded-full
@@ -57,45 +64,98 @@ export default function MobilityStatCard({
           transition-transform duration-500
           group-hover:scale-150
         "
-      />
+      /> */}
 
-      <div className="relative p-5">
+      <div
+        className={
+          title.includes("Total")
+            ? "relative flex h-full flex-col items-center justify-center p-5"
+            : "relative p-5"
+        }
+      >
         {/* Header */}
-        <div className="flex items-start justify-between gap-3">
+        <div
+          className={
+            title.includes("Total")
+              ? "w-full text-center"
+              : "flex items-start justify-between gap-3"
+          }
+        >
           <div className="min-w-0">
-            <p className="font-semibold text-slate-600 dark:text-slate-300">
+            <p className="mb-1 font-bold leading-6 text-slate-700 dark:text-slate-200">
               {title}
             </p>
           </div>
         </div>
 
         {/* Number */}
-        <h2 className="mt-5 text-4xl font-black tracking-tight text-slate-900 dark:text-white">
-          {value.toLocaleString()}
-        </h2>
-
-        {/* Hover-only details */}
         <div
+          className={
+            title.includes("Total")
+              ? "flex items-center justify-center"
+              : "flex flex-1 items-center justify-center"
+          }
+        >
+          <span className="text-5xl font-black text-slate-900 dark:text-white">
+            {value.toLocaleString()}
+          </span>
+        </div>
+
+        {/* Breakdown */}
+        {((expiring_soon ?? 0) > 0 || (expired ?? 0) > 0) && (
+          <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-300">
+            {(expiring_soon ?? 0) > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-slate-600 dark:text-slate-300">
+                  {title.includes("PMS") ? "Due" : "Expiring"} Soon
+                </span>
+
+                <span className="font-bold text-yellow-600 dark:text-yellow-400">
+                  {expiring_soon}
+                </span>
+              </div>
+            )}
+            {(expired ?? 0) > 0 && (
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-slate-600 dark:text-slate-300">
+                  {title.includes("PMS") ? "Overdue" : "Expired"}
+                </span>
+
+                <span className="font-bold text-red-600 dark:text-red-400">
+                  {expired}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Hover action */}
+        {/* <div
           className="
-            pointer-events-none
-            absolute bottom-1 left-5 right-5
-            translate-y-3
+            flex items-center justify-between
+            border-t border-slate-100
+            pt-3
             opacity-0
             transition-all duration-300
-            group-hover:translate-y-0
             group-hover:opacity-100
+            dark:border-slate-800
           "
         >
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-slate-500 dark:text-slate-400">
-              View details
-            </span>
+          <span className="font-semibold text-blue-600 dark:text-blue-400">
+            View details
+          </span>
 
-            <span className="font-bold text-blue-600 dark:text-blue-400">
-              →
-            </span>
-          </div>
-        </div>
+          <span
+            className="
+              font-bold text-blue-600
+              transition-transform duration-300
+              group-hover:translate-x-1
+              dark:text-blue-400
+            "
+          >
+            →
+          </span>
+        </div> */}
       </div>
     </Link>
   );

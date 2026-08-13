@@ -278,6 +278,13 @@ export default function MobilityAssetViewModal({
               <div className="sm:col-span-2 lg:col-span-3">
                 <InfoItem label="Description" value={asset.description} />
               </div>
+
+              <div className="sm:col-span-2 lg:col-span-3">
+                <InfoItem
+                  label={`Remarks/Reason why it is ${asset.status}`}
+                  value={asset.remarks}
+                />
+              </div>
             </Section>
 
             {/* Assignment / Driver */}

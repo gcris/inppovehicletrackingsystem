@@ -59,6 +59,18 @@ export default function InspectionFormModal({
   const [selectedUnit, setSelectedUnit] = useState("");
   const { isAdmin, unitId } = useAuth();
 
+  const [activeTab, setActiveTab] = useState<"mobility" | "checklist">(
+    "mobility",
+  );
+
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (categories.length > 0 && !activeCategoryId) {
+      setActiveCategoryId(categories[0].id);
+    }
+  }, [categories, activeCategoryId]);
+
   const [formData, setFormData] = useState({
     unit_id: inspection?.unit_id ?? "",
     mobility_asset_id: inspection?.mobility_asset_id ?? "",
@@ -439,7 +451,17 @@ export default function InspectionFormModal({
     return localDate.toISOString().slice(0, 16);
   };
 
-  console.log("selectedUnit: ", selectedUnit);
+  const categoriesWithItems = categories.filter((category) =>
+    items.some((item) => item.category_id === category.id),
+  );
+
+  const activeCategoryIndex = categoriesWithItems.findIndex(
+    (category) => category.id === activeCategoryId,
+  );
+
+  const isFirstCategory = activeCategoryIndex === 0;
+
+  const isLastCategory = activeCategoryIndex === categoriesWithItems.length - 1;
 
   if (loading) {
     return (
@@ -481,418 +503,525 @@ export default function InspectionFormModal({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6">
+          {/* Tabs */}
+          <div className="mb-6 border-b border-slate-200 dark:border-slate-700">
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab("mobility")}
+                className={`relative px-5 py-3 text-sm font-semibold transition ${
+                  activeTab === "mobility"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                Mobility Information
+                {activeTab === "mobility" && (
+                  <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-blue-600 dark:bg-blue-400" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("checklist")}
+                className={`relative px-5 py-3 text-sm font-semibold transition ${
+                  activeTab === "checklist"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                Inspection Checklist
+                {activeTab === "checklist" && (
+                  <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-blue-600 dark:bg-blue-400" />
+                )}
+              </button>
+            </div>
+          </div>
+
           {/* Mobility Information */}
-          <div className="rounded-2xl border p-6 border-slate-200 dark:border-slate-700">
-            <h3 className="mb-5 text-lg font-semibold">Mobility Information</h3>
+          {activeTab === "mobility" && (
+            <div className="rounded-2xl border border-slate-200 p-6 dark:border-slate-700">
+              <h3 className="mb-5 text-lg font-semibold">
+                Mobility Information
+              </h3>
 
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-              {/* Unit/Station */}
-              <div>
-                <label className="mb-2 block font-medium">Unit/Station</label>
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+                {/* Unit/Station */}
+                <div>
+                  <label className="mb-2 block font-medium">Unit/Station</label>
 
-                <select
-                  value={selectedUnit}
-                  disabled={isAdmin && unitId === null}
-                  onChange={(e) => {
-                    setFormData({
-                      ...formData,
-                      unit_id: e.target.value,
-                    });
+                  <select
+                    value={selectedUnit}
+                    disabled={isAdmin && unitId === null}
+                    onChange={(e) => {
+                      setFormData({
+                        ...formData,
+                        unit_id: e.target.value,
+                      });
 
-                    setSelectedUnit(e.target.value);
-                  }}
-                  className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                      setSelectedUnit(e.target.value);
+                    }}
+                    className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
                       ${
                         errors.unit_id ? "border-red-500" : "border-slate-300"
                       }`}
-                >
-                  <option value="">Select Unit/Station</option>
+                  >
+                    <option value="">Select Unit/Station</option>
 
-                  {units.map((unit) => (
-                    <option key={unit.id} value={unit.id}>
-                      {unit.unit_name}
-                    </option>
-                  ))}
-                </select>
-                {errors.unit_id && (
-                  <p className="mt-1 text-red-500">{errors.unit_id}</p>
-                )}
-              </div>
+                    {units.map((unit) => (
+                      <option key={unit.id} value={unit.id}>
+                        {unit.unit_name}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.unit_id && (
+                    <p className="mt-1 text-red-500">{errors.unit_id}</p>
+                  )}
+                </div>
 
-              {/* Mobility */}
-              <div>
-                <label className="mb-2 block font-medium">Mobility</label>
+                {/* Mobility */}
+                <div>
+                  <label className="mb-2 block font-medium">Mobility</label>
 
-                <select
-                  value={formData.mobility_asset_id}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      mobility_asset_id: e.target.value,
-                    })
-                  }
-                  className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                  <select
+                    value={formData.mobility_asset_id}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        mobility_asset_id: e.target.value,
+                      })
+                    }
+                    className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
                       ${
                         errors.mobility_asset_id
                           ? "border-red-500"
                           : "border-slate-300"
                       }`}
-                >
-                  <option value="">Select Mobility</option>
+                  >
+                    <option value="">Select Mobility</option>
 
-                  {filteredVehicles.map((vehicle) => (
-                    <option key={vehicle.id} value={vehicle.id}>
-                      {vehicle.plate_number}
-                      {"-"}
-                      {vehicle.description}
-                      {isAdmin ? "-" + vehicle.unit?.unit_name : ""}
-                    </option>
-                  ))}
-                </select>
-                {errors.mobility_asset_id && (
-                  <p className="mt-1 text-red-500">
-                    {errors.mobility_asset_id}
-                  </p>
-                )}
-              </div>
+                    {filteredVehicles.map((vehicle) => (
+                      <option key={vehicle.id} value={vehicle.id}>
+                        {vehicle.plate_number}
+                        {"-"}
+                        {vehicle.description}
+                        {isAdmin ? "-" + vehicle.unit?.unit_name : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.mobility_asset_id && (
+                    <p className="mt-1 text-red-500">
+                      {errors.mobility_asset_id}
+                    </p>
+                  )}
+                </div>
 
-              {/* Inspection Date */}
-              <div>
-                <label className="mb-2 block font-medium">
-                  Inspection Date
-                </label>
+                {/* Inspection Date */}
+                <div>
+                  <label className="mb-2 block font-medium">
+                    Inspection Date
+                  </label>
 
-                <input
-                  type="datetime-local"
-                  value={formatForDateTimeLocal(formData.inspected_at)}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      inspected_at: e.target.value,
-                    })
-                  }
-                  className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                  <input
+                    type="datetime-local"
+                    value={formatForDateTimeLocal(formData.inspected_at)}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        inspected_at: e.target.value,
+                      })
+                    }
+                    className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
                       ${
                         errors.inspection_date
                           ? "border-red-500"
                           : "border-slate-300"
                       }`}
-                />
-                {errors.inspection_date && (
-                  <p className="mt-1 text-red-500">{errors.inspection_date}</p>
-                )}
-              </div>
+                  />
+                  {errors.inspection_date && (
+                    <p className="mt-1 text-red-500">
+                      {errors.inspection_date}
+                    </p>
+                  )}
+                </div>
 
-              {/* Overall Status */}
-              <div>
-                <label className="mb-2 block font-medium">Overall Status</label>
+                {/* Overall Status */}
+                <div>
+                  <label className="mb-2 block font-medium">
+                    Overall Status
+                  </label>
 
-                <select
-                  value={formData.overall_status}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      overall_status: e.target
-                        .value as VehicleInspection["overall_status"],
-                    })
-                  }
-                  className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                  <select
+                    value={formData.overall_status}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        overall_status: e.target
+                          .value as VehicleInspection["overall_status"],
+                      })
+                    }
+                    className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
                       ${
                         errors.overall_status
                           ? "border-red-500"
                           : "border-slate-300"
                       }`}
-                >
-                  <option value="PASSED">PASSED</option>
-                  <option value="WITH_DEFECTS">WITH DEFECTS</option>
-                  <option value="FAILED">FAILED</option>
-                </select>
-                {errors.overall_status && (
-                  <p className="mt-1 text-red-500">{errors.overall_status}</p>
-                )}
-              </div>
+                  >
+                    <option value="PASSED">PASSED</option>
+                    <option value="WITH_DEFECTS">WITH DEFECTS</option>
+                    <option value="FAILED">FAILED</option>
+                  </select>
+                  {errors.overall_status && (
+                    <p className="mt-1 text-red-500">{errors.overall_status}</p>
+                  )}
+                </div>
 
-              {/* Inspector */}
-              <div>
-                <label className="mb-2 block font-medium">Inspector</label>
+                {/* Inspector */}
+                <div>
+                  <label className="mb-2 block font-medium">Inspector</label>
 
-                <input
-                  type="text"
-                  value={formData.inspected_by}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      inspected_by: e.target.value,
-                    }))
-                  }
-                  placeholder="Name of the Inspector (Rank/Name)"
-                  className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                  <input
+                    type="text"
+                    value={formData.inspected_by}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        inspected_by: e.target.value,
+                      }))
+                    }
+                    placeholder="Name of the Inspector (Rank/Name)"
+                    className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
                       ${
                         errors.inspected_by
                           ? "border-red-500"
                           : "border-slate-300"
                       }`}
-                />
-                {errors.inspected_by && (
-                  <p className="mt-1 text-red-500">{errors.inspected_by}</p>
-                )}
-              </div>
+                  />
+                  {errors.inspected_by && (
+                    <p className="mt-1 text-red-500">{errors.inspected_by}</p>
+                  )}
+                </div>
 
-              {/* Supervisor */}
-              <div>
-                <label className="mb-2 block font-medium">Supervisor</label>
+                {/* Supervisor */}
+                <div>
+                  <label className="mb-2 block font-medium">Supervisor</label>
 
-                <input
-                  type="text"
-                  value={formData.supervisor_name}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      supervisor_name: e.target.value,
-                    }))
-                  }
-                  placeholder="Name of the Supervisor (Rank/Name)"
-                  className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                  <input
+                    type="text"
+                    value={formData.supervisor_name}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        supervisor_name: e.target.value,
+                      }))
+                    }
+                    placeholder="Name of the Supervisor (Rank/Name)"
+                    className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
                       ${
                         errors.supervisor_name
                           ? "border-red-500"
                           : "border-slate-300"
                       }`}
-                />
-                {errors.supervisor_name && (
-                  <p className="mt-1 text-red-500">{errors.supervisor_name}</p>
-                )}
-              </div>
+                  />
+                  {errors.supervisor_name && (
+                    <p className="mt-1 text-red-500">
+                      {errors.supervisor_name}
+                    </p>
+                  )}
+                </div>
 
-              {/* Designated Driver */}
-              <div>
-                <label className="mb-2 block font-medium">
-                  Designated Driver
-                </label>
+                {/* Designated Driver */}
+                <div>
+                  <label className="mb-2 block font-medium">
+                    Designated Driver
+                  </label>
 
-                <select
-                  value={formData.designated_driver_id}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      designated_driver_id: e.target.value,
-                    })
-                  }
-                  className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                  <select
+                    value={formData.designated_driver_id}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        designated_driver_id: e.target.value,
+                      })
+                    }
+                    className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
                       ${
                         errors.designated_driver_id
                           ? "border-red-500"
                           : "border-slate-300"
                       }`}
-                >
-                  <option value="">Select Driver</option>
+                  >
+                    <option value="">Select Driver</option>
 
-                  {filteredPersonnel.map((person) => (
-                    <option key={person.id} value={person.id}>
-                      {person.rank?.rank_name} {person.fullname}
-                    </option>
-                  ))}
-                </select>
-                {errors.designated_driver_id && (
-                  <p className="mt-1 text-red-500">
-                    {errors.designated_driver_id}
-                  </p>
-                )}
-              </div>
+                    {filteredPersonnel.map((person) => (
+                      <option key={person.id} value={person.id}>
+                        {person.rank?.rank_name} {person.fullname}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.designated_driver_id && (
+                    <p className="mt-1 text-red-500">
+                      {errors.designated_driver_id}
+                    </p>
+                  )}
+                </div>
 
-              {/* Alternate Driver */}
-              <div>
-                <label className="mb-2 block font-medium">
-                  Alternate Driver
-                </label>
+                {/* Alternate Driver */}
+                <div>
+                  <label className="mb-2 block font-medium">
+                    Alternate Driver
+                  </label>
 
-                <select
-                  value={formData.alternate_driver_id}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      alternate_driver_id: e.target.value,
-                    })
-                  }
-                  className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                  <select
+                    value={formData.alternate_driver_id}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        alternate_driver_id: e.target.value,
+                      })
+                    }
+                    className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
                       ${
                         errors.alternate_driver_id
                           ? "border-red-500"
                           : "border-slate-300"
                       }`}
-                >
-                  <option value="">Select Alternate Driver</option>
+                  >
+                    <option value="">Select Alternate Driver</option>
 
-                  {filteredPersonnelExcludeDesignated.map((person) => (
-                    <option key={person.id} value={person.id}>
-                      {person.rank?.rank_name} {person.fullname}
-                    </option>
-                  ))}
-                </select>
-                {errors.alternate_driver_id && (
-                  <p className="mt-1 text-red-500">
-                    {errors.alternate_driver_id}
-                  </p>
-                )}
+                    {filteredPersonnelExcludeDesignated.map((person) => (
+                      <option key={person.id} value={person.id}>
+                        {person.rank?.rank_name} {person.fullname}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.alternate_driver_id && (
+                    <p className="mt-1 text-red-500">
+                      {errors.alternate_driver_id}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Remarks */}
+              <div className="mt-6">
+                <label className="mb-2 block font-medium">Remarks</label>
+
+                <textarea
+                  rows={3}
+                  value={formData.remarks}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      remarks: e.target.value,
+                    })
+                  }
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
+                  placeholder="General remarks..."
+                />
               </div>
             </div>
-
-            {/* Remarks */}
-            <div className="mt-6">
-              <label className="mb-2 block font-medium">Remarks</label>
-
-              <textarea
-                rows={3}
-                value={formData.remarks}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    remarks: e.target.value,
-                  })
-                }
-                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
-                placeholder="General remarks..."
-              />
-            </div>
-          </div>
+          )}
 
           {/* Inspection Checklist */}
 
-          <div className="mt-6 space-y-6">
-            {categories.map((category) => {
-              const categoryItems = items.filter(
-                (item) => item.category_id === category.id,
-              );
+          {activeTab === "checklist" && (
+            <>
+              <div className="mb-6 overflow-x-auto">
+                <div className="flex min-w-max gap-2 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+                  {categoriesWithItems.map((category) => {
+                    const isActive = activeCategoryId === category.id;
 
-              if (categoryItems.length === 0) return null;
+                    const categoryItems = items.filter(
+                      (item) => item.category_id === category.id,
+                    );
 
-              return (
-                <div
-                  key={category.id}
-                  className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700"
-                >
-                  <div className="border-b border-slate-200 bg-slate-100 px-5 py-3 dark:border-slate-700 dark:bg-slate-800">
-                    <h3 className="text-lg font-semibold">{category.name}</h3>
+                    const completedCount = categoryItems.filter((item) => {
+                      const result = results.find(
+                        (r) => r.inspection_item_id === item.id,
+                      );
 
-                    {category.description && (
-                      <p className="mt-1 text-slate-500">
-                        {category.description}
-                      </p>
-                    )}
-                  </div>
+                      return result?.status;
+                    }).length;
 
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full">
-                      <thead className="bg-slate-50 dark:bg-slate-900">
-                        <tr>
-                          <th className="w-16 px-4 py-3 text-left">Code</th>
+                    return (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => setActiveCategoryId(category.id)}
+                        className={`rounded-lg px-4 py-2.5 text-sm font-medium transition ${
+                          isActive
+                            ? "bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-400"
+                            : "text-slate-600 hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-700/70"
+                        }`}
+                      >
+                        <span>{category.name}</span>
 
-                          <th className="px-4 py-3 text-left">
-                            Inspection Item
-                          </th>
-
-                          <th className="w-70 px-4 py-3 text-center">Status</th>
-
-                          <th className="w-100 px-4 py-3 text-left">Remarks</th>
-                        </tr>
-                      </thead>
-
-                      <tbody>
-                        {categoryItems.map((item) => {
-                          const result = results.find(
-                            (r) => r.inspection_item_id === item.id,
-                          );
-
-                          return (
-                            <tr
-                              key={item.id}
-                              className="border-t dark:border-slate-700 border-slate-200"
-                            >
-                              <td className="px-4 py-4 font-semibold">
-                                {item.code}
-                              </td>
-
-                              <td className="px-4 py-4">
-                                <div className="font-medium">{item.name}</div>
-
-                                {item.description && (
-                                  <div className="mt-1 text-slate-500">
-                                    {item.description}
-                                  </div>
-                                )}
-                              </td>
-
-                              <td className="px-4 py-4">
-                                <div className="grid grid-cols-2 gap-2">
-                                  <label className="flex cursor-pointer items-center gap-2">
-                                    <input
-                                      type="radio"
-                                      name={item.id}
-                                      checked={
-                                        result?.status
-                                          ? result?.status === "COMPLIED"
-                                          : true
-                                      }
-                                      onChange={() =>
-                                        updateResult(
-                                          item.id,
-                                          "status",
-                                          "COMPLIED",
-                                        )
-                                      }
-                                    />
-
-                                    <span className="text-green-600">
-                                      Complied
-                                    </span>
-                                  </label>
-
-                                  <label className="flex cursor-pointer items-center gap-2">
-                                    <input
-                                      type="radio"
-                                      name={item.id}
-                                      checked={result?.status === "UNCOMPLIED"}
-                                      onChange={() =>
-                                        updateResult(
-                                          item.id,
-                                          "status",
-                                          "UNCOMPLIED",
-                                        )
-                                      }
-                                    />
-
-                                    <span className="text-red-600">
-                                      Uncomplied
-                                    </span>
-                                  </label>
-                                </div>
-                              </td>
-
-                              <td className="px-4 py-4">
-                                <textarea
-                                  rows={2}
-                                  value={result?.remarks ?? ""}
-                                  onChange={(e) =>
-                                    updateResult(
-                                      item.id,
-                                      "remarks",
-                                      e.target.value,
-                                    )
-                                  }
-                                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
-                                  placeholder="Remarks..."
-                                />
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                        <span
+                          className={`ml-2 rounded-full px-2 py-0.5 ${
+                            isActive
+                              ? "bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400"
+                              : "bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400"
+                          }`}
+                        >
+                          {completedCount}/{categoryItems.length}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+              <div className="mt-6 space-y-6">
+                {activeCategoryId &&
+                  categoriesWithItems
+                    .filter((category) => category.id === activeCategoryId)
+                    .map((category) => {
+                      const categoryItems = items.filter(
+                        (item) => item.category_id === category.id,
+                      );
+
+                      return (
+                        <div
+                          key={category.id}
+                          className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700"
+                        >
+                          <div className="border-b border-slate-200 bg-slate-100 px-5 py-3 dark:border-slate-700 dark:bg-slate-800">
+                            <h3 className="text-lg font-semibold">
+                              {category.name}
+                            </h3>
+
+                            {category.description && (
+                              <p className="mt-1 text-slate-500">
+                                {category.description}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full">
+                              <thead className="bg-slate-50 dark:bg-slate-900">
+                                <tr>
+                                  <th className="w-16 px-4 py-3 text-left">
+                                    Code
+                                  </th>
+
+                                  <th className="px-4 py-3 text-left">
+                                    Inspection Item
+                                  </th>
+
+                                  <th className="w-70 px-4 py-3 text-center">
+                                    Status
+                                  </th>
+
+                                  <th className="w-100 px-4 py-3 text-left">
+                                    Remarks
+                                  </th>
+                                </tr>
+                              </thead>
+
+                              <tbody>
+                                {categoryItems.map((item) => {
+                                  const result = results.find(
+                                    (r) => r.inspection_item_id === item.id,
+                                  );
+
+                                  return (
+                                    <tr
+                                      key={item.id}
+                                      className="border-t dark:border-slate-700 border-slate-200"
+                                    >
+                                      <td className="px-4 py-4 font-semibold">
+                                        {item.code}
+                                      </td>
+
+                                      <td className="px-4 py-4">
+                                        <div className="font-medium">
+                                          {item.name}
+                                        </div>
+
+                                        {item.description && (
+                                          <div className="mt-1 text-slate-500">
+                                            {item.description}
+                                          </div>
+                                        )}
+                                      </td>
+
+                                      <td className="px-4 py-4">
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <label className="flex cursor-pointer items-center gap-2">
+                                            <input
+                                              type="radio"
+                                              name={item.id}
+                                              checked={
+                                                result?.status
+                                                  ? result?.status ===
+                                                    "COMPLIED"
+                                                  : true
+                                              }
+                                              onChange={() =>
+                                                updateResult(
+                                                  item.id,
+                                                  "status",
+                                                  "COMPLIED",
+                                                )
+                                              }
+                                            />
+
+                                            <span className="text-green-600">
+                                              Complied
+                                            </span>
+                                          </label>
+
+                                          <label className="flex cursor-pointer items-center gap-2">
+                                            <input
+                                              type="radio"
+                                              name={item.id}
+                                              checked={
+                                                result?.status === "UNCOMPLIED"
+                                              }
+                                              onChange={() =>
+                                                updateResult(
+                                                  item.id,
+                                                  "status",
+                                                  "UNCOMPLIED",
+                                                )
+                                              }
+                                            />
+
+                                            <span className="text-red-600">
+                                              Uncomplied
+                                            </span>
+                                          </label>
+                                        </div>
+                                      </td>
+
+                                      <td className="px-4 py-4">
+                                        <textarea
+                                          rows={2}
+                                          value={result?.remarks ?? ""}
+                                          onChange={(e) =>
+                                            updateResult(
+                                              item.id,
+                                              "remarks",
+                                              e.target.value,
+                                            )
+                                          }
+                                          className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
+                                          placeholder="Remarks..."
+                                        />
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Footer */}
@@ -907,29 +1036,58 @@ export default function InspectionFormModal({
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="rounded-xl border px-5 py-2 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 border-slate-300 dark:border-slate-700 dark:hover:bg-slate-800"
+            className="rounded-xl border border-slate-300 px-5 py-3 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 border-slate-300 dark:border-slate-700 dark:hover:bg-slate-800"
           >
             Cancel
           </button>
 
           <button
             type="button"
-            onClick={handleSave}
-            disabled={loading}
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isFirstCategory}
+            onClick={() => {
+              if (!isFirstCategory) {
+                setActiveCategoryId(
+                  categoriesWithItems[activeCategoryIndex - 1].id,
+                );
+              }
+            }}
+            className="rounded-xl border border-slate-300 px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
           >
-            {loading ? (
-              <>
-                <RefreshCcw className="h-5 w-5 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="h-5 w-5" />
-                {inspection ? "Update Inspection" : "Save Inspection"}
-              </>
-            )}
+            ← Previous
           </button>
+
+          {!isLastCategory ? (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCategoryId(
+                  categoriesWithItems[activeCategoryIndex + 1].id,
+                );
+              }}
+              className="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white transition hover:bg-blue-700"
+            >
+              Next: {categoriesWithItems[activeCategoryIndex + 1]?.name}→
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={loading}
+              className="inline-flex rounded-xl bg-blue-600 px-5 py-3 font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading ? (
+                <>
+                  <RefreshCcw className="h-5 w-5 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-5 w-5" />
+                  Complete Inspection
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

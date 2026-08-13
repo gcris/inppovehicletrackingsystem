@@ -2,26 +2,45 @@ import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase, Unit, Rank, Designation } from "../../lib/supabase";
 import {
-  Shield,
-  Mail,
   Lock,
   AlertCircle,
   CheckCircle2,
   ShieldAlert,
-  BarChart3,
-  Radio,
-  MapPinned,
   X,
   User,
   Camera,
   Moon,
   Sun,
+  EyeOff,
+  Eye,
 } from "lucide-react";
 import {
   validatePersonnelForRegistration,
   linkAuthUserToPersonnel,
 } from "../../lib/authService";
 import { useTheme, useThemeActions } from "../../components/ThemeProvider";
+import { FaInfo, FaInfoCircle } from "react-icons/fa";
+
+type PersonnelData = {
+  id: string;
+  badge_number: string | null;
+  rank_id: string | null;
+  fullname: string;
+  unit_id: string;
+  email: string | null;
+  phone_number: string | null;
+  viber_number: string | null;
+  designation: string | null;
+  photo_url: string | null;
+
+  // PNP ID
+  id_card_number: string;
+  date_issued: string;
+  expiration_date: string;
+
+  password: string;
+  confirmPassword: string;
+};
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -33,9 +52,15 @@ export default function RegisterPage() {
   const theme = useTheme();
   const { toggleTheme } = useThemeActions();
   const [designations, setDesignations] = useState<Designation[]>([]);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [showConfirmPassword, setConfirmShowPassword] =
+    useState<boolean>(false);
 
   const [formData, setFormData] = useState({
     badgeNumber: "",
+    id_card_number: "",
+    date_issued: "",
+    expiration_date: "",
     rankId: "",
     fullname: "",
     unitId: "",
@@ -49,6 +74,8 @@ export default function RegisterPage() {
   });
   const [ranks, setRanks] = useState<Rank[]>([]);
   const [ranksLoading, setRanksLoading] = useState(true);
+  type PersonnelDataFormErrors = Partial<Record<keyof PersonnelData, string>>;
+  const [formErrors, setFormErrors] = useState<PersonnelDataFormErrors>({});
 
   // Inside your component function (e.g., PersonnelRegistration):
   useEffect(() => {
@@ -126,102 +153,93 @@ export default function RegisterPage() {
     fetchDesignations();
   }, []);
 
-  console.log("designations:", designations);
-
   const selectedUnit = units.find((u) => u.id === formData.unitId);
-  console.log("selectedUnit?.classification:", selectedUnit?.classification);
 
   const filteredDesignations = designations.filter(
     (d) => d.unit_classification === selectedUnit?.classification,
   );
 
-  console.log("filteredDesignations:", filteredDesignations);
+  const validateForm = () => {
+    const newErrors: PersonnelDataFormErrors = {};
+
+    if (!formData.photoUrl.trim()) {
+      newErrors.photo_url = "Profile Photo is required.";
+    }
+
+    if (!formData.email.trim()) {
+      newErrors.email = "Email Address is required.";
+    }
+
+    if (!formData.password) {
+      newErrors.password = "Password is required.";
+    }
+
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = "Confirm Password is required.";
+    }
+
+    if (
+      formData.confirmPassword &&
+      formData.confirmPassword &&
+      formData.password != formData.confirmPassword
+    ) {
+      newErrors.confirmPassword = "Password confirmation does not match.";
+    }
+
+    if (!formData.badgeNumber.trim()) {
+      newErrors.badge_number = "Badge Number is required.";
+    }
+
+    if (!formData.date_issued.trim()) {
+      newErrors.date_issued = "PNP ID Date Issued is required.";
+    }
+
+    if (!formData.expiration_date) {
+      newErrors.expiration_date = "PNP ID Expiration Date is required.";
+    }
+
+    if (!formData.id_card_number) {
+      newErrors.id_card_number = "PNP ID Card Number is required.";
+    }
+
+    if (!formData.rankId) {
+      newErrors.rank_id = "Please select rank.";
+    }
+
+    if (!formData.fullname) {
+      newErrors.fullname = "Full name is required.";
+    }
+
+    if (!formData.unitId) {
+      newErrors.unit_id = "Please select unit/station.";
+    }
+
+    if (!formData.designation) {
+      newErrors.designation = "Designation is required.";
+    }
+
+    if (!formData.phoneNumber) {
+      newErrors.phone_number = "Phone Number is required.";
+    }
+
+    if (!formData.viberNumber) {
+      newErrors.viber_number = "Viber Number is required.";
+    }
+
+    setFormErrors(newErrors);
+
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleRegister = useCallback(
     async (e: React.SyntheticEvent) => {
       e.preventDefault();
+
+      if (!validateForm()) return;
+
       setLoading(true);
       setError(null);
       setSuccess(false);
-
-      if (!formData.photoUrl.trim()) {
-        setError("Personnel Photo is required.");
-        setLoading(false);
-        return;
-      }
-
-      // Client-side validation
-      if (!formData.badgeNumber.trim()) {
-        setError("Badge number is required.");
-        setLoading(false);
-        return;
-      }
-
-      if (!formData.rankId.trim()) {
-        setError("Rank is required.");
-        setLoading(false);
-        return;
-      }
-
-      if (!formData.fullname.trim()) {
-        setError("Full name is required.");
-        setLoading(false);
-        return;
-      }
-
-      if (!formData.unitId.trim()) {
-        setError("Unit is required.");
-        setLoading(false);
-        return;
-      }
-
-      if (!formData.designation.trim()) {
-        setError("Designation is required.");
-        setLoading(false);
-        return;
-      }
-
-      if (!formData.email.trim()) {
-        setError("Email is required.");
-        setLoading(false);
-        return;
-      }
-
-      if (!formData.password) {
-        setError("Password is required.");
-        setLoading(false);
-        return;
-      }
-
-      if (!formData.confirmPassword) {
-        setError("Please confirm your password.");
-        setLoading(false);
-        return;
-      }
-
-      if (!formData.phoneNumber) {
-        setError("Phone Number is required.");
-        setLoading(false);
-        return;
-      }
-
-      if (!formData.viberNumber) {
-        setError("Viber Number is required.");
-        setLoading(false);
-        return;
-      }
-
-      if (formData.password !== formData.confirmPassword) {
-        setError("Passwords do not match.");
-        setLoading(false);
-        return;
-      }
-
-      if (formData.password.length < 8) {
-        setError("Password must be at least 8 characters.");
-        setLoading(false);
-        return;
-      }
 
       try {
         // Step 1: Validate personnel exists and is ready for registration
@@ -376,10 +394,8 @@ export default function RegisterPage() {
 
                     {/* Error Text Message */}
                     <div className="flex-1">
-                      <p className="text-base font-medium">
-                        Registration Error
-                      </p>
-                      <p className="text-base opacity-90 mt-0.5">{error}</p>
+                      <p className="font-medium">Registration Error</p>
+                      <p className="opacity-90 mt-0.5">{error}</p>
                     </div>
 
                     {/* Manual Dismiss Button */}
@@ -413,7 +429,7 @@ export default function RegisterPage() {
                     {/* Photo */}
 
                     <div className="flex flex-col items-center justify-center space-y-3 py-2">
-                      <label className="block text-base font-medium text-slate-700 dark:text-slate-200">
+                      <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Personnel Photo
                       </label>
 
@@ -458,12 +474,22 @@ export default function RegisterPage() {
                           }}
                         />
                       </div>
+
+                      <p className="italic">
+                        <span className="flex">
+                          <FaInfoCircle className="w-4 h-4 text-blue-600" />{" "}
+                          Note: Upload only original or unfiltered photo.
+                        </span>
+                      </p>
+                      {formErrors.photo_url && (
+                        <p className="text-red-500">{formErrors.photo_url}</p>
+                      )}
                     </div>
 
                     {/* Email */}
 
                     <div className="space-y-2">
-                      <label className="block text-base font-medium text-slate-700 dark:text-slate-200">
+                      <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Email Address
                       </label>
 
@@ -478,52 +504,115 @@ export default function RegisterPage() {
                           })
                         }
                         placeholder="name@department.gov"
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                        className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                        ${
+                          formErrors.email
+                            ? "border-red-500"
+                            : "border-slate-300"
+                        }`}
                       />
+
+                      {formErrors.email && (
+                        <p className="text-red-500">{formErrors.email}</p>
+                      )}
                     </div>
 
                     {/* Password */}
 
                     <div className="space-y-2">
-                      <label className="block text-base font-medium text-slate-700 dark:text-slate-200">
+                      <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Password
                       </label>
 
-                      <input
-                        type="password"
-                        maxLength={64}
-                        value={formData.password}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            password: e.target.value,
-                          })
-                        }
-                        placeholder="••••••••"
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                      />
+                      <div className="relative">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          maxLength={64}
+                          value={formData.password}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              password: e.target.value,
+                            })
+                          }
+                          placeholder="••••••••"
+                          className={`pl-12 w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                        ${
+                          formErrors.password
+                            ? "border-red-500"
+                            : "border-slate-300"
+                        }`}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-blue-600 transition-colors"
+                        >
+                          {showPassword ? (
+                            <EyeOff className="w-5 h-5" />
+                          ) : (
+                            <Eye className="w-5 h-5" />
+                          )}
+                        </button>
+                      </div>
+
+                      {formErrors.password && (
+                        <p className="text-red-500">{formErrors.password}</p>
+                      )}
                     </div>
 
                     {/* Confirm Password */}
 
                     <div className="space-y-2">
-                      <label className="block text-base font-medium text-slate-700 dark:text-slate-200">
+                      <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Confirm Password
                       </label>
 
-                      <input
-                        type="password"
-                        maxLength={64}
-                        value={formData.confirmPassword}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            confirmPassword: e.target.value,
-                          })
-                        }
-                        placeholder="••••••••"
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                      />
+                      <div className="relative">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          maxLength={64}
+                          value={formData.confirmPassword}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              confirmPassword: e.target.value,
+                            })
+                          }
+                          placeholder="••••••••"
+                          className={`pl-12 w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                          ${
+                            formErrors.confirmPassword
+                              ? "border-red-500"
+                              : "border-slate-300"
+                          }`}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setConfirmShowPassword(!showConfirmPassword)
+                          }
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-blue-600 transition-colors"
+                        >
+                          {showConfirmPassword ? (
+                            <EyeOff className="w-5 h-5" />
+                          ) : (
+                            <Eye className="w-5 h-5" />
+                          )}
+                        </button>
+                      </div>
+
+                      {formErrors.confirmPassword && (
+                        <p className="text-red-500">
+                          {formErrors.confirmPassword}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -545,7 +634,7 @@ export default function RegisterPage() {
                     {/* Badge Number */}
 
                     <div className="space-y-2">
-                      <label className="block text-base font-medium text-slate-700 dark:text-slate-200">
+                      <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Badge Number
                       </label>
 
@@ -560,14 +649,146 @@ export default function RegisterPage() {
                           })
                         }
                         placeholder="Enter your badge number"
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                        className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                        ${
+                          formErrors.badge_number
+                            ? "border-red-500"
+                            : "border-slate-300"
+                        }`}
                       />
+
+                      {formErrors.badge_number && (
+                        <p className="text-red-500">
+                          {formErrors.badge_number}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* ID Card Scanner */}
+                    {/* <div className="space-y-3">
+                      <label className="block font-medium text-slate-700 dark:text-slate-200">
+                        Scan ID Card
+                      </label>
+
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        Upload a clear photo of your ID card to automatically
+                        fill in the ID number, date issued, and expiration date.
+                      </p>
+
+                      <IdCardScanner
+                        onExtracted={(data) => {
+                          console.log("Scanned data:", data);
+                          setFormData((prev) => ({
+                            ...prev,
+                            id_card_number: data.idCardNumber,
+                            date_issued: data.dateIssued,
+                            expiration_date: data.expirationDate,
+                          }));
+                        }}
+                      />
+                    </div> */}
+
+                    {/* Date Issued */}
+                    <div className="space-y-2">
+                      <label className="block font-medium text-slate-700 dark:text-slate-200">
+                        Date Issued
+                      </label>
+
+                      <input
+                        type="date"
+                        maxLength={20}
+                        value={formData.date_issued}
+                        // disabled={true}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            date_issued: e.target.value.trim(),
+                          })
+                        }
+                        placeholder="Enter PNP ID Date Issued"
+                        className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                        ${
+                          formErrors.date_issued
+                            ? "border-red-500"
+                            : "border-slate-300"
+                        }`}
+                      />
+
+                      {formErrors.date_issued && (
+                        <p className="text-red-500">{formErrors.date_issued}</p>
+                      )}
+                    </div>
+
+                    {/* Expiration Date */}
+                    <div className="space-y-2">
+                      <label className="block font-medium text-slate-700 dark:text-slate-200">
+                        Expiration Date
+                      </label>
+
+                      <input
+                        type="date"
+                        maxLength={20}
+                        value={formData.expiration_date}
+                        // disabled={true}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            expiration_date: e.target.value.trim(),
+                          })
+                        }
+                        placeholder="Enter PNP ID Expiration Date"
+                        className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                        ${
+                          formErrors.expiration_date
+                            ? "border-red-500"
+                            : "border-slate-300"
+                        }`}
+                      />
+
+                      {formErrors.expiration_date && (
+                        <p className="text-red-500">
+                          {formErrors.expiration_date}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* ID Card Number */}
+                    <div className="space-y-2">
+                      <label className="block font-medium text-slate-700 dark:text-slate-200">
+                        ID Card Number
+                      </label>
+
+                      <input
+                        type="text"
+                        maxLength={20}
+                        value={formData.id_card_number}
+                        // disabled={true}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            id_card_number: e.target.value.trim(),
+                          })
+                        }
+                        placeholder="Enter PNP ID Card Number"
+                        className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                        ${
+                          formErrors.id_card_number
+                            ? "border-red-500"
+                            : "border-slate-300"
+                        }`}
+                      />
+
+                      {formErrors.id_card_number && (
+                        <p className="text-red-500">
+                          {formErrors.id_card_number}
+                        </p>
+                      )}
                     </div>
 
                     {/* Rank */}
 
                     <div className="space-y-2">
-                      <label className="block text-base font-medium text-slate-700 dark:text-slate-200">
+                      <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Rank
                       </label>
 
@@ -579,7 +800,12 @@ export default function RegisterPage() {
                             rankId: e.target.value,
                           })
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                        className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                        ${
+                          formErrors.rank_id
+                            ? "border-red-500"
+                            : "border-slate-300"
+                        }`}
                       >
                         <option value="">Select your rank</option>
 
@@ -595,12 +821,16 @@ export default function RegisterPage() {
                           ))
                         )}
                       </select>
+
+                      {formErrors.rank_id && (
+                        <p className="text-red-500">{formErrors.rank_id}</p>
+                      )}
                     </div>
 
                     {/* Full Name */}
 
                     <div className="space-y-2">
-                      <label className="block text-base font-medium text-slate-700 dark:text-slate-200">
+                      <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Full Name
                       </label>
 
@@ -615,14 +845,23 @@ export default function RegisterPage() {
                           })
                         }
                         placeholder="Enter your full name"
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                        className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                        ${
+                          formErrors.fullname
+                            ? "border-red-500"
+                            : "border-slate-300"
+                        }`}
                       />
+
+                      {formErrors.fullname && (
+                        <p className="text-red-500">{formErrors.fullname}</p>
+                      )}
                     </div>
 
                     {/* Unit / Station */}
 
                     <div className="space-y-2">
-                      <label className="block text-base font-medium text-slate-700 dark:text-slate-200">
+                      <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Unit / Station
                       </label>
 
@@ -634,7 +873,12 @@ export default function RegisterPage() {
                             unitId: e.target.value,
                           })
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                        className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                        ${
+                          formErrors.unit_id
+                            ? "border-red-500"
+                            : "border-slate-300"
+                        }`}
                       >
                         <option value="">Select your unit/station</option>
 
@@ -650,12 +894,15 @@ export default function RegisterPage() {
                           ))
                         )}
                       </select>
+                      {formErrors.unit_id && (
+                        <p className="text-red-500">{formErrors.unit_id}</p>
+                      )}
                     </div>
 
                     {/* Designation */}
 
                     <div className="space-y-2">
-                      <label className="block text-base font-medium text-slate-700 dark:text-slate-200">
+                      <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Designation
                       </label>
 
@@ -667,7 +914,12 @@ export default function RegisterPage() {
                             designation: e.target.value,
                           })
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                        className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                        ${
+                          formErrors.designation
+                            ? "border-red-500"
+                            : "border-slate-300"
+                        }`}
                       >
                         <option value="">Select Designation</option>
 
@@ -677,13 +929,17 @@ export default function RegisterPage() {
                           </option>
                         ))}
                       </select>
+
+                      {formErrors.designation && (
+                        <p className="text-red-500">{formErrors.designation}</p>
+                      )}
                     </div>
 
                     {/* Contact Numbers */}
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <label className="block text-base font-medium text-slate-700 dark:text-slate-200">
+                        <label className="block font-medium text-slate-700 dark:text-slate-200">
                           Phone Number
                         </label>
 
@@ -698,12 +954,23 @@ export default function RegisterPage() {
                             })
                           }
                           placeholder="09XXXXXXXXX"
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                          className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                          ${
+                            formErrors.phone_number
+                              ? "border-red-500"
+                              : "border-slate-300"
+                          }`}
                         />
+
+                        {formErrors.phone_number && (
+                          <p className="text-red-500">
+                            {formErrors.phone_number}
+                          </p>
+                        )}
                       </div>
 
                       <div className="space-y-2">
-                        <label className="block text-base font-medium text-slate-700 dark:text-slate-200">
+                        <label className="block font-medium text-slate-700 dark:text-slate-200">
                           Viber Number
                         </label>
 
@@ -718,8 +985,19 @@ export default function RegisterPage() {
                             })
                           }
                           placeholder="09XXXXXXXXX"
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                          className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                          ${
+                            formErrors.viber_number
+                              ? "border-red-500"
+                              : "border-slate-300"
+                          }`}
                         />
+
+                        {formErrors.viber_number && (
+                          <p className="text-red-500">
+                            {formErrors.viber_number}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -818,7 +1096,7 @@ export default function RegisterPage() {
                 </div>
               </form>
 
-              <p className="mt-6 text-base text-slate-500 dark:text-slate-400 text-center">
+              <p className="mt-6 text-slate-500 dark:text-slate-400 text-center">
                 Already registered?{" "}
                 <Link
                   to="/login"

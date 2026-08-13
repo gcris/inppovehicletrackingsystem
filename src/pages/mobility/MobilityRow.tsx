@@ -9,7 +9,6 @@ interface MobilityRowProps {
   index: number;
   onEdit: (vehicle: any) => void;
   onDelete: (id: string) => void;
-  onOpenMaintenance: (vehicle: any) => void;
   getStatusColor: (status: string) => string;
   isExpired: (date: string) => boolean;
   isExpiringSoon: (date: string) => boolean;
@@ -20,7 +19,6 @@ function MobilityRow({
   index,
   onEdit,
   onDelete,
-  onOpenMaintenance,
   getStatusColor,
   isExpired,
   isExpiringSoon,

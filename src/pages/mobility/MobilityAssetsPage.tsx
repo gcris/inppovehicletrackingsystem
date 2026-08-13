@@ -45,6 +45,7 @@ type VehicleForm = {
   insurance_coverage_date: string;
 
   driver_id: string;
+  remarks: string;
 };
 
 const emptyForm: VehicleForm = {
@@ -73,6 +74,7 @@ const emptyForm: VehicleForm = {
   insurance_coverage_date: "",
 
   driver_id: "",
+  remarks: "",
 };
 
 export default function MobilityAssetsPage() {
@@ -308,7 +310,7 @@ export default function MobilityAssetsPage() {
           }
           break;
 
-        case "Registration": {
+        case "Due for Registration": {
           if (!vehicle.date_registration_expires) {
             return false;
           }
@@ -326,7 +328,7 @@ export default function MobilityAssetsPage() {
           break;
         }
 
-        case "Insurance": {
+        case "Due for Insurance": {
           if (!vehicle.insurance_coverage_date) {
             return false;
           }
@@ -344,7 +346,7 @@ export default function MobilityAssetsPage() {
           break;
         }
 
-        case "PMS": {
+        case "Due for PMS": {
           const summary = vehicle.maintenance_summary;
 
           if (!summary || (!summary.dueSoon && !summary.overdue)) {
@@ -434,6 +436,7 @@ export default function MobilityAssetsPage() {
       insurance_coverage_date: vehicle.insurance_coverage_date ?? "",
 
       driver_id: vehicle.driver_id ?? "",
+      remarks: vehicle.remarks ?? "",
     });
 
     setEditingVehicle(vehicle);
@@ -473,6 +476,7 @@ export default function MobilityAssetsPage() {
         insurance_coverage_date: formData.insurance_coverage_date || null,
         driver_id: formData.driver_id || null,
         updated_by: profile?.id,
+        remarks: formData.remarks,
       };
 
       const { error } = await supabase
@@ -512,15 +516,16 @@ export default function MobilityAssetsPage() {
           insurance_coverage_date: formData.insurance_coverage_date || null,
           driver_id: formData.driver_id || null,
           updated_by: profile?.id,
+          remarks: formData.remarks,
         })
         .eq("id", editingVehicle.id);
 
       if (error) throw error;
 
-      closeModal();
-
       await fetchMobility();
       setSuccess("Successfully updated!");
+
+      closeModal();
     } catch (err: any) {
       alert(err.message);
     }
@@ -834,6 +839,7 @@ export default function MobilityAssetsPage() {
         handleInputChange={handleInputChange}
         handleAddVehicle={handleAddMobility}
         handleUpdateVehicle={handleUpdateVehicle}
+        getStatusColor={getStatusColor}
       />
 
       <MaintenanceHistoryModal

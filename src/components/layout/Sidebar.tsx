@@ -90,14 +90,6 @@ export const Sidebar = () => {
       for: ["supply", "admin", "admin_supply"],
     },
     {
-      href: "/pms-type",
-      icon: (
-        <img src="/assets/classification.png" alt="PMS " className="w-7 h-7" />
-      ),
-      label: "PMS Catalog",
-      for: ["supply", "admin", "admin_supply"],
-    },
-    {
       href: "/mobility-inspection",
       icon: (
         <img
@@ -128,6 +120,14 @@ export const Sidebar = () => {
       for: ["operation", "admin"],
     },
     {
+      href: "/pms-type",
+      icon: (
+        <img src="/assets/classification.png" alt="PMS " className="w-7 h-7" />
+      ),
+      label: "PMS Catalog",
+      for: ["supply", "admin", "admin_supply"],
+    },
+    {
       href: "/account",
       icon: <User className="w-7 h-7" />,
       label: "My Account",
@@ -156,13 +156,9 @@ export const Sidebar = () => {
     >
       <div className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 shadow-lg shadow-blue-200 dark:shadow-none overflow-hidden rounded-xl bg-blue-600 flex items-center justify-center transition-transform duration-300">
+          <div className="p-1 w-12 h-12shadow-lg shadow-blue-200 dark:shadow-none overflow-hidden rounded-xl flex items-center justify-center transition-transform duration-300">
             <img
-              src={
-                profileRole?.includes("supply")
-                  ? "/assets/mobilis-logo.png"
-                  : "/assets/app-logo.png"
-              }
+              src="/assets/inppo_logo.png"
               alt="INPPO Logo"
               className="w-full h-full object-contain image-render-auto"
               onError={(e) => {

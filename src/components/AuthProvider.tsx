@@ -20,6 +20,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isApproved: boolean;
   isMfaVerified: boolean;
+  isPnpIdExpires: boolean;
 
   setIsMfaVerified: (verified: boolean) => void;
 
@@ -39,6 +40,7 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   isApproved: false,
   isMfaVerified: false,
+  isPnpIdExpires: false,
 
   setIsMfaVerified: () => {},
 
@@ -54,11 +56,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Personnel | null>(null);
-
   const [initializing, setInitializing] = useState(true);
-
   const [isMfaVerified, setIsMfaVerifiedState] = useState(false);
-
+  const [isPnpIdExpires, setIsPnpIdExpires] = useState(false);
   /**
    * Tracks the currently loaded user.
    *
@@ -85,6 +85,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * FETCH PROFILE
    * ---------------------------------------------------------
    */
+
+  const checkIfPnpIdExpired = (expirationDate: string) => {
+    if (!expirationDate) return true;
+
+    const expiry = new Date(expirationDate);
+    const today = new Date();
+
+    // Ignore time
+    today.setHours(0, 0, 0, 0);
+    expiry.setHours(0, 0, 0, 0);
+
+    return expiry < today;
+  };
 
   const fetchProfile = useCallback(async (uid: string) => {
     if (!uid) return;
@@ -123,6 +136,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           window.location.href = "/login";
           return;
         }
+
+        console.log("data: ", data);
+        const expires = checkIfPnpIdExpired(data.expiration_date);
+
+        setIsPnpIdExpires(expires);
 
         setProfile(data);
       }
@@ -515,7 +533,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       /**
        * Reset application.
        */
-      window.location.href = "/mobility";
+      //window.location.href = "/mobility";
     }
   }, []);
 
@@ -536,6 +554,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAdmin: profile?.role?.includes("admin") ?? false,
 
       isApproved: profile?.is_approved === true,
+
+      isPnpIdExpires: isPnpIdExpires,
 
       isMfaVerified,
 

@@ -1,19 +1,22 @@
 import { motion } from "framer-motion";
 
-const executiveLeadership = [
-  {
-    name: "PCOL JOEMAR Q LABIANO",
-    position: "Provincial Director",
-    image: "/team/pd.png",
-  },
+const executiveLeadership1 = {
+  name: "PCOL JOEMAR Q LABIANO",
+  position: "Provincial Director/Project Supervisor",
+  image: "/team/pd.png",
+};
+
+const executiveLeadership2 = [
   {
     name: "PLTCOL PAUL BENEDICT R PARADO",
-    position: "Deputy Provincial Director for Administration",
+    position:
+      "Deputy Provincial Director for Administration/Assistant Project Supervisor",
     image: "/team/dpda.png",
   },
   {
     name: "PLTCOL JESSIE D BALINANG",
-    position: "Deputy Provincial Director for Operations",
+    position:
+      "Deputy Provincial Director for Operations/Assistant Project Supervisor",
     image: "/team/dpdo.png",
   },
 ];
@@ -21,7 +24,8 @@ const executiveLeadership = [
 const projectManagement = [
   {
     name: "PLTCOL JEPHRE S TACCAD",
-    position: "Chief, Provincial Operations and Management Unit",
+    position:
+      "Chief, Provincial Operations and Management Unit/Project Manager",
     description: `Provides direct management and operational oversight for
       Project MOBILIS, ensuring successful planning,
       implementation, coordination, and continuous improvement of
@@ -30,7 +34,7 @@ const projectManagement = [
   },
   {
     name: "PLT MARIBEL D BARROGA",
-    position: "PARMU-Supply/Finance Officer",
+    position: "PARMU-Supply/Finance Officer/Assistant Project Manager",
     description: null,
     image: "/team/supply-officer.png",
   },
@@ -50,9 +54,9 @@ const developmentTeam = [
 ];
 
 export default function TeamSection() {
-  const provincialDirector = executiveLeadership.find(
-    (x) => x.position === "Provincial Director",
-  );
+  // const provincialDirector = executiveLeadership.find(
+  //   (x) => x.position === "Provincial Director",
+  // );
 
   return (
     <section
@@ -87,47 +91,49 @@ export default function TeamSection() {
 
         {/* Featured Member */}
 
-        {provincialDirector && (
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="mx-auto mt-20 max-w-5xl"
-          >
-            <div className="overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-800 bg-white shadow-xl dark:bg-slate-950">
-              <div className="grid items-center gap-10 p-10 lg:grid-cols-[280px_1fr]">
-                <div className="flex justify-center">
-                  <img
-                    src={provincialDirector.image}
-                    alt={provincialDirector.name}
-                    className="h-56 w-56 rounded-full object-cover border-4 border-blue-100 shrink-0 bg-gradient-to-b from-blue-500 via-slate-800 to-slate-900"
-                  />
-                </div>
+        <div className="mt-12 grid gap-8 lg:grid-cols-1">
+          {executiveLeadership1 && (
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="mx-auto mt-20 max-w-5xl"
+            >
+              <div className="overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-800 bg-white shadow-xl dark:bg-slate-950">
+                <div className="grid items-center gap-10 p-10 lg:grid-cols-[280px_1fr]">
+                  <div className="flex justify-center">
+                    <img
+                      src={executiveLeadership1.image}
+                      alt={executiveLeadership1.name}
+                      className="h-56 w-56 rounded-full object-cover border-4 border-blue-100 shrink-0 bg-gradient-to-b from-blue-500 via-slate-800 to-slate-900"
+                    />
+                  </div>
 
-                <div>
-                  <h3 className="mt-5 text-4xl font-bold text-slate-900">
-                    {provincialDirector.name}
-                  </h3>
+                  <div>
+                    <h3 className="mt-5 text-4xl font-bold text-slate-900">
+                      {executiveLeadership1.name}
+                    </h3>
 
-                  <p className="mt-2 text-xl font-semibold text-blue-600">
-                    {provincialDirector.position}
-                  </p>
+                    <p className="mt-2 text-xl font-semibold text-blue-600">
+                      {executiveLeadership1.position}
+                    </p>
 
-                  <p className="mt-6 leading-8 text-slate-600 dark:text-white">
-                    Provides executive leadership, strategic guidance, and
-                    overall oversight for Project MOBILIS, ensuring that the
-                    system aligns with the operational objectives and digital
-                    transformation initiatives of the Ilocos Norte Police
-                    Provincial Office.
-                  </p>
+                    <p className="mt-6 leading-8 text-slate-600 dark:text-white">
+                      Provides executive leadership, strategic guidance, and
+                      overall oversight for Project MOBILIS, ensuring that the
+                      system aligns with the operational objectives and digital
+                      transformation initiatives of the Ilocos Norte Police
+                      Provincial Office.
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          </motion.div>
-        )}
+            </motion.div>
+          )}
+        </div>
 
         <div className="mt-12 grid gap-8 lg:grid-cols-2">
-          {executiveLeadership
+          {executiveLeadership2
             .filter((x) => x.position !== "Provincial Director")
             .map((leader) => (
               <motion.div
