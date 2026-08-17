@@ -24,26 +24,30 @@ export default function MfaVerificationForm({
   buttonText = "Verify Code",
 }: MfaVerificationFormProps) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 via-blue-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 px-6 py-12">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 via-blue-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 px-6">
       <div className="w-full max-w-md">
         <div
           className="
-      overflow-hidden
-      rounded-3xl
-      border
-      border-slate-200
-      dark:border-slate-800
-      bg-white/95
-      dark:bg-slate-900/95
-      shadow-2xl
-      backdrop-blur-xl
-    "
+            overflow-hidden
+            rounded-3xl
+            border
+            border-slate-200
+            dark:border-slate-800
+            bg-white/95
+            dark:bg-slate-900/95
+            shadow-2xl
+            backdrop-blur-xl
+          "
         >
           {/* Header */}
 
           <div className="border-b border-slate-200 dark:border-slate-800 px-8 py-8">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-blue-600 to-cyan-500 shadow-xl shadow-blue-500/25">
-              <QrCode className="h-10 w-10 text-white" />
+            <div className="flex justify-center p-4 rounded-2xl">
+              <img
+                src="../public/assets/inppo_logo.png" // Replace with your logo path or imported logo variable
+                alt="INPPO Logo"
+                className="h-20 w-auto object-contain drop-shadow-md"
+              />
             </div>
 
             <div className="mt-6 text-center">

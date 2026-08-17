@@ -106,7 +106,7 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
     }
 
     if (!formData.vehicle_type) {
-      newErrors.vehicle_type = "Vehicle type is required.";
+      newErrors.vehicle_type = "Mobility type is required.";
     }
 
     if (!formData.year_model.trim()) {
@@ -417,23 +417,27 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                 </div>
 
                 {/* Remarks */}
-                {formData.status !== "Serviceable" && (
-                  <div className="md:col-span-2">
-                    <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Remarks
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.remarks}
-                      onChange={(e) =>
-                        handleInputChange("remarks", e.target.value)
-                      }
-                      className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                <div className="md:col-span-2">
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Remarks
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.remarks}
+                    onChange={(e) =>
+                      handleInputChange("remarks", e.target.value)
+                    }
+                    className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
                       ${
                         errors.remarks ? "border-red-500" : "border-slate-300"
                       }`}
-                      placeholder={`Specify the reason why this mobility is ${formData.status}.`}
-                    />
+                    placeholder={
+                      formData.status !== "Serviceable"
+                        ? `Specify the reason why this mobility is ${formData.status}.`
+                        : "Specity the remarks of the mobility"
+                    }
+                  />
+                  {formData.status !== "Serviceable" && (
                     <p className="mt-2 italic">
                       Note: Specify the reason why this mobility is{" "}
                       <span
@@ -445,11 +449,11 @@ export const MobilityFormModal: React.FC<MobilityFormModalProps> = ({
                       </span>
                       .
                     </p>
-                    {errors.remarks && (
-                      <p className="mt-1 text-red-500">{errors.remarks}</p>
-                    )}
-                  </div>
-                )}
+                  )}
+                  {errors.remarks && (
+                    <p className="mt-1 text-red-500">{errors.remarks}</p>
+                  )}
+                </div>
               </div>
             </div>
 

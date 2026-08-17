@@ -66,13 +66,13 @@ export default function DefectTrendChart({
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="flex min-h-[320px] items-center justify-center">
           <div className="text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
-              <span className="text-xl">✓</span>
+            <div className="mx-auto mb-3 flex h-24 w-24 items-center justify-center rounded-full bg-green-100 dark:bg-green-800">
+              <span className="text-6xl">✓</span>
             </div>
 
-            <h3 className="font-semibold text-slate-700 dark:text-slate-200">
+            <p className="font-semibold text-slate-700 dark:text-slate-200">
               No inspection defects found
-            </h3>
+            </p>
 
             <p className="mt-1 text-slate-400">
               Defect trends will appear here once inspections are recorded.
@@ -115,9 +115,9 @@ export default function DefectTrendChart({
         {/* Header */}
 
         <div className="mb-5">
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+          <p className="text-lg font-bold text-slate-900 dark:text-white">
             Inspection Results | Common Defects
-          </h2>
+          </p>
 
           <p className="mt-1 text-slate-500 dark:text-slate-300">
             Click a category to view recurring inspection defects

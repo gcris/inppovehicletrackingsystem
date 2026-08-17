@@ -122,8 +122,8 @@ function MobilityRow({
         </td>
 
         {/* Status */}
-        <td className="p-4">
-          <span
+        <td className="p-4 text-center">
+          <p
             className={`rounded-full px-3 py-1 font-semibold ${getStatusColor(
               vehicle.status,
             )}`}
@@ -131,7 +131,8 @@ function MobilityRow({
             {vehicle.status === "Beyond Economic Repair"
               ? "BER"
               : vehicle.status}
-          </span>
+          </p>
+          <p className="px-3 py-1 font-semibold">{vehicle.source}</p>
         </td>
 
         {/* Actions */}

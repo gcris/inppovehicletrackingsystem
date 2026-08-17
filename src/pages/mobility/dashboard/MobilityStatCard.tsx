@@ -74,13 +74,7 @@ export default function MobilityStatCard({
         }
       >
         {/* Header */}
-        <div
-          className={
-            title.includes("Total")
-              ? "w-full text-center"
-              : "flex items-start justify-between gap-3"
-          }
-        >
+        <div className="w-full text-center">
           <div className="min-w-0">
             <p className="mb-1 font-bold leading-6 text-slate-700 dark:text-slate-200">
               {title}

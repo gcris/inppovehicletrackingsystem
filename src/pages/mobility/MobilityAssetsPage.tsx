@@ -304,8 +304,16 @@ export default function MobilityAssetsPage() {
       switch (queryString) {
         case "Serviceable":
         case "Unserviceable":
-        case "Beyond Economic Repair":
+        case "BER":
           if (vehicle.status !== queryString) {
+            return false;
+          }
+          break;
+
+        case "Organic":
+        case "Donated":
+        case "Loaned":
+          if (vehicle.source !== queryString) {
             return false;
           }
           break;
@@ -328,7 +336,7 @@ export default function MobilityAssetsPage() {
           break;
         }
 
-        case "Due for Insurance": {
+        case "Renewal of Insurance": {
           if (!vehicle.insurance_coverage_date) {
             return false;
           }

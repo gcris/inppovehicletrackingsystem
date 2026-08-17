@@ -47,18 +47,15 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-slate-950 flex items-center justify-center p-4 transition-colors">
       <div className="max-w-[440px] w-full">
-        {/* <div className="flex flex-col items-center mb-10">
-          <div className="w-24 h-24 rounded-2xl overflow-hidden shadow-2xl shrink-0">
-            <img
-              src="/assets/app-logo.png"
-              alt="INPPO Logo"
-              className="w-24 h-24 object-contain image-render-auto"
-            />
-          </div>
-        </div> */}
-
         <div className="bg-white dark:bg-slate-900 rounded-[32px] shadow-2xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 overflow-hidden transition-colors">
           <div className="p-5">
+            <div className="flex justify-center p-4 rounded-2xl">
+              <img
+                src="../public/assets/inppo_logo.png" // Replace with your logo path or imported logo variable
+                alt="INPPO Logo"
+                className="h-20 w-auto object-contain drop-shadow-md"
+              />
+            </div>
             {success ? (
               <div className="text-center py-6">
                 <div className="w-20 h-20 bg-green-50 dark:bg-green-900 rounded-3xl flex items-center justify-center mx-auto mb-6">
@@ -81,7 +78,7 @@ export default function ForgotPasswordPage() {
               </div>
             ) : (
               <>
-                <div className="mb-8">
+                <div className="mb-8 text-center">
                   <h2 className="text-2xl text-slate-900 dark:text-white mb-2">
                     Account Recovery
                   </h2>

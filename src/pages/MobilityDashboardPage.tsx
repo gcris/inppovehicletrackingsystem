@@ -1,13 +1,10 @@
 import { useEffect, useState } from "react";
-import { Car } from "lucide-react";
 
-import DashboardSection from "./mobility/dashboard/DashboardSection";
 import SectionTitle from "./mobility/dashboard/SectionTitle";
 
 import { getMaintenanceReminders } from "./utils/maintenanceStatus";
 import { MaintenanceHistory, MobilityAsset, supabase } from "../lib/supabase";
 import MobilityStatCard from "./mobility/dashboard/MobilityStatCard";
-import UpcomingMaintenanceTable from "./mobility/dashboard/UpcomingMaintenanceTable";
 import { useAuth } from "../components/AuthProvider";
 import { mobilityType } from "../types/mobilityType";
 import VehicleTypeCard from "./mobility/dashboard/VehicleTypeCard";
@@ -496,7 +493,7 @@ export default function MobilityDashboardPage() {
             />
 
             <MobilityStatCard
-              title="Due for Insurance"
+              title="Renewal of Insurance"
               value={statistics.insuranceDue}
               bg_color="bg-sky-50 dark:bg-sky-950"
               border_color="border-sky-200 dark:border-sky-800"
@@ -507,8 +504,8 @@ export default function MobilityDashboardPage() {
             <MobilityStatCard
               title="Due for PMS"
               value={statistics.dueSoon + statistics.overdue}
-              bg_color="bg-amber-50 dark:bg-amber-950"
-              border_color="border-violet-200 dark:border-violet-300"
+              bg_color="bg-slate-50 dark:bg-slate-950"
+              border_color="border-slate-200 dark:border-slate-300"
               expiring_soon={statistics.dueSoon}
               expired={statistics.overdue}
             />

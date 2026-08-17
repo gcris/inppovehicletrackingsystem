@@ -243,28 +243,27 @@ export default function LoginPage() {
   return (
     <div className="relative overflow-hidden bg-gradient-to-b from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
       <div className="min-h-screen bg-slate-100 dark:bg-[#020617] relative overflow-hidden transition-colors">
-        <div className="fixed top-4 right-10 z-50">
-          <div className="flex items-center gap-4 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-lg border border-slate-200 dark:border-slate-700 px-4 py-2">
-            {/* Theme Button */}
-            <button
-              onClick={toggleTheme}
-              className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-              title={`Switch to ${theme === "light" ? "Dark" : "Light"} Mode`}
-            >
-              {theme === "light" ? (
-                <Moon className="h-6 w-6" />
-              ) : (
-                <Sun className="h-6 w-6" />
-              )}
-            </button>
-          </div>
-        </div>
-        <div className="flex-1 flex items-center justify-center px-6 py-12">
-          <div className="w-full max-w-md h-[90vh]">
+        <div className="flex-1 flex items-center justify-center px-6 py-6">
+          <div className="w-full max-w-md">
             {unenrolledMfaData && (
               <div className="min-h-screen flex items-center justify-center p-4 transition-colors">
                 <div className="max-w-[440px] w-full">
-                  <div className="rounded-[36px] border border-white/30 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl shadow-2xl">
+                  <div className="rounded-[36px] border border-white/30 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl shadow-2xl relative">
+                    {/* Theme Button inside Setup Box */}
+                    <div className="absolute top-6 right-6 z-10">
+                      <button
+                        onClick={toggleTheme}
+                        className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm"
+                        title={`Switch to ${theme === "light" ? "Dark" : "Light"} Mode`}
+                      >
+                        {theme === "light" ? (
+                          <Moon className="h-5 w-5" />
+                        ) : (
+                          <Sun className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
+
                     <div className="p-10">
                       <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
                         <QrCode className="w-8 h-8 text-blue-600 dark:text-blue-500" />
@@ -272,14 +271,15 @@ export default function LoginPage() {
                       <h2 className="text-2xl font-black text-center text-slate-900 dark:text-white mb-2">
                         Setup Required
                       </h2>
-                      <p className="text-base font-bold text-center text-slate-600 dark:text-slate-400 mb-6">
+                      <p className="font-bold text-center text-slate-600 dark:text-slate-400 mb-6">
                         Security policy requires Google Authenticator.
                       </p>
 
                       <div className="flex justify-center bg-slate-50 dark:bg-white p-4 rounded-2xl mb-8 border border-slate-100">
-                        <QRCode
-                          value={unenrolledMfaData?.qrCodeUrl}
-                          size={200}
+                        <img
+                          src="../public/assets/inppo_logo.png" // Replace with your logo path or imported logo variable
+                          alt="INPPO Logo"
+                          className="h-20 w-auto object-contain drop-shadow-md"
                         />
                       </div>
 
@@ -303,7 +303,28 @@ export default function LoginPage() {
                               setMfaCode(e.target.value.replace(/[^0-9]/g, ""))
                             }
                             placeholder="123456"
-                            className="w-full text-center bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 text-xl font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700"
+                            className="
+                              w-full
+                              rounded-2xl
+                              border
+                              border-slate-300
+                              dark:border-slate-700
+                              bg-slate-50
+                              dark:bg-slate-800
+                              py-4
+                              text-center
+                              text-4xl
+                              font-mono
+                              font-bold
+                              tracking-[0.5em]
+                              text-slate-900
+                              dark:text-white
+                              outline-none
+                              transition
+                              focus:border-blue-500
+                              focus:ring-4
+                              focus:ring-blue-500/20
+                            "
                           />
                         </div>
 
@@ -354,24 +375,48 @@ export default function LoginPage() {
 
             {!unenrolledMfaData && !mfaFactorId && (
               <>
-                {/* Card */}
-                <div className="rounded-[36px] border border-white/30 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl shadow-2xl">
-                  <div className="p-10">
-                    <div className="mb-10">
+                {/* Card with relative positioning */}
+                <div className="rounded-[36px] border border-white/30 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl shadow-2xl relative">
+                  {/* Theme Button inside Login Box */}
+                  <div className="absolute top-6 right-6 z-10">
+                    <button
+                      onClick={toggleTheme}
+                      className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm"
+                      title={`Switch to ${theme === "light" ? "Dark" : "Light"} Mode`}
+                    >
+                      {theme === "light" ? (
+                        <Moon className="h-5 w-5" />
+                      ) : (
+                        <Sun className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="p-6">
+                    {/* LOGO CONTAINER */}
+                    <div className="flex justify-center mb-4 pt-2">
+                      <img
+                        src="../public/assets/inppo_logo.png" // Replace with your logo path or imported logo variable
+                        alt="INPPO Logo"
+                        className="h-20 w-auto object-contain drop-shadow-md"
+                      />
+                    </div>
+
+                    <div className="mb-5 text-center">
                       <h2 className="text-3xl font-black text-slate-900 dark:text-white">
                         Welcome Back
                       </h2>
 
-                      <p className="text-slate-500 dark:text-slate-400 mt-2">
+                      <p className="text-slate-500 dark:text-slate-400 mt-1">
                         Sign in using your official INPPO account.
                       </p>
                     </div>
 
-                    <form onSubmit={handleLogin} className="space-y-6">
+                    <form onSubmit={handleLogin} className="space-y-3">
                       {error && (
                         <div className="rounded-2xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900 p-4 flex gap-3">
                           <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                          <p className="text-base text-red-600 dark:text-red-400">
+                          <p className="text-red-600 dark:text-red-400">
                             {error}
                           </p>
                         </div>
@@ -379,7 +424,7 @@ export default function LoginPage() {
 
                       {/* Email */}
                       <div>
-                        <label className="block mb-2 text-base font-semibold text-slate-600 dark:text-slate-400">
+                        <label className="block mb-2 font-semibold text-slate-600 dark:text-slate-400">
                           Email Address
                         </label>
 
@@ -399,7 +444,7 @@ export default function LoginPage() {
 
                       {/* Password */}
                       <div>
-                        <label className="block mb-2 text-base font-semibold text-slate-600 dark:text-slate-400">
+                        <label className="block mb-2 font-semibold text-slate-600 dark:text-slate-400">
                           Password
                         </label>
 
@@ -432,7 +477,7 @@ export default function LoginPage() {
                       <div>
                         <Link
                           to="/forgot-password"
-                          className="text-base text-blue-600 dark:text-blue-400 hover:underline"
+                          className="text-blue-600 dark:text-blue-400 hover:underline"
                         >
                           Forgot Password?
                         </Link>
@@ -458,11 +503,10 @@ export default function LoginPage() {
                   {/* Footer */}
                   <div className="border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 rounded-b-[36px] p-8">
                     <div className="rounded-2xl bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-900 p-5 text-center">
-                      <p className="font-semibold text-slate-700 dark:text-slate-300">
-                        New Personnel?
-                      </p>
-
-                      <p className="text-base text-slate-500 dark:text-slate-400 mt-2 mb-5">
+                      <p className="text-slate-500 dark:text-slate-400 mt-2 mb-5">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                          New Personnel?
+                        </span>{" "}
                         Only authorized personnel with existing records may
                         register.
                       </p>

@@ -13,6 +13,7 @@ import {
   Sun,
   EyeOff,
   Eye,
+  Loader2,
 } from "lucide-react";
 import {
   validatePersonnelForRegistration,
@@ -351,29 +352,28 @@ export default function RegisterPage() {
 
   return (
     <div className="relative overflow-hidden bg-gradient-to-b from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
-      <div className="fixed top-4 right-10 z-50">
-        <div className="flex items-center gap-4 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-lg border border-slate-200 dark:border-slate-700 px-4 py-2">
-          {/* Theme Button */}
-          <button
-            onClick={toggleTheme}
-            className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-            title={`Switch to ${theme === "light" ? "Dark" : "Light"} Mode`}
-          >
-            {theme === "light" ? (
-              <Moon className="h-6 w-6" />
-            ) : (
-              <Sun className="h-6 w-6" />
-            )}
-          </button>
-        </div>
-      </div>
       <div className="min-h-screen bg-slate-100 dark:bg-[#020617] relative overflow-hidden transition-colors">
         {/* Right Side */}
         <div className="flex-1 flex items-center justify-center px-6 py-10 max-h-screen overflow-y-auto py-12 scrollbar-hide">
           <div className="w-full max-w-5xl h-[90vh]">
-            {/* Registration Form */}
-            <div className="w-full bg-white dark:bg-slate-900 rounded-3xl shadow-xl shadow-blue-500/5 p-6 border border-slate-100 dark:border-slate-800 transition-colors flex flex-col overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 scrollbar-track-transparent">
-              <div className="flex items-center gap-4 mb-6">
+            {/* Registration Form Box (Added 'relative') */}
+            <div className="relative w-full bg-white dark:bg-slate-900 rounded-3xl shadow-xl shadow-blue-500/5 p-6 border border-slate-100 dark:border-slate-800 transition-colors flex flex-col overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 scrollbar-track-transparent">
+              {/* Theme Button inside Top Right of Registration Box */}
+              <div className="absolute top-6 right-6 z-10">
+                <button
+                  onClick={toggleTheme}
+                  className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm"
+                  title={`Switch to ${theme === "light" ? "Dark" : "Light"} Mode`}
+                >
+                  {theme === "light" ? (
+                    <Moon className="h-5 w-5" />
+                  ) : (
+                    <Sun className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-4 mb-6 pr-14">
                 <ShieldAlert className="w-12 h-12 text-amber-500" />
                 <div>
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white">
@@ -389,19 +389,16 @@ export default function RegisterPage() {
               <form onSubmit={handleRegister} className="space-y-8">
                 {error && (
                   <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm p-4 bg-red-500 dark:bg-red-900 border border-red-100 dark:border-red-900/30 text-white rounded-xl flex items-start gap-3 shadow-2xl transition-all pointer-events-auto">
-                    {/* Alert Icon */}
                     <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
 
-                    {/* Error Text Message */}
                     <div className="flex-1">
                       <p className="font-medium">Registration Error</p>
                       <p className="opacity-90 mt-0.5">{error}</p>
                     </div>
 
-                    {/* Manual Dismiss Button */}
                     <button
                       type="button"
-                      onClick={() => setError(null)} // Clears the state instantly
+                      onClick={() => setError(null)}
                       className="p-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 text-white transition-colors shrink-0"
                       aria-label="Dismiss error"
                     >
@@ -409,6 +406,7 @@ export default function RegisterPage() {
                     </button>
                   </div>
                 )}
+
                 <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
                   {/* ===================================================== */}
                   {/* LEFT COLUMN - ACCOUNT INFORMATION                     */}
@@ -427,7 +425,6 @@ export default function RegisterPage() {
                     </div>
 
                     {/* Photo */}
-
                     <div className="flex flex-col items-center justify-center space-y-3 py-2">
                       <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Personnel Photo
@@ -476,7 +473,7 @@ export default function RegisterPage() {
                       </div>
 
                       <p className="italic">
-                        <span className="flex">
+                        <span className="flex items-center gap-1">
                           <FaInfoCircle className="w-4 h-4 text-blue-600" />{" "}
                           Note: Upload only original or unfiltered photo.
                         </span>
@@ -487,7 +484,6 @@ export default function RegisterPage() {
                     </div>
 
                     {/* Email */}
-
                     <div className="space-y-2">
                       <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Email Address
@@ -505,11 +501,11 @@ export default function RegisterPage() {
                         }
                         placeholder="name@department.gov"
                         className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
-                        ${
-                          formErrors.email
-                            ? "border-red-500"
-                            : "border-slate-300"
-                        }`}
+                    ${
+                      formErrors.email
+                        ? "border-red-500"
+                        : "border-slate-300 dark:border-slate-700"
+                    }`}
                       />
 
                       {formErrors.email && (
@@ -518,7 +514,6 @@ export default function RegisterPage() {
                     </div>
 
                     {/* Password */}
-
                     <div className="space-y-2">
                       <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Password
@@ -539,11 +534,11 @@ export default function RegisterPage() {
                           }
                           placeholder="••••••••"
                           className={`pl-12 w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
-                        ${
-                          formErrors.password
-                            ? "border-red-500"
-                            : "border-slate-300"
-                        }`}
+                    ${
+                      formErrors.password
+                        ? "border-red-500"
+                        : "border-slate-300 dark:border-slate-700"
+                    }`}
                         />
 
                         <button
@@ -565,7 +560,6 @@ export default function RegisterPage() {
                     </div>
 
                     {/* Confirm Password */}
-
                     <div className="space-y-2">
                       <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Confirm Password
@@ -586,11 +580,11 @@ export default function RegisterPage() {
                           }
                           placeholder="••••••••"
                           className={`pl-12 w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
-                          ${
-                            formErrors.confirmPassword
-                              ? "border-red-500"
-                              : "border-slate-300"
-                          }`}
+                      ${
+                        formErrors.confirmPassword
+                          ? "border-red-500"
+                          : "border-slate-300 dark:border-slate-700"
+                      }`}
                         />
 
                         <button
@@ -617,7 +611,7 @@ export default function RegisterPage() {
                   </div>
 
                   {/* ===================================================== */}
-                  {/* RIGHT COLUMN - PERSONNEL INFORMATION                  */}
+                  {/* RIGHT COLUMN - PERSONNEL INFORMATION                 */}
                   {/* ===================================================== */}
 
                   <div className="space-y-6">
@@ -632,7 +626,6 @@ export default function RegisterPage() {
                     </div>
 
                     {/* Badge Number */}
-
                     <div className="space-y-2">
                       <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Badge Number
@@ -650,11 +643,11 @@ export default function RegisterPage() {
                         }
                         placeholder="Enter your badge number"
                         className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
-                        ${
-                          formErrors.badge_number
-                            ? "border-red-500"
-                            : "border-slate-300"
-                        }`}
+                    ${
+                      formErrors.badge_number
+                        ? "border-red-500"
+                        : "border-slate-300 dark:border-slate-700"
+                    }`}
                       />
 
                       {formErrors.badge_number && (
@@ -663,30 +656,6 @@ export default function RegisterPage() {
                         </p>
                       )}
                     </div>
-
-                    {/* ID Card Scanner */}
-                    {/* <div className="space-y-3">
-                      <label className="block font-medium text-slate-700 dark:text-slate-200">
-                        Scan ID Card
-                      </label>
-
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Upload a clear photo of your ID card to automatically
-                        fill in the ID number, date issued, and expiration date.
-                      </p>
-
-                      <IdCardScanner
-                        onExtracted={(data) => {
-                          console.log("Scanned data:", data);
-                          setFormData((prev) => ({
-                            ...prev,
-                            id_card_number: data.idCardNumber,
-                            date_issued: data.dateIssued,
-                            expiration_date: data.expirationDate,
-                          }));
-                        }}
-                      />
-                    </div> */}
 
                     {/* Date Issued */}
                     <div className="space-y-2">
@@ -698,7 +667,6 @@ export default function RegisterPage() {
                         type="date"
                         maxLength={20}
                         value={formData.date_issued}
-                        // disabled={true}
                         onChange={(e) =>
                           setFormData({
                             ...formData,
@@ -707,11 +675,11 @@ export default function RegisterPage() {
                         }
                         placeholder="Enter PNP ID Date Issued"
                         className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
-                        ${
-                          formErrors.date_issued
-                            ? "border-red-500"
-                            : "border-slate-300"
-                        }`}
+                    ${
+                      formErrors.date_issued
+                        ? "border-red-500"
+                        : "border-slate-300 dark:border-slate-700"
+                    }`}
                       />
 
                       {formErrors.date_issued && (
@@ -729,7 +697,6 @@ export default function RegisterPage() {
                         type="date"
                         maxLength={20}
                         value={formData.expiration_date}
-                        // disabled={true}
                         onChange={(e) =>
                           setFormData({
                             ...formData,
@@ -738,11 +705,11 @@ export default function RegisterPage() {
                         }
                         placeholder="Enter PNP ID Expiration Date"
                         className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
-                        ${
-                          formErrors.expiration_date
-                            ? "border-red-500"
-                            : "border-slate-300"
-                        }`}
+                    ${
+                      formErrors.expiration_date
+                        ? "border-red-500"
+                        : "border-slate-300 dark:border-slate-700"
+                    }`}
                       />
 
                       {formErrors.expiration_date && (
@@ -762,7 +729,6 @@ export default function RegisterPage() {
                         type="text"
                         maxLength={20}
                         value={formData.id_card_number}
-                        // disabled={true}
                         onChange={(e) =>
                           setFormData({
                             ...formData,
@@ -771,11 +737,11 @@ export default function RegisterPage() {
                         }
                         placeholder="Enter PNP ID Card Number"
                         className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
-                        ${
-                          formErrors.id_card_number
-                            ? "border-red-500"
-                            : "border-slate-300"
-                        }`}
+                    ${
+                      formErrors.id_card_number
+                        ? "border-red-500"
+                        : "border-slate-300 dark:border-slate-700"
+                    }`}
                       />
 
                       {formErrors.id_card_number && (
@@ -786,7 +752,6 @@ export default function RegisterPage() {
                     </div>
 
                     {/* Rank */}
-
                     <div className="space-y-2">
                       <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Rank
@@ -801,11 +766,11 @@ export default function RegisterPage() {
                           })
                         }
                         className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
-                        ${
-                          formErrors.rank_id
-                            ? "border-red-500"
-                            : "border-slate-300"
-                        }`}
+                    ${
+                      formErrors.rank_id
+                        ? "border-red-500"
+                        : "border-slate-300 dark:border-slate-700"
+                    }`}
                       >
                         <option value="">Select your rank</option>
 
@@ -828,7 +793,6 @@ export default function RegisterPage() {
                     </div>
 
                     {/* Full Name */}
-
                     <div className="space-y-2">
                       <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Full Name
@@ -846,11 +810,11 @@ export default function RegisterPage() {
                         }
                         placeholder="Enter your full name"
                         className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
-                        ${
-                          formErrors.fullname
-                            ? "border-red-500"
-                            : "border-slate-300"
-                        }`}
+                    ${
+                      formErrors.fullname
+                        ? "border-red-500"
+                        : "border-slate-300 dark:border-slate-700"
+                    }`}
                       />
 
                       {formErrors.fullname && (
@@ -859,7 +823,6 @@ export default function RegisterPage() {
                     </div>
 
                     {/* Unit / Station */}
-
                     <div className="space-y-2">
                       <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Unit / Station
@@ -874,11 +837,11 @@ export default function RegisterPage() {
                           })
                         }
                         className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
-                        ${
-                          formErrors.unit_id
-                            ? "border-red-500"
-                            : "border-slate-300"
-                        }`}
+                    ${
+                      formErrors.unit_id
+                        ? "border-red-500"
+                        : "border-slate-300 dark:border-slate-700"
+                    }`}
                       >
                         <option value="">Select your unit/station</option>
 
@@ -900,7 +863,6 @@ export default function RegisterPage() {
                     </div>
 
                     {/* Designation */}
-
                     <div className="space-y-2">
                       <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Designation
@@ -915,11 +877,11 @@ export default function RegisterPage() {
                           })
                         }
                         className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
-                        ${
-                          formErrors.designation
-                            ? "border-red-500"
-                            : "border-slate-300"
-                        }`}
+                    ${
+                      formErrors.designation
+                        ? "border-red-500"
+                        : "border-slate-300 dark:border-slate-700"
+                    }`}
                       >
                         <option value="">Select Designation</option>
 
@@ -936,7 +898,6 @@ export default function RegisterPage() {
                     </div>
 
                     {/* Contact Numbers */}
-
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                       <div className="space-y-2">
                         <label className="block font-medium text-slate-700 dark:text-slate-200">
@@ -955,11 +916,11 @@ export default function RegisterPage() {
                           }
                           placeholder="09XXXXXXXXX"
                           className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
-                          ${
-                            formErrors.phone_number
-                              ? "border-red-500"
-                              : "border-slate-300"
-                          }`}
+                      ${
+                        formErrors.phone_number
+                          ? "border-red-500"
+                          : "border-slate-300 dark:border-slate-700"
+                      }`}
                         />
 
                         {formErrors.phone_number && (
@@ -986,11 +947,11 @@ export default function RegisterPage() {
                           }
                           placeholder="09XXXXXXXXX"
                           className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
-                          ${
-                            formErrors.viber_number
-                              ? "border-red-500"
-                              : "border-slate-300"
-                          }`}
+                      ${
+                        formErrors.viber_number
+                          ? "border-red-500"
+                          : "border-slate-300 dark:border-slate-700"
+                      }`}
                         />
 
                         {formErrors.viber_number && (
@@ -1010,101 +971,32 @@ export default function RegisterPage() {
                 <div className="sticky bottom-0 mt-10 border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-2 py-5">
                   <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                     {/* Cancel */}
-
                     <button
                       type="button"
                       onClick={() => navigate("/login", { replace: true })}
-                      className="
-                      inline-flex
-                      items-center
-                      justify-center
-                      rounded-xl
-                      border
-                      border-slate-300
-                      bg-white
-                      px-6
-                      py-3
-                      text-base
-                      font-medium
-                      text-slate-700
-                      transition-all
-                      hover:bg-slate-100
-                      dark:border-slate-700
-                      dark:bg-slate-800
-                      dark:text-slate-200
-                      dark:hover:bg-slate-700
-                    "
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-6 py-3 text-base font-medium text-slate-700 transition-all hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                     >
                       Cancel
                     </button>
 
                     {/* Register */}
-
                     <button
                       type="submit"
                       disabled={loading}
-                      className="
-                      inline-flex
-                      items-center
-                      justify-center
-                      rounded-xl
-                      bg-blue-600
-                      px-8
-                      py-3
-                      text-base
-                      font-semibold
-                      text-white
-                      shadow-lg
-                      shadow-blue-500/20
-                      transition-all
-                      hover:bg-blue-700
-                      hover:shadow-xl
-                      disabled:cursor-not-allowed
-                      disabled:opacity-60
-                    "
+                      className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-8 py-3 text-base font-semibold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {loading ? (
                         <>
-                          <svg
-                            className="mr-2 h-5 w-5 animate-spin"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                              className="opacity-25"
-                            />
-
-                            <path
-                              fill="currentColor"
-                              className="opacity-75"
-                              d="M4 12a8 8 0 018-8v8z"
-                            />
-                          </svg>
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                           Registering...
                         </>
                       ) : (
-                        "Register Personnel"
+                        "Register Account"
                       )}
                     </button>
                   </div>
                 </div>
               </form>
-
-              <p className="mt-6 text-slate-500 dark:text-slate-400 text-center">
-                Already registered?{" "}
-                <Link
-                  to="/login"
-                  className="font-medium text-blue-600 hover:text-blue-500"
-                >
-                  Sign in here
-                </Link>
-              </p>
             </div>
           </div>
         </div>

@@ -42,7 +42,7 @@ export default function VehicleTypeCard({
 
       <div className="px-2 py-2">
         {/* Vehicle Type */}
-        <p className="min-h-[48px] font-bold leading-6 text-slate-700 dark:text-slate-200">
+        <p className="min-h-[48px] font-bold leading-6 text-slate-700 dark:text-slate-200 text-center">
           {title}
         </p>
         {/* Big Total */}
