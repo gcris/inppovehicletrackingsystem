@@ -291,6 +291,7 @@ export default function InspectionViewModal({
                   </div>
 
                   <div className="mt-1 font-semibold">
+                    {inspection.designated_driver?.rank?.rank_name}{" "}
                     {inspection.designated_driver?.fullname ?? "-"}
                   </div>
                 </div>
@@ -301,6 +302,7 @@ export default function InspectionViewModal({
                   </div>
 
                   <div className="mt-1 font-semibold">
+                    {inspection.alternate_driver?.rank?.rank_name}{" "}
                     {inspection.alternate_driver?.fullname ?? "-"}
                   </div>
                 </div>

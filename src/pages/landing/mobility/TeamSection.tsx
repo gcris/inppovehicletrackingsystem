@@ -27,7 +27,7 @@ const projectManagement = [
     position:
       "Chief, Provincial Operations and Management Unit/Project Manager",
     description: `Provides direct management and operational oversight for
-      Project MOBILIS, ensuring successful planning,
+      Project M.O.B.I.L.I.S, ensuring successful planning,
       implementation, coordination, and continuous improvement of
       the system.`,
     image: "/team/c-pomu.png",
@@ -79,7 +79,7 @@ export default function TeamSection() {
 
           <h2 className="mt-4 text-5xl font-bold text-slate-900">
             The People Behind
-            <span className="block text-blue-600">Project MOBILIS</span>
+            <span className="block text-blue-600">Project M.O.B.I.L.I.S</span>
           </h2>
 
           <p className="mt-6 text-lg leading-8 text-slate-600">
@@ -120,10 +120,10 @@ export default function TeamSection() {
 
                     <p className="mt-6 leading-8 text-slate-600 dark:text-white">
                       Provides executive leadership, strategic guidance, and
-                      overall oversight for Project MOBILIS, ensuring that the
-                      system aligns with the operational objectives and digital
-                      transformation initiatives of the Ilocos Norte Police
-                      Provincial Office.
+                      overall oversight for Project M.O.B.I.L.I.S, ensuring that
+                      the system aligns with the operational objectives and
+                      digital transformation initiatives of the Ilocos Norte
+                      Police Provincial Office.
                     </p>
                   </div>
                 </div>
@@ -139,7 +139,7 @@ export default function TeamSection() {
               <motion.div
                 key={leader.name}
                 whileHover={{ y: -6 }}
-                className="rounded-3xl border border-slate-200 bg-white dark:bg-slate-950 p-8 shadow-lg transition-all"
+                className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-8 shadow-lg transition-all"
               >
                 <div className="flex flex-col items-center text-center">
                   <img

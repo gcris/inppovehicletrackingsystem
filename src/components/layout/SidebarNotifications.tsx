@@ -156,21 +156,21 @@ export default function SidebarNotifications({
 
                       {/* Remaining */}
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {item.days_remaining != null && (
-                          <span className="text-slate-500 dark:text-slate-400">
-                            📅{" "}
-                            {item.days_remaining <= 0
-                              ? `${Math.abs(item.days_remaining)} day(s) overdue`
-                              : `${item.days_remaining} day(s) remaining`}
-                          </span>
-                        )}
-
                         {item.km_remaining != null && (
                           <span className="text-slate-500 dark:text-slate-400">
                             🚗{" "}
                             {item.km_remaining <= 0
                               ? `${Math.abs(item.km_remaining).toLocaleString()} km overdue`
                               : `${item.km_remaining.toLocaleString()} km remaining`}
+                          </span>
+                        )}
+
+                        {item.days_remaining != null && (
+                          <span className="text-slate-500 dark:text-slate-400">
+                            📅{" "}
+                            {item.days_remaining <= 0
+                              ? `${Math.abs(item.days_remaining)} day(s) overdue`
+                              : `${item.days_remaining} day(s) remaining`}
                           </span>
                         )}
                       </div>

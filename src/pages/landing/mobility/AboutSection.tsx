@@ -55,7 +55,7 @@ export default function AboutSection() {
           {/* Badge */}
 
           <span className="text-sm font-semibold uppercase tracking-[0.25em] text-blue-600">
-            About Project MOBILIS
+            About Project M.O.B.I.L.I.S
           </span>
 
           {/* Title */}
@@ -63,14 +63,14 @@ export default function AboutSection() {
           <h2 className="mt-8 text-4xl font-extrabold tracking-tight text-slate-900 md:text-6xl">
             Transforming
             <span className="block bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
-              Mobility Operations, Maintenance, & Inspection Logistics
+              Maintenance and Operations-Based Inventory of Logistics
               Information System
             </span>
           </h2>
 
           {/* Description */}
 
-          <p className="mx-auto mt-8 max-w-2xl text-lg leading-8 text-slate-600">
+          <p className="mx-auto mt-8 max-w-2xl text-lg leading-8 text-slate-600 dark:text-slate-300">
             Project <strong>MOBILIS</strong> is a centralized digital platform
             that streamlines mobility asset management through preventive
             maintenance, inspections, monitoring, and operational
@@ -104,7 +104,7 @@ export default function AboutSection() {
                 <div className="h-3 w-3 rounded-full bg-green-400" />
 
                 <span className="ml-4 text-sm font-medium text-slate-500">
-                  Project MOBILIS Dashboard
+                  Project M.O.B.I.L.I.S Dashboard
                 </span>
               </div>
 
@@ -157,14 +157,14 @@ export default function AboutSection() {
             viewport={{ once: true }}
           >
             <span className="text-sm font-semibold uppercase tracking-[0.25em] text-blue-600">
-              What is Project MOBILIS?
+              What is Project M.O.B.I.L.I.S?
             </span>
 
             <h3 className="mt-4 text-4xl font-bold text-slate-900">
               A Modern Platform for Police Mobility Asset Management
             </h3>
 
-            <p className="mt-6 leading-8 text-slate-600">
+            <p className="mt-6 leading-8 text-slate-600 dark:text-slate-300 text-justify">
               Project <strong>MOBILIS</strong> (Mobility Operations,
               Maintenance, & Inspection Logistics Information System) modernizes
               how police mobility assets are managed by integrating asset
@@ -172,7 +172,7 @@ export default function AboutSection() {
               into one centralized information system.
             </p>
 
-            <p className="mt-5 leading-8 text-slate-600">
+            <p className="mt-5 leading-8 text-slate-600 dark:text-slate-300 text-justify">
               Designed for the Ilocos Norte Police Provincial Office, Project
               MOBILIS minimizes manual paperwork, improves accountability,
               enhances operational readiness, and provides reliable data for
@@ -187,7 +187,7 @@ export default function AboutSection() {
                 <p className="text-lx font-semibold text-slate-900">
                   Centralized Registry
                 </p>
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm text-slate-700">
                   A complete inventory of all mobility assets.
                 </p>
               </div>
@@ -197,7 +197,7 @@ export default function AboutSection() {
                 <p className="text-lx font-semibold text-slate-900">
                   Preventive Maintenance Service
                 </p>
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm text-slate-700">
                   Schedule and record preventive and corrective maintenance.
                 </p>
               </div>
@@ -207,7 +207,7 @@ export default function AboutSection() {
                 <p className="text-lx font-semibold text-slate-900">
                   Digital Inspection
                 </p>
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm text-slate-700">
                   Standardized inspections with historical records.
                 </p>
               </div>
@@ -217,7 +217,7 @@ export default function AboutSection() {
                 <p className="text-lx font-semibold text-slate-900">
                   Reporting
                 </p>
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm text-slate-700">
                   Actionable insights through dashboards and reports.
                 </p>
               </div>

@@ -626,10 +626,9 @@ export default function MobilityAssetsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl text-slate-900 dark:text-white">
-            <Car className="w-6 h-6 text-blue-600" />
+          <p className="flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-white">
             Mobility Assets
-          </h1>
+          </p>
 
           <p className="mt-1 text-slate-500 dark:text-slate-400">
             Manage all mobility assets in your unit/station
@@ -709,8 +708,7 @@ export default function MobilityAssetsPage() {
             <table className="w-full">
               <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
-                  <th className="p-4 text-center">No.</th>
-                  <th className="p-4 text-center">Plate</th>
+                  <th className="p-4 text-center">Plate Number</th>
                   <th className="p-4 text-center">Mobility</th>
                   <th className="p-4 text-center">Unit/Station</th>
                   <th className="p-4 text-center">Official Driver</th>

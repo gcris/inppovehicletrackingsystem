@@ -10,12 +10,14 @@ export default function ScreenshotShowcase() {
             Product Showcase
           </p>
 
-          <h2 className="mt-4 text-5xl font-black">Explore Project MOBILIS</h2>
+          <h2 className="mt-4 text-5xl font-black">
+            Explore Project M.O.B.I.L.I.S
+          </h2>
 
           <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-slate-500">
-            Discover how Project MOBILIS simplifies mobility management through
-            centralized mobility asset records, maintenance monitoring, and
-            inspections.
+            Discover how Project M.O.B.I.L.I.S simplifies mobility management
+            through centralized mobility asset records, maintenance monitoring,
+            and inspections.
           </p>
         </div>
 

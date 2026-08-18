@@ -20,20 +20,22 @@ import AccountPage from "./pages/account/AccountPage";
 import MaintenanceHistoryPage from "./pages/history/MaintenanceHistoryPage";
 import { EmergencyProvider } from "./services/EmergencyProvider";
 import AnalyticsPerPersonnelPage from "./pages/performance/AnalyticsPerPersonnelPage";
-import { AlertCircle, LogOut } from "lucide-react";
+import { AlertCircle, LogOut, User } from "lucide-react";
 import CalendarPage from "./pages/personnel/CalendarPage";
 import MobilityAssetsPage from "./pages/mobility/MobilityAssetsPage";
 import MaintenanceTypesPage from "./pages/history/MaintenanceTypesPage";
 import VehicleInspectionPage from "./pages/inspection/MobilityInspectionPage";
 import MobilityDashboardPage from "./pages/MobilityDashboardPage";
 import MobilityDistributionPage from "./pages/reports/MobilityDistributionPage";
-import MobilisAboutUsPage from "./pages/MobilisAboutUsPage";
 import PageNotFound from "./pages/PageNotFound";
 import UserManagementPage from "./pages/admin/UserManagementPage";
 import { useVehicleRealtime } from "./hooks/useVehicleRealtime";
 import SidebarNotifications from "./components/layout/SidebarNotifications";
 import { Sidebar } from "./components/layout/Sidebar";
 import { useInactivityLogout } from "./hooks/useInactivityLogout";
+import AboutSection from "./pages/landing/mobility/AboutSection";
+import MobilisAboutUsPage from "./pages/MobilisAboutUsPage";
+import MobilityMaintenancePage from "./pages/mobility/MobilityMaintenancePage";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -218,6 +220,20 @@ function Layout() {
 
             <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-2"></div>
 
+            <div className="h-13 w-13 overflow-hidden rounded border border-white bg-slate-100 shadow-md dark:border-slate-700 dark:bg-slate-800">
+              {profile?.photo_url ? (
+                <img
+                  src={profile.photo_url}
+                  alt="Profile"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center">
+                  <User className="h-5 w-5 text-slate-400" />
+                </div>
+              )}
+            </div>
+
             <a
               href="/account"
               className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 p-1.5 rounded-lg transition-colors"
@@ -238,7 +254,7 @@ function Layout() {
               dueSoonCount={notificationCounts.dueSoon}
               pmsNotifications={pmsNotifications}
               onViewPms={() => {
-                navigate("/mobility-assets?query=PMS");
+                navigate("/mobility-assets?query=Due for PMS");
               }}
             />
 
@@ -270,10 +286,10 @@ function Layout() {
                     element={<TrackingMapPage />}
                   />
                   <Route path="/schedule" element={<SchedulePage />} />
-                  <Route path="/personnel" element={<PersonnelPage />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   {isAdmin && (
                     <>
+                      <Route path="/personnel" element={<PersonnelPage />} />
                       <Route path="/analytics" element={<AnalyticsPage />} />
                       <Route
                         path="/analytics-per-personnel/:id"
@@ -297,6 +313,10 @@ function Layout() {
                   <Route
                     path="/reports/mobility-distribution"
                     element={<MobilityDistributionPage />}
+                  />
+                  <Route
+                    path="/mobility-maintenance"
+                    element={<MobilityMaintenancePage />}
                   />
                   <Route
                     path="/mobility-assets"

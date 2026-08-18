@@ -279,9 +279,9 @@ export default function UserManagementPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800 dark:text-white">
+          <p className="text-2xl font-bold text-slate-800 dark:text-white">
             User Management
-          </h1>
+          </p>
 
           <p className="mt-1 text-slate-800 dark:text-slate-200">
             Manage user accounts, permissions, approvals and MFA.
@@ -566,7 +566,6 @@ export default function UserManagementPage() {
                             bg-purple-600
                             px-3
                             py-2
-                            text-sm
                             font-medium
                             text-white
                             transition

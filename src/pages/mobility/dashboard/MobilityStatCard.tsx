@@ -15,6 +15,7 @@ type Props = {
   border_color: string;
   expiring_soon?: number | 0;
   expired?: number | 0;
+  link?: string | null;
 };
 
 export default function MobilityStatCard({
@@ -24,12 +25,14 @@ export default function MobilityStatCard({
   border_color,
   expiring_soon,
   expired,
+  link,
 }: Props) {
   const query = title.includes("Total") ? "" : title;
   const colspan = title.includes("Total") ? "row-span-2" : "";
+  const toLink = link ?? `/mobility-assets?query=${encodeURIComponent(query)}`;
   return (
     <Link
-      to={`/mobility-assets?query=${encodeURIComponent(query)}`}
+      to={toLink}
       className={`
         group relative block overflow-hidden rounded-2xl
         border ${border_color}

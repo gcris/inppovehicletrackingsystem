@@ -27,13 +27,13 @@ function MobilityRow({
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
   const registrationDate = useMemo(() => {
-    if (!vehicle.date_registration_expires) return "-";
+    if (!vehicle.date_registration_expires) return "";
 
     return format(parseISO(vehicle.date_registration_expires), "MMM dd, yyyy");
   }, [vehicle.date_registration_expires]);
 
   const insuranceDate = useMemo(() => {
-    if (!vehicle.insurance_coverage_date) return "-";
+    if (!vehicle.insurance_coverage_date) return "";
 
     return format(parseISO(vehicle.insurance_coverage_date), "MMM dd, yyyy");
   }, [vehicle.insurance_coverage_date]);
@@ -61,8 +61,6 @@ function MobilityRow({
   return (
     <>
       <tr className="border-t border-slate-100 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/30">
-        <td className="p-4 font-semibold">{index + 1}</td>
-
         <td className="p-4 font-semibold">{vehicle.plate_number}</td>
 
         <td className="p-4">
@@ -103,7 +101,7 @@ function MobilityRow({
         {/* Insurance */}
         <td className="p-4">
           <div className="flex flex-col">
-            <span>{vehicle.insurance_provider || "-"}</span>
+            <span>{vehicle.insurance_provider!}</span>
 
             <span className="text-slate-600 dark:text-slate-300">
               {insuranceDate}

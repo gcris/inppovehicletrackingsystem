@@ -49,9 +49,9 @@ export default function HeroSection() {
             {/* Subtitle */}
 
             <p className="mt-8 max-w-2xl text-xl leading-9 text-slate-600 dark:text-slate-400">
-              Project MOBILIS centralizes mobility management, maintenance,
-              inspections, and operational reporting into one secure platform
-              for the Ilocos Norte Police Provincial Office.
+              Project M.O.B.I.L.I.S centralizes mobility management,
+              maintenance, inspections, and operational reporting into one
+              secure platform for the Ilocos Norte Police Provincial Office.
             </p>
 
             {/* Buttons */}

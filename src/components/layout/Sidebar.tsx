@@ -172,7 +172,7 @@ export const Sidebar = () => {
             <div>
               <h1 className="font-bold leading-tight text-slate-900 dark:text-white">
                 {profileRole?.includes("supply")
-                  ? "Project MOBILIS"
+                  ? "Project M.O.B.I.L.I.S"
                   : "Project JOEMAR"}
               </h1>
               <p className="text-[12px] text-slate-500 dark:text-slate-400 uppercase tracking-widest font-black">

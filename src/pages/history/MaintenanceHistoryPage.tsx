@@ -308,9 +308,9 @@ export default function MaintenanceHistoryPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+          <p className="text-2xl font-bold text-slate-900 dark:text-white">
             PMS History
-          </h1>
+          </p>
 
           <p className="mt-1 text-slate-500 dark:text-slate-400">
             Manage all maintenance records of mobility assets.
@@ -405,7 +405,6 @@ export default function MaintenanceHistoryPage() {
           <table className="min-w-full">
             <thead className="bg-slate-100 dark:bg-slate-800">
               <tr>
-                <th className="px-5 py-4 text-left font-semibold">No.</th>
                 <th className="px-5 py-4 text-left font-semibold">
                   Date/Time Entry
                 </th>

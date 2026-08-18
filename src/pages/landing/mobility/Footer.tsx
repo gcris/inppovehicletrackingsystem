@@ -23,22 +23,23 @@ export default function Footer() {
             <div className="mb-5 flex items-center gap-3">
               <div className="rounded-lg bg-white p-0.5">
                 <img
-                  src="/assets/mobilis-logo.png"
-                  alt="Project MOBILIS"
+                  src="/assets/MOBILIS-logo.png"
+                  alt="Project M.O.B.I.L.I.S"
                   className="h-12 w-12 object-contain"
                 />
               </div>
 
               <div>
-                <p className="text-xl font-black text-white">Project MOBILIS</p>
+                <p className="text-xl font-black text-white">
+                  Project M.O.B.I.L.I.S
+                </p>
               </div>
             </div>
 
             <p className="leading-8 text-slate-400">
-              Mobility Operations, Maintenance, & Inspection Logistics
-              Information System (MOBILIS) for centralized mobility asset
-              management, inspections, maintenance monitoring, and operational
-              reporting.
+              Mobility Operations-Based Information and Logistics Inspection
+              System (MOBILIS) for centralized mobility asset management,
+              inspections, maintenance monitoring, and operational reporting.
             </p>
           </div>
 

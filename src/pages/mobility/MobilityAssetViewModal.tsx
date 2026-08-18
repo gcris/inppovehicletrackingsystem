@@ -233,6 +233,120 @@ export default function MobilityAssetViewModal({
         {/* Content */}
         <div className="overflow-y-auto p-4 sm:p-5">
           <div className="space-y-4">
+            {/* PMS Reminders */}
+            <Section title="PMS Reminders" colspan={1}>
+              <div className="flex items-center gap-3 rounded-xl bg-slate-100 p-4 dark:bg-slate-700/50 sm:col-span-2 lg:col-span-3 mb-5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                  <Gauge size={20} />
+                </div>
+
+                <div>
+                  <p className="font-medium tracking-wide text-slate-600 dark:text-slate-200">
+                    Current Odometer Reading
+                  </p>
+
+                  <p className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                    {formatNumber(asset.current_odometer)} km
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                {reminders.length === 0 ? (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 py-8 text-center dark:border-slate-700 dark:bg-slate-800/50">
+                    <Clock size={32} className="mx-auto mb-2 text-slate-400" />
+
+                    <p className="font-medium text-slate-600 dark:text-slate-300">
+                      No Periodic Maintenance Service reminder.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {reminders.map((item) => (
+                      <div
+                        key={`${item.maintenance_type_id}-${item.changed_at}`}
+                        className="rounded-xl border border-slate-200 p-4 dark:border-slate-800"
+                      >
+                        {/* Maintenance type + status icon */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="font-semibold text-slate-800 dark:text-slate-100">
+                            {maintenanceList(item.maintenance_type_name)}
+                          </div>
+
+                          {item.status === "OVERDUE" ? (
+                            <AlertTriangle
+                              size={20}
+                              className="shrink-0 text-red-600"
+                            />
+                          ) : item.status === "DUE_SOON" ? (
+                            <Clock
+                              size={20}
+                              className="shrink-0 text-yellow-600"
+                            />
+                          ) : (
+                            <Clock
+                              size={20}
+                              className="shrink-0 text-green-600"
+                            />
+                          )}
+                        </div>
+
+                        {/* Details */}
+                        <div className="mx-3 mt-3 space-y-1.5 text-slate-700 dark:text-slate-300">
+                          <p>
+                            <span className="font-medium">Due Date:</span>{" "}
+                            {item.next_service_date
+                              ? formatDate(item.next_service_date)
+                              : "—"}
+                          </p>
+
+                          <p>
+                            <span className="font-medium">
+                              Due Odometer Reading:
+                            </span>{" "}
+                            {item.next_service_odometer != null
+                              ? `${item.next_service_odometer.toLocaleString()} km`
+                              : "—"}
+                          </p>
+
+                          <p>
+                            <span className="font-medium">Remaining km:</span>{" "}
+                            {item.km_remaining != null
+                              ? `${item.km_remaining.toLocaleString()} km`
+                              : "—"}
+                          </p>
+
+                          <p>
+                            <span className="font-medium">
+                              Remaining day/s:
+                            </span>{" "}
+                            {item.days_remaining != null
+                              ? item.days_remaining
+                              : "—"}
+                          </p>
+
+                          <p>
+                            <span className="font-medium">Status:</span>{" "}
+                            <span
+                              className={`font-bold ${
+                                item.status === "GOOD"
+                                  ? "text-green-600"
+                                  : item.status === "OVERDUE"
+                                    ? "text-red-600"
+                                    : "text-yellow-600"
+                              }`}
+                            >
+                              {item.status?.replace("_", " ")}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Section>
+
             {/* Basic Information */}
             <Section title="Mobility Information" colspan={3}>
               <InfoItem label="Plate Number" value={asset.plate_number} />
@@ -332,120 +446,6 @@ export default function MobilityAssetViewModal({
                 label="Insurance Coverage Until"
                 value={formatDate(asset.insurance_coverage_date)}
               />
-            </Section>
-
-            {/* PMS Reminders */}
-            <Section title="PMS Reminders" colspan={1}>
-              <div className="flex items-center gap-3 rounded-xl bg-slate-100 p-4 dark:bg-slate-700/50 sm:col-span-2 lg:col-span-3 mb-5">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
-                  <Gauge size={20} />
-                </div>
-
-                <div>
-                  <p className="font-medium tracking-wide text-slate-600 dark:text-slate-200">
-                    Current Odometer Reading
-                  </p>
-
-                  <p className="text-lg font-bold text-slate-800 dark:text-slate-100">
-                    {formatNumber(asset.current_odometer)} km
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                {reminders.length === 0 ? (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 py-8 text-center dark:border-slate-700 dark:bg-slate-800/50">
-                    <Clock size={32} className="mx-auto mb-2 text-slate-400" />
-
-                    <p className="font-medium text-slate-600 dark:text-slate-300">
-                      No Periodic Maintenance Service reminder.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {reminders.map((item) => (
-                      <div
-                        key={`${item.maintenance_type_id}-${item.changed_at}`}
-                        className="rounded-xl border border-slate-200 p-4 dark:border-slate-800"
-                      >
-                        {/* Maintenance type + status icon */}
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="font-semibold text-slate-800 dark:text-slate-100">
-                            {maintenanceList(item.maintenance_type_name)}
-                          </div>
-
-                          {item.status === "OVERDUE" ? (
-                            <AlertTriangle
-                              size={20}
-                              className="shrink-0 text-red-600"
-                            />
-                          ) : item.status === "DUE_SOON" ? (
-                            <Clock
-                              size={20}
-                              className="shrink-0 text-yellow-600"
-                            />
-                          ) : (
-                            <Clock
-                              size={20}
-                              className="shrink-0 text-green-600"
-                            />
-                          )}
-                        </div>
-
-                        {/* Details */}
-                        <div className="mx-3 mt-3 space-y-1.5 text-slate-700 dark:text-slate-300">
-                          <p>
-                            <span className="font-medium">Due Date:</span>{" "}
-                            {item.next_service_date
-                              ? formatDate(item.next_service_date)
-                              : "—"}
-                          </p>
-
-                          <p>
-                            <span className="font-medium">
-                              Due Odometer Reading:
-                            </span>{" "}
-                            {item.next_service_odometer != null
-                              ? `${item.next_service_odometer.toLocaleString()} km`
-                              : "—"}
-                          </p>
-
-                          <p>
-                            <span className="font-medium">
-                              Remaining day/s:
-                            </span>{" "}
-                            {item.days_remaining != null
-                              ? item.days_remaining
-                              : "—"}
-                          </p>
-
-                          <p>
-                            <span className="font-medium">Remaining km:</span>{" "}
-                            {item.km_remaining != null
-                              ? `${item.km_remaining.toLocaleString()} km`
-                              : "—"}
-                          </p>
-
-                          <p>
-                            <span className="font-medium">Status:</span>{" "}
-                            <span
-                              className={`font-bold ${
-                                item.status === "GOOD"
-                                  ? "text-green-600"
-                                  : item.status === "OVERDUE"
-                                    ? "text-red-600"
-                                    : "text-yellow-600"
-                              }`}
-                            >
-                              {item.status?.replace("_", " ")}
-                            </span>
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
             </Section>
 
             {/* System Information */}

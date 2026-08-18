@@ -175,6 +175,12 @@ export type Personnel = {
   id_card_number: string;
   date_issued: string;
   expiration_date: string;
+
+  drivers_license_no: string;
+  drivers_license_expiration: string;
+  drivers_license_type: string;
+  drivers_license_restrictions: string;
+  drivers_license_transmission: string;
 };
 
 export type PatrolSchedule = {

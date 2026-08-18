@@ -62,7 +62,6 @@ const MaintenanceHistoryRow = ({
 
   return (
     <tr className="border-t border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50">
-      <td className="px-5 py-4 whitespace-nowrap">{index + 1}</td>
       {/* Date */}
       <td className="px-5 py-4 whitespace-nowrap">{changedAt}</td>
 
@@ -106,8 +105,7 @@ const MaintenanceHistoryRow = ({
 
       {/* Last Service */}
       <td className="px-5 py-4">
-        <p>{lastServiceDate}</p>
-
+        <p>{lastServiceDate}</p> <>or</>
         <p>{lastServiceOdometer} km</p>
       </td>
 
@@ -121,7 +119,7 @@ const MaintenanceHistoryRow = ({
       {/* Next Service */}
       <td className="px-5 py-4">
         <p>{nextServiceDate}</p>
-
+        <>or</>
         <p>{nextServiceOdometer}</p>
       </td>
 

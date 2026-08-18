@@ -38,8 +38,8 @@ export default function WorkflowTimeline() {
           <h2 className="mt-4 text-5xl font-black">Mobility Asset Lifecycle</h2>
 
           <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-slate-500">
-            Project MOBILIS streamlines the complete lifecycle of every mobility
-            asset—from registration to patrol operations and reporting.
+            Project M.O.B.I.L.I.S streamlines the complete lifecycle of every
+            mobility asset—from registration to patrol operations and reporting.
           </p>
         </motion.div>
 

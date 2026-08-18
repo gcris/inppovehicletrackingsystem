@@ -245,10 +245,9 @@ export default function VehicleInspectionPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         {/* Left Side: Header Title & Subtitle */}
         <div>
-          <h1 className="flex items-center gap-3 text-3xl font-bold text-slate-900 dark:text-white">
-            <ClipboardCheck className="h-8 w-8 text-blue-600" />
+          <p className="flex items-center gap-3 text-2xl font-bold text-slate-900 dark:text-white">
             Mobility Inspections
-          </h1>
+          </p>
           <p className="mt-1 text-slate-500">
             Manage periodic mobility inspections.
           </p>
@@ -371,13 +370,13 @@ export default function VehicleInspectionPage() {
           <table className="min-w-full">
             <thead className="bg-slate-100 dark:bg-slate-800">
               <tr>
-                <th className="px-5 py-4 text-left">No.</th>
-
                 <th className="px-5 py-4 text-left">Mobility</th>
 
                 <th className="px-5 py-4 text-left">Inspection Date</th>
 
                 <th className="px-5 py-4 text-left">Inspector</th>
+
+                <th className="px-5 py-4 text-left">Supervisor</th>
 
                 <th className="px-5 py-4 text-center">Status</th>
 
@@ -399,9 +398,6 @@ export default function VehicleInspectionPage() {
                   key={inspection.id}
                   className="border-t transition hover:bg-slate-50 border-slate-200 dark:border-slate-800 dark:hover:bg-slate-800"
                 >
-                  <td className="px-5 py-4 font-medium">
-                    {(currentPage - 1) * PAGE_SIZE + index + 1}
-                  </td>
                   <td className="px-5 py-4">
                     <div className="font-medium">
                       {inspection.mobility_asset?.plate_number}
@@ -422,6 +418,10 @@ export default function VehicleInspectionPage() {
 
                   <td className="px-5 py-4">
                     {inspection.inspected_by ?? "-"}
+                  </td>
+
+                  <td className="px-5 py-4">
+                    {inspection.supervisor_name ?? "-"}
                   </td>
 
                   <td className="px-5 py-4 text-center">

@@ -34,10 +34,12 @@ export default function Navbar() {
           <img
             src={
               page === "/mobility"
-                ? "/assets/mobilis-logo.png"
+                ? "/assets/MOBILIS-logo.png"
                 : "/assets/app-logo.png"
             }
-            alt={page === "/mobility" ? "Project MOBILIS" : "Project JOEMAR"}
+            alt={
+              page === "/mobility" ? "Project M.O.B.I.L.I.S" : "Project JOEMAR"
+            }
             className="h-12 w-12 object-contain border border-slate-200 dark:border-white rounded"
           />
 

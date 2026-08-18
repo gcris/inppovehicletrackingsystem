@@ -277,7 +277,7 @@ export default function LoginPage() {
 
                       <div className="flex justify-center bg-slate-50 dark:bg-white p-4 rounded-2xl mb-8 border border-slate-100">
                         <img
-                          src="../public/assets/inppo_logo.png" // Replace with your logo path or imported logo variable
+                          src="/assets/inppo_logo.png" // Replace with your logo path or imported logo variable
                           alt="INPPO Logo"
                           className="h-20 w-auto object-contain drop-shadow-md"
                         />
@@ -396,7 +396,7 @@ export default function LoginPage() {
                     {/* LOGO CONTAINER */}
                     <div className="flex justify-center mb-4 pt-2">
                       <img
-                        src="../public/assets/inppo_logo.png" // Replace with your logo path or imported logo variable
+                        src="/assets/inppo_logo.png" // Replace with your logo path or imported logo variable
                         alt="INPPO Logo"
                         className="h-20 w-auto object-contain drop-shadow-md"
                       />
@@ -404,11 +404,15 @@ export default function LoginPage() {
 
                     <div className="mb-5 text-center">
                       <h2 className="text-3xl font-black text-slate-900 dark:text-white">
-                        Welcome Back
+                        Welcome
                       </h2>
 
-                      <p className="text-slate-500 dark:text-slate-400 mt-1">
-                        Sign in using your official INPPO account.
+                      <p className="text-xl text-slate-700 dark:text-slate-200 mt-1">
+                        Project M.O.B.I.L.I.S
+                      </p>
+                      <p className="text-slate-700 dark:text-slate-200 mt-1">
+                        Mobility Operations-Based Information and Logistics
+                        Inspection System
                       </p>
                     </div>
 
@@ -505,7 +509,7 @@ export default function LoginPage() {
                     <div className="rounded-2xl bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-900 p-5 text-center">
                       <p className="text-slate-500 dark:text-slate-400 mt-2 mb-5">
                         <span className="font-semibold text-slate-700 dark:text-slate-300">
-                          New Personnel?
+                          New Account?
                         </span>{" "}
                         Only authorized personnel with existing records may
                         register.

@@ -344,7 +344,11 @@ export default function MobilityDashboardPage() {
         ),
         inspection:inspection_id(
           id,
-          unit_id
+          unit_id,
+          mobility_assets:mobility_asset_id(
+            plate_number,
+            vehicle_type
+          )
         )
       `,
         )
@@ -370,6 +374,7 @@ export default function MobilityDashboardPage() {
           itemId: string;
           itemName: string;
           defectCount: number;
+          mobilities: [];
         }
       > = {};
 
@@ -418,6 +423,7 @@ export default function MobilityDashboardPage() {
             itemId: item.id,
             itemName: item.name,
             defectCount: 0,
+            mobilities: item.mobility_assets,
           };
         }
 
@@ -447,6 +453,7 @@ export default function MobilityDashboardPage() {
           itemId: item.itemId,
           itemName: item.itemName,
           defectCount: item.defectCount,
+          mobilities: item.mobilities,
         });
       });
 
@@ -508,6 +515,7 @@ export default function MobilityDashboardPage() {
               border_color="border-slate-200 dark:border-slate-300"
               expiring_soon={statistics.dueSoon}
               expired={statistics.overdue}
+              link={"/mobility-maintenance"}
             />
           </div>
         </div>

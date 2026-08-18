@@ -5,7 +5,7 @@ export const mobilityType = [
   "Heavy Motorcycle",
   "Light Motorcycle Category (LMC)",
   "Light Personnel Troop Carrier",
-  "Light Tactical Vehicle (LTV)",
+  "Light Transport Vehicle (LTV)",
   "Motorcycle",
   "Patrol Car",
   "Patrol Jeep",

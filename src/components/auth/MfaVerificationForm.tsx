@@ -44,7 +44,7 @@ export default function MfaVerificationForm({
           <div className="border-b border-slate-200 dark:border-slate-800 px-8 py-8">
             <div className="flex justify-center p-4 rounded-2xl">
               <img
-                src="../public/assets/inppo_logo.png" // Replace with your logo path or imported logo variable
+                src="/assets/inppo_logo.png" // Replace with your logo path or imported logo variable
                 alt="INPPO Logo"
                 className="h-20 w-auto object-contain drop-shadow-md"
               />

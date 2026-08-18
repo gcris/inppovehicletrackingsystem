@@ -22,6 +22,7 @@ export interface DefectItemData {
   itemId: string;
   itemName: string;
   defectCount: number;
+  mobilities: [];
 }
 
 interface DefectTrendChartProps {

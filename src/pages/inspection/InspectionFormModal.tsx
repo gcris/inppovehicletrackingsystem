@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { X, Save, RefreshCcw } from "lucide-react";
+import { X, Save, RefreshCcw, ChevronDown } from "lucide-react";
 
 import {
   MobilityAsset,
@@ -12,6 +12,45 @@ import {
 } from "../../lib/supabase";
 import e from "express";
 import { useAuth } from "../../components/AuthProvider";
+
+const driverLicenseRestrictionOptions = [
+  {
+    code: "A",
+    label: "A — Motorcycle",
+  },
+  {
+    code: "A1",
+    label: "A1 — Tricycle",
+  },
+  {
+    code: "B",
+    label: "B — Passenger Car",
+  },
+  {
+    code: "B1",
+    label: "B1 — Passenger Van / Jeepney",
+  },
+  {
+    code: "B2",
+    label: "B2 — Light Commercial Vehicle",
+  },
+  {
+    code: "BE",
+    label: "BE — Light Articulated Vehicle",
+  },
+  {
+    code: "C",
+    label: "C — Heavy Commercial Vehicle",
+  },
+  {
+    code: "CE",
+    label: "CE — Heavy Articulated Vehicle",
+  },
+  {
+    code: "D",
+    label: "D — Heavy Passenger Bus",
+  },
+];
 
 interface Props {
   open: boolean;
@@ -64,6 +103,21 @@ export default function InspectionFormModal({
   );
 
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const [driverLicenseNo, setDriverLicenseNo] = useState("");
+  const [driverLicenseExpiration, setDriverLicenseExpiration] = useState("");
+  const [driversLicenseType, setDriversLicenseType] = useState("");
+  const [driverLicenseTransmission, setDriverLicenseTransmission] = useState<
+    "MANUAL" | "AUTOMATIC" | "BOTH" | ""
+  >("");
+  const [driverLicenseRestrictions, setDriverLicenseRestrictions] = useState<
+    string[]
+  >([]);
+  const [showRestrictionDropdown, setShowRestrictionDropdown] = useState(false);
+
+  const [selectedDriverId, setSelectedDriverId] = useState("");
+  const [selectedPersonnelForLicense, setSelectedPersonnelForLicense] =
+    useState<Personnel | null>(null);
+  const [showLicenseModal, setShowLicenseModal] = useState(false);
 
   useEffect(() => {
     if (categories.length > 0 && !activeCategoryId) {
@@ -463,6 +517,44 @@ export default function InspectionFormModal({
 
   const isLastCategory = activeCategoryIndex === categoriesWithItems.length - 1;
 
+  const handleDriverChange = async (personnelId: string) => {
+    setSelectedDriverId(personnelId);
+
+    const personnel = filteredPersonnel.find((p) => p.id === personnelId);
+
+    if (!personnel) return;
+
+    // Already has license information
+    if (personnel.drivers_license_no && personnel.drivers_license_expiration) {
+      return;
+    }
+
+    // No license information
+    setSelectedPersonnelForLicense(personnel);
+    setShowLicenseModal(true);
+  };
+
+  const handleSaveLicense = async () => {
+    if (!selectedPersonnelForLicense) return;
+
+    try {
+      const { error } = await supabase
+        .from("personnel")
+        .update({
+          drivers_license_no: driverLicenseNo.trim(),
+          drivers_license_expiration: driverLicenseExpiration,
+        })
+        .eq("id", selectedPersonnelForLicense.id);
+
+      if (error) throw error;
+
+      setShowLicenseModal(false);
+      setSelectedPersonnelForLicense(null);
+    } catch (error) {
+      console.error("Failed to save driver's license:", error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -738,12 +830,13 @@ export default function InspectionFormModal({
 
                   <select
                     value={formData.designated_driver_id}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       setFormData({
                         ...formData,
                         designated_driver_id: e.target.value,
-                      })
-                    }
+                      });
+                      handleDriverChange(e.target.value);
+                    }}
                     className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
                       ${
                         errors.designated_driver_id
@@ -1063,6 +1156,7 @@ export default function InspectionFormModal({
                 setActiveCategoryId(
                   categoriesWithItems[activeCategoryIndex + 1].id,
                 );
+                setActiveTab("checklist");
               }}
               className="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white transition hover:bg-blue-700"
             >
@@ -1090,6 +1184,177 @@ export default function InspectionFormModal({
           )}
         </div>
       </div>
+
+      {showLicenseModal && selectedPersonnelForLicense && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900">
+            <div className="mb-5">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                Driver's License Information
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                No driver's license information was found for{" "}
+                <span className="font-semibold">
+                  {selectedPersonnelForLicense.rank?.rank_name}{" "}
+                  {selectedPersonnelForLicense.fullname}
+                </span>
+                .
+              </p>
+            </div>
+
+            {/* License Number */}
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-semibold">
+                Driver's License No.
+              </label>
+
+              <input
+                type="text"
+                value={driverLicenseNo}
+                onChange={(e) => setDriverLicenseNo(e.target.value)}
+                placeholder="Enter license number"
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800"
+              />
+            </div>
+
+            {/* Expiration */}
+            <div className="mb-6">
+              <label className="mb-2 block text-sm font-semibold">
+                Expiration Date
+              </label>
+
+              <input
+                type="date"
+                value={driverLicenseExpiration}
+                onChange={(e) => setDriverLicenseExpiration(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800"
+              />
+            </div>
+
+            {/* License Type */}
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-semibold">
+                Driver's License Type.
+              </label>
+
+              <select
+                value={driversLicenseType}
+                onChange={(e) => setDriversLicenseType(e.target.value)}
+                className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                ${
+                  errors.overall_status ? "border-red-500" : "border-slate-300"
+                }`}
+              >
+                <option value="Non-Professional License">
+                  Non-Professional License
+                </option>
+                <option value="Professional License">
+                  Professional License
+                </option>
+              </select>
+            </div>
+
+            {/* Restrictions */}
+            <div className="relative">
+              <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                Driver's License Restriction
+              </label>
+
+              <button
+                type="button"
+                onClick={() => setShowRestrictionDropdown((prev) => !prev)}
+                className="flex w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-4 py-3 text-left text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <span>
+                  {driverLicenseRestrictions.length === 0
+                    ? "Select restriction"
+                    : driverLicenseRestrictions.join(", ")}
+                </span>
+
+                <ChevronDown className="h-4 w-4" />
+              </button>
+
+              {showRestrictionDropdown && (
+                <div className="absolute bottom-full z-[100] mb-2 w-full  rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                  {driverLicenseRestrictionOptions.map((option) => {
+                    const selected = driverLicenseRestrictions.includes(
+                      option.code,
+                    );
+
+                    return (
+                      <label
+                        key={option.code}
+                        className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => {
+                            setDriverLicenseRestrictions((prev) =>
+                              selected
+                                ? prev.filter((code) => code !== option.code)
+                                : [...prev, option.code],
+                            );
+                          }}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                        />
+
+                        <span className="text-sm text-slate-700 dark:text-slate-200">
+                          {option.label}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Transmission */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                Transmission Authorization
+              </label>
+
+              <select
+                value={driverLicenseTransmission}
+                onChange={(e) =>
+                  setDriverLicenseTransmission(
+                    e.target.value as "MANUAL" | "AUTOMATIC" | "BOTH" | "",
+                  )
+                }
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="">Select transmission</option>
+                <option value="MANUAL">Manual</option>
+                <option value="AUTOMATIC">Automatic</option>
+                <option value="BOTH">Manual & Automatic</option>
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLicenseModal(false);
+                  setSelectedPersonnelForLicense(null);
+                }}
+                className="rounded-xl px-4 py-2.5 font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveLicense}
+                className="rounded-xl bg-blue-600 px-5 py-2.5 font-semibold text-white hover:bg-blue-700"
+              >
+                Save License
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

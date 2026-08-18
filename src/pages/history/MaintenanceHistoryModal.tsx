@@ -130,14 +130,14 @@ export default function MaintenanceHistoryModal({
                     : "-"}
                 </p>
 
-                <p>Remaining day/s: {item.days_remaining}</p>
-
                 <p>
                   Remaining km:{" "}
                   {item.km_remaining != null
                     ? `${item.km_remaining.toLocaleString()} km`
                     : "-"}
                 </p>
+
+                <p>Remaining day/s: {item.days_remaining}</p>
 
                 <p>
                   Status:{" "}

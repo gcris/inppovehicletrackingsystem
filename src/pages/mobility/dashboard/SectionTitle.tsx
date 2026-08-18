@@ -10,7 +10,7 @@ export default function SectionTitle({ title, subtitle }: Props) {
     <div className="mb-5 flex items-center justify-between">
       <div>
         <div className="flex items-center gap-3">
-          <h2 className="text-2xl font-bold">{title}</h2>
+          <p className="text-2xl font-bold">{title}</p>
         </div>
 
         {subtitle && (

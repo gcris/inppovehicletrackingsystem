@@ -660,7 +660,7 @@ export default function RegisterPage() {
                     {/* Date Issued */}
                     <div className="space-y-2">
                       <label className="block font-medium text-slate-700 dark:text-slate-200">
-                        Date Issued
+                        PNP ID Date Issued
                       </label>
 
                       <input
@@ -690,7 +690,7 @@ export default function RegisterPage() {
                     {/* Expiration Date */}
                     <div className="space-y-2">
                       <label className="block font-medium text-slate-700 dark:text-slate-200">
-                        Expiration Date
+                        PNP ID Expiration Date
                       </label>
 
                       <input
@@ -722,7 +722,7 @@ export default function RegisterPage() {
                     {/* ID Card Number */}
                     <div className="space-y-2">
                       <label className="block font-medium text-slate-700 dark:text-slate-200">
-                        ID Card Number
+                        PNP ID Card Number
                       </label>
 
                       <input

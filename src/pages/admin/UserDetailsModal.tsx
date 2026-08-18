@@ -43,13 +43,7 @@ export default function UserDetailsModal({ open, onClose, user }: Props) {
         <div className="flex flex-col gap-6 p-6 md:flex-row">
           <div className="flex flex-col items-center">
             <img
-              src={
-                user.photo_url
-                  ? supabase.storage
-                      .from("personnel-photos")
-                      .getPublicUrl(user.photo_url).data.publicUrl
-                  : "/avatar.png"
-              }
+              src={user.photo_url ? user.photo_url : "/avatar.png"}
               className="h-36 w-36 rounded-full border object-cover"
               alt={user.fullname}
             />

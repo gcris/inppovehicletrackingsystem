@@ -225,6 +225,12 @@ export default function MaintenanceHistoryFormModal({
     }));
   };
 
+  const lastOdometer = (id: string) => {
+    const data = filteredMobility.find((mob) => mob.id === id);
+
+    return data?.current_odometer;
+  };
+
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
 
@@ -401,9 +407,12 @@ export default function MaintenanceHistoryFormModal({
 
                 <select
                   value={formData.mobility_asset_id}
-                  onChange={(e) =>
-                    handleChange("mobility_asset_id", e.target.value)
-                  }
+                  onChange={(e) => {
+                    handleChange("mobility_asset_id", e.target.value);
+                    const odoMeter = lastOdometer(e.target.value);
+                    console.log("odoMeter: ", odoMeter);
+                    formData.last_service_odometer = odoMeter ?? 0;
+                  }}
                   className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
                       ${
                         errors.mobility_asset_id
@@ -561,7 +570,7 @@ export default function MaintenanceHistoryFormModal({
                     Car Service Center (CASA)
                   </option>
                   <option value="Mechanic Shop">Mechanic Shop</option>
-                  <option value="DY Mechanic">DY Mechanic</option>
+                  <option value="DIY Mechanic">DIY Mechanic</option>
                 </select>
                 {errors.service_center && (
                   <p className="mt-1 text-red-500">{errors.service_center}</p>
