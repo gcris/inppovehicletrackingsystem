@@ -20,7 +20,7 @@ import { format, parseISO } from "date-fns";
 import ConfirmDeleteModal from "../../helper/ConfirmDeleteModal";
 
 export default function VehicleInspectionPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, unitId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [inspections, setInspections] = useState<VehicleInspection[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -92,13 +92,11 @@ export default function VehicleInspectionPage() {
             description
           ),
           designated_driver:personnel!vehicle_inspections_designated_driver_id_fkey(
-            id,
-            fullname,
+            *,
             rank(*)
           ),
           alternate_driver:personnel!vehicle_inspections_alternate_driver_id_fkey(
-            id,
-            fullname,
+            *,
             rank(*)
           ),
           unit:unit!vehicle_inspections_unit_id_fkey(
@@ -113,6 +111,8 @@ export default function VehicleInspectionPage() {
 
     if (isAdmin) {
       inspections.order("unit_id", { ascending: true });
+    } else {
+      inspections.eq("unit_id", unitId);
     }
 
     const { data, error } = await inspections;
@@ -267,18 +267,20 @@ export default function VehicleInspectionPage() {
             />
           </div>
 
-          <select
-            value={selectedUnit}
-            onChange={(e) => setSelectedUnit(e.target.value)}
-            className="w-full sm:w-[200px] rounded-xl border border-slate-300 px-4 py-3 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-          >
-            <option value="">All Unit/Station</option>
-            {units.map((unit) => (
-              <option key={unit.id} value={unit.id}>
-                {unit.unit_name}
-              </option>
-            ))}
-          </select>
+          {isAdmin && (
+            <select
+              value={selectedUnit}
+              onChange={(e) => setSelectedUnit(e.target.value)}
+              className="w-full sm:w-[200px] rounded-xl border border-slate-300 px-4 py-3 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+            >
+              <option value="">All Unit/Station</option>
+              {units.map((unit) => (
+                <option key={unit.id} value={unit.id}>
+                  {unit.unit_name}
+                </option>
+              ))}
+            </select>
+          )}
 
           {/* Status Filter */}
           <select
@@ -302,16 +304,18 @@ export default function VehicleInspectionPage() {
           </button>
 
           {/* New Inspection Button */}
-          <button
-            onClick={() => {
-              setSelectedInspection(null);
-              setShowFormModal(true);
-            }}
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-white transition hover:bg-blue-700"
-          >
-            <Plus className="h-5 w-5" />
-            New
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setSelectedInspection(null);
+                setShowFormModal(true);
+              }}
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-white transition hover:bg-blue-700"
+            >
+              <Plus className="h-5 w-5" />
+              New
+            </button>
+          )}
         </div>
       </div>
 
@@ -465,46 +469,50 @@ export default function VehicleInspectionPage() {
                           <div className="h-2 w-2 -mt-1 rotate-45 border-r border-b border-slate-800 bg-slate-900 dark:border-slate-200 dark:bg-slate-100" />
                         </div>
                       </div>
-                      <div className="group relative inline-block">
-                        <button
-                          onClick={() => {
-                            setSelectedInspection(inspection);
-                            setShowFormModal(true);
-                          }}
-                          className="rounded-lg border border-slate-300 p-2 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-                        >
-                          <Edit2 className="h-5 w-5" />
-                        </button>
+                      {isAdmin && (
+                        <>
+                          <div className="group relative inline-block">
+                            <button
+                              onClick={() => {
+                                setSelectedInspection(inspection);
+                                setShowFormModal(true);
+                              }}
+                              className="rounded-lg border border-slate-300 p-2 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                            >
+                              <Edit2 className="h-5 w-5" />
+                            </button>
 
-                        <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden -translate-x-1/2 flex-col items-center group-hover:flex">
-                          <div className="rounded-md border border-slate-800 bg-slate-900 px-2.5 py-1 font-medium whitespace-nowrap text-slate-100 shadow-md dark:border-slate-200 dark:bg-slate-100 dark:text-slate-900">
-                            Update Inspection
+                            <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden -translate-x-1/2 flex-col items-center group-hover:flex">
+                              <div className="rounded-md border border-slate-800 bg-slate-900 px-2.5 py-1 font-medium whitespace-nowrap text-slate-100 shadow-md dark:border-slate-200 dark:bg-slate-100 dark:text-slate-900">
+                                Update Inspection
+                              </div>
+
+                              <div className="h-2 w-2 -mt-1 rotate-45 border-r border-b border-slate-800 bg-slate-900 dark:border-slate-200 dark:bg-slate-100" />
+                            </div>
                           </div>
 
-                          <div className="h-2 w-2 -mt-1 rotate-45 border-r border-b border-slate-800 bg-slate-900 dark:border-slate-200 dark:bg-slate-100" />
-                        </div>
-                      </div>
+                          <div className="group relative inline-block">
+                            <button
+                              onClick={() => {
+                                setSelectedId(inspection.id);
+                                setError("");
+                                setShowDeleteModal(true);
+                              }}
+                              className="rounded-lg border border-red-300 p-2 text-red-600 hover:bg-red-50 dark:border-red-700 dark:hover:bg-red-900/20"
+                            >
+                              <Trash2 className="h-5 w-5" />
+                            </button>
 
-                      <div className="group relative inline-block">
-                        <button
-                          onClick={() => {
-                            setSelectedId(inspection.id);
-                            setError("");
-                            setShowDeleteModal(true);
-                          }}
-                          className="rounded-lg border border-red-300 p-2 text-red-600 hover:bg-red-50 dark:border-red-700 dark:hover:bg-red-900/20"
-                        >
-                          <Trash2 className="h-5 w-5" />
-                        </button>
+                            <div className="pointer-events-none absolute bottom-full right-0 z-50 mb-2 hidden flex-col items-end group-hover:flex">
+                              <div className="rounded-md border border-slate-800 bg-slate-900 px-2.5 py-1 font-medium whitespace-nowrap text-slate-100 shadow-md dark:border-slate-200 dark:bg-slate-100 dark:text-slate-900">
+                                Delete Inspection
+                              </div>
 
-                        <div className="pointer-events-none absolute bottom-full right-0 z-50 mb-2 hidden flex-col items-end group-hover:flex">
-                          <div className="rounded-md border border-slate-800 bg-slate-900 px-2.5 py-1 font-medium whitespace-nowrap text-slate-100 shadow-md dark:border-slate-200 dark:bg-slate-100 dark:text-slate-900">
-                            Delete Inspection
+                              <div className="mr-3 h-2 w-2 -mt-1 rotate-45 border-r border-b border-slate-800 bg-slate-900 dark:border-slate-200 dark:bg-slate-100" />
+                            </div>
                           </div>
-
-                          <div className="mr-3 h-2 w-2 -mt-1 rotate-45 border-r border-b border-slate-800 bg-slate-900 dark:border-slate-200 dark:bg-slate-100" />
-                        </div>
-                      </div>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

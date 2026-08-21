@@ -1,5 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase, MobilityAsset, Personnel, Unit } from "../../lib/supabase";
+import {
+  supabase,
+  MobilityAsset,
+  Personnel,
+  Unit,
+  MobilityPhoto,
+} from "../../lib/supabase";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../components/AuthProvider";
 import {
@@ -10,6 +16,7 @@ import {
   X,
   AlertCircle,
   Table,
+  FileSpreadsheet,
 } from "lucide-react";
 import MobilityFormModal from "./MobilityFormModal";
 import {
@@ -19,6 +26,12 @@ import {
 import MaintenanceHistoryModal from "../history/MaintenanceHistoryModal";
 import MobilityTable from "./MobilityTable";
 import ConfirmDeleteModal from "../../helper/ConfirmDeleteModal";
+import MobilityAssetViewModal from "./MobilityAssetViewModal";
+import DriverLicenseModal, {
+  DriverLicensePersonnel,
+} from "./DriverLicenseModal";
+
+import * as XLSX from "xlsx";
 
 type VehicleForm = {
   plate_number: string;
@@ -46,6 +59,9 @@ type VehicleForm = {
 
   driver_id: string;
   remarks: string;
+
+  photos: File[];
+  //existing_photos: MobilityPhoto[];
 };
 
 const emptyForm: VehicleForm = {
@@ -75,7 +91,12 @@ const emptyForm: VehicleForm = {
 
   driver_id: "",
   remarks: "",
+
+  photos: [],
+  //existing_photos: [],
 };
+
+type DriverLicenseModalMode = "view" | "edit";
 
 export default function MobilityAssetsPage() {
   const navigate = useNavigate();
@@ -113,6 +134,173 @@ export default function MobilityAssetsPage() {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(
     null,
   );
+  const [mobilityPhotos, setMobilityPhotos] = useState<File[]>([]);
+
+  const [existingMobilityPhotos, setExistingMobilityPhotos] = useState<
+    MobilityPhoto[]
+  >([]);
+
+  const [viewAsset, setViewAsset] = useState<MobilityAsset | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
+  const [selectedDriverForLicense, setSelectedDriverForLicense] =
+    useState<DriverLicensePersonnel | null>(null);
+  const [licenseModalMode, setLicenseModalMode] =
+    useState<DriverLicenseModalMode>("view");
+
+  const [showDriverLicenseModal, setShowDriverLicenseModal] = useState(false);
+
+  const handleCloseView = () => {
+    setIsViewModalOpen(false);
+    setViewAsset(null);
+  };
+
+  const handleView = (asset: MobilityAsset) => {
+    setViewAsset(asset);
+    setIsViewModalOpen(true);
+  };
+
+  const handleViewDriverLicense = (driver: Personnel | null | undefined) => {
+    if (!driver) return;
+
+    setSelectedDriverForLicense({
+      id: driver.id,
+      rank: driver.rank?.rank_name ?? "",
+      fullname: driver.fullname,
+
+      drivers_license_no: driver.drivers_license_no ?? null,
+
+      drivers_license_expiration: driver.drivers_license_expiration ?? null,
+
+      drivers_license_type: driver.drivers_license_type ?? null,
+
+      drivers_license_transmission: driver.drivers_license_transmission ?? null,
+
+      drivers_license_restrictions: driver.drivers_license_restrictions ?? null,
+
+      drivers_license_photo_path: driver.drivers_license_photo_path ?? null,
+    });
+    setShowDriverLicenseModal(true);
+  };
+
+  const handleSaveDriverLicense = async (data: {
+    drivers_license_no: string;
+    drivers_license_expiration: string;
+    drivers_license_type: string;
+    drivers_license_transmission: "MANUAL" | "AUTOMATIC" | "BOTH";
+    drivers_license_restrictions: string[];
+    drivers_license_photo: File | null;
+  }) => {
+    if (!selectedDriverForLicense) return;
+    let newPhotoPath: string | null = null;
+
+    try {
+      /*
+       * 1. Upload the new photo if one was selected
+       */
+      if (data.drivers_license_photo) {
+        const file = data.drivers_license_photo;
+
+        const fileExtension =
+          file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+
+        const fileName = `${crypto.randomUUID()}.${fileExtension}`;
+
+        /*
+         * You can organize the files by personnel ID.
+         */
+        newPhotoPath = `${selectedDriverForLicense?.id}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("drivers-licenses")
+          .upload(newPhotoPath, file, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: file.type,
+          });
+
+        if (uploadError) {
+          throw uploadError;
+        }
+      }
+
+      /*
+       * 2. Update the personnel record
+       */
+      const { error: updateError } = await supabase
+        .from("personnel")
+        .update({
+          drivers_license_no: data.drivers_license_no,
+
+          drivers_license_expiration: data.drivers_license_expiration,
+
+          drivers_license_type: data.drivers_license_type,
+
+          drivers_license_transmission: data.drivers_license_transmission,
+
+          drivers_license_restrictions: data.drivers_license_restrictions,
+
+          /*
+           * Only replace the path if a new photo
+           * was actually uploaded.
+           */
+          ...(newPhotoPath
+            ? {
+                drivers_license_photo_path: newPhotoPath,
+              }
+            : {}),
+        })
+        .eq("id", selectedDriverForLicense?.id);
+
+      if (updateError) {
+        /*
+         * Database update failed.
+         *
+         * Delete the newly uploaded photo so
+         * we don't leave an orphaned file.
+         */
+        if (newPhotoPath) {
+          await supabase.storage
+            .from("drivers-licenses")
+            .remove([newPhotoPath]);
+        }
+
+        throw updateError;
+      }
+
+      /*
+       * 3. Delete the OLD photo only after
+       *    everything succeeded.
+       */
+      if (newPhotoPath && selectedDriverForLicense.existing_photo_path) {
+        const { error: deleteError } = await supabase.storage
+          .from("drivers-licenses")
+          .remove([selectedDriverForLicense.existing_photo_path]);
+
+        if (deleteError) {
+          /*
+           * Don't fail the whole save because
+           * the database and new image are already
+           * successfully saved.
+           */
+          console.error(
+            "Failed to delete old driver's license photo:",
+            deleteError,
+          );
+        }
+      }
+
+      setLicenseModalMode("view");
+      setSelectedDriverForLicense(null);
+      setSuccess("Successfully saved!");
+
+      await fetchMobility();
+    } catch (error) {
+      console.error("Failed to save driver's license:", error);
+
+      throw error;
+    }
+  };
 
   useEffect(() => {
     if (!isAdmin && unitId) {
@@ -230,6 +418,9 @@ export default function MobilityAssetsPage() {
             *,
             maintenance_type:maintenance_types(*)
           )
+        ),
+        photos: mobility_photos(
+          *
         )
       `,
       )
@@ -416,7 +607,7 @@ export default function MobilityAssetsPage() {
     });
   };
 
-  const populateForm = (vehicle: MobilityAsset) => {
+  const populateForm = async (vehicle: MobilityAsset) => {
     setFormData({
       plate_number: vehicle.plate_number ?? "",
       vehicle_type: vehicle.vehicle_type ?? "",
@@ -445,7 +636,24 @@ export default function MobilityAssetsPage() {
 
       driver_id: vehicle.driver_id ?? "",
       remarks: vehicle.remarks ?? "",
+
+      photos: [],
     });
+
+    setExistingMobilityPhotos(vehicle.photos);
+    // Load existing photos
+    const { data: photos, error } = await supabase
+      .from("mobility_photos")
+      .select("*")
+      .eq("mobility_id", vehicle.id)
+      .order("photo_order", { ascending: true });
+
+    if (error) {
+      console.error("Error loading mobility photos:", error);
+      setExistingMobilityPhotos([]);
+    } else {
+      setExistingMobilityPhotos(photos ?? []);
+    }
 
     setEditingVehicle(vehicle);
   };
@@ -470,35 +678,62 @@ export default function MobilityAssetsPage() {
     e.preventDefault();
 
     try {
+      // Separate photos because they do NOT belong
+      // to the mobility_assets table.
+      const { photos, ...mobilityData } = formData;
+
       const mobility_asset = {
-        ...formData,
+        ...mobilityData,
+
         description: formData.description || null,
         year_model: formData.year_model || null,
         or_number: formData.or_number || null,
         cr_number: formData.cr_number || null,
         engine_number: formData.engine_number || null,
         chassis_number: formData.chassis_number || null,
+
         date_of_last_registration: formData.date_of_last_registration || null,
+
         date_registration_expires: formData.date_registration_expires || null,
+
         insurance_provider: formData.insurance_provider || null,
+
         insurance_coverage_date: formData.insurance_coverage_date || null,
+
         driver_id: formData.driver_id || null,
+
         updated_by: profile?.id,
-        remarks: formData.remarks,
+
+        remarks: formData.remarks || null,
       };
 
-      const { error } = await supabase
+      // 1. Create mobility asset
+      const { data, error } = await supabase
         .from("mobility_assets")
-        .insert([mobility_asset]);
+        .insert([mobility_asset])
+        .select("id")
+        .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
-      closeModal();
+      // 2. Upload photos after mobility has been created
+      if (photos.length > 0) {
+        await uploadMobilityPhotos(data.id, photos);
+      }
 
+      // 3. Refresh mobility list
       await fetchMobility();
+
       setSuccess("Successfully added!");
+
+      // 4. Close modal
+      closeModal();
     } catch (err: any) {
-      alert(err.message);
+      console.error("Failed to add mobility:", err);
+
+      alert(err.message || "Failed to add mobility.");
     }
   };
 
@@ -508,34 +743,168 @@ export default function MobilityAssetsPage() {
     if (!editingVehicle) return;
 
     try {
+      // Separate photos from the mobility_assets data.
+      // `photos` belongs to mobility_photos / Storage,
+      // NOT mobility_assets.
+      const { photos, ...mobilityData } = formData;
+
       const { error } = await supabase
         .from("mobility_assets")
         .update({
-          ...formData,
+          ...mobilityData,
+
           description: formData.description || null,
           year_model: formData.year_model || null,
           or_number: formData.or_number || null,
           cr_number: formData.cr_number || null,
           engine_number: formData.engine_number || null,
           chassis_number: formData.chassis_number || null,
+
           date_of_last_registration: formData.date_of_last_registration || null,
+
           date_registration_expires: formData.date_registration_expires || null,
+
           insurance_provider: formData.insurance_provider || null,
+
           insurance_coverage_date: formData.insurance_coverage_date || null,
+
           driver_id: formData.driver_id || null,
+
           updated_by: profile?.id,
-          remarks: formData.remarks,
+
+          remarks: formData.remarks || null,
         })
         .eq("id", editingVehicle.id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
+
+      // Only replace the existing photos if the user
+      // selected new photos.
+      if (photos.length > 0) {
+        // await deleteMobilityPhotos(editingVehicle.id);
+
+        await uploadMobilityPhotos(editingVehicle.id, photos);
+      }
 
       await fetchMobility();
+
       setSuccess("Successfully updated!");
 
       closeModal();
     } catch (err: any) {
-      alert(err.message);
+      console.error("Failed to update mobility:", err);
+
+      alert(err.message || "Failed to update mobility.");
+    }
+  };
+
+  const uploadMobilityPhotos = async (mobilityId: string, files: File[]) => {
+    if (!files.length) return;
+
+    // Get existing photos first
+    const { data: existingPhotos, error: existingError } = await supabase
+      .from("mobility_photos")
+      .select("photo_order")
+      .eq("mobility_id", mobilityId)
+      .order("photo_order", { ascending: true });
+
+    if (existingError) throw existingError;
+
+    const usedOrders = new Set(
+      (existingPhotos ?? []).map((photo) => photo.photo_order),
+    );
+
+    // Find available slots from 1 to 4
+    const availableOrders = [1, 2, 3, 4].filter(
+      (order) => !usedOrders.has(order),
+    );
+
+    if (files.length > availableOrders.length) {
+      throw new Error(
+        `Only ${availableOrders.length} photo slot(s) remaining. Maximum is 4 photos.`,
+      );
+    }
+
+    const records = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const photoOrder = availableOrders[i];
+
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+
+      const filePath = `${mobilityId}/${photoOrder}-${crypto.randomUUID()}.${extension}`;
+
+      // Upload to Storage
+      const { error: uploadError } = await supabase.storage
+        .from("mobility-photos")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      records.push({
+        mobility_id: mobilityId,
+        storage_path: filePath,
+        photo_order: photoOrder,
+      });
+    }
+
+    // Insert database records
+    const { error: insertError } = await supabase
+      .from("mobility_photos")
+      .insert(records);
+
+    if (insertError) {
+      // Clean up uploaded files if DB insert fails
+      await supabase.storage
+        .from("mobility-photos")
+        .remove(records.map((record) => record.storage_path));
+
+      throw insertError;
+    }
+  };
+
+  const handleRemoveExistingPhoto = async (photo: MobilityPhoto) => {
+    if (!photo.id) return;
+
+    if (!window.confirm(`Are you sure you want to this photo?`)) {
+      return;
+    }
+
+    try {
+      // Delete the actual file from Supabase Storage
+      const { error: storageError } = await supabase.storage
+        .from("mobility-photos")
+        .remove([photo.storage_path]);
+
+      if (storageError) {
+        throw storageError;
+      }
+
+      // Delete the database record
+      const { error: dbError } = await supabase
+        .from("mobility_photos")
+        .delete()
+        .eq("id", photo.id);
+
+      if (dbError) {
+        throw dbError;
+      }
+
+      // Remove it from the UI immediately
+      setExistingMobilityPhotos((prev) =>
+        prev.filter((item) => item.id !== photo.id),
+      );
+    } catch (error: any) {
+      console.error("Error removing mobility photo:", error);
+      alert(error.message || "Failed to remove photo.");
     }
   };
 
@@ -616,10 +985,62 @@ export default function MobilityAssetsPage() {
     return target >= new Date() && target <= warning;
   };
 
-  const handleOpenMaintenance = useCallback((vehicle: MobilityAsset) => {
-    setSelectedVehicle(vehicle);
-    setShowMaintenanceModal(true);
-  }, []);
+  const handleExportExcel = () => {
+    if (!vehicles.length) {
+      setError("No data available to export.");
+      return;
+    }
+
+    try {
+      const exportData = vehicles.map((vehicle) => ({
+        "Plate Number": vehicle.plate_number || "-",
+        "Mobility Type": vehicle.vehicle_type || "-",
+        Description: vehicle.description || "-",
+        "Year Model": vehicle.year_model || "-",
+        Source: vehicle.source || "-",
+        Status: vehicle.status || "-",
+
+        "Unit/Station": vehicle.unit?.unit_name || "-",
+
+        "Official Driver": vehicle.driver
+          ? `${vehicle.driver.rank?.rank_name ?? ""} ${
+              vehicle.driver.fullname ?? ""
+            }`.trim()
+          : "-",
+
+        "Current Odometer": vehicle.current_odometer ?? 0,
+
+        "OR Number": vehicle.or_number || "-",
+        "CR Number": vehicle.cr_number || "-",
+
+        "Engine Number": vehicle.engine_number || "-",
+        "Chassis Number": vehicle.chassis_number || "-",
+
+        "Last Registration": vehicle.date_of_last_registration || "-",
+        "Registration Expires": vehicle.date_registration_expires || "-",
+
+        "Insurance Provider": vehicle.insurance_provider || "-",
+        "Insurance Coverage Until": vehicle.insurance_coverage_date || "-",
+
+        Remarks: vehicle.remarks || "-",
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+      const workbook = XLSX.utils.book_new();
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Mobility Assets");
+
+      XLSX.writeFile(
+        workbook,
+        `Mobility_Assets_${new Date().toISOString().split("T")[0]}.xlsx`,
+      );
+
+      setSuccess("Successfully exported.");
+    } catch (error) {
+      setError("Cannot export data: " + error);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6 px-1">
@@ -689,6 +1110,15 @@ export default function MobilityAssetsPage() {
             <Plus className="w-4 h-4" />
             New
           </button>
+
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 font-semibold text-white transition hover:bg-green-700"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Export
+          </button>
         </div>
       </div>
 
@@ -728,10 +1158,11 @@ export default function MobilityAssetsPage() {
                   setError("");
                   setShowDeleteModal(true);
                 }}
-                onOpenMaintenance={handleOpenMaintenance}
                 getStatusColor={getStatusColor}
                 isExpired={isExpired}
                 isExpiringSoon={isExpiringSoon}
+                handleView={handleView}
+                handleViewDriverLicense={handleViewDriverLicense}
                 currentPage={currentPage}
                 pageSize={PAGE_SIZE}
               />
@@ -837,14 +1268,22 @@ export default function MobilityAssetsPage() {
         open={showAddModal || !!editingVehicle}
         editingVehicle={!!editingVehicle}
         formData={formData}
-        isAdmin={isAdmin}
-        unitId={unitId!}
+        mobilityPhotos={mobilityPhotos}
+        existingPhotos={existingMobilityPhotos}
+        onPersonnelUpdated={(updatedPersonnel) => {
+          setPersonnelList((prev) =>
+            prev.map((person) =>
+              person.id === updatedPersonnel.id ? updatedPersonnel : person,
+            ),
+          );
+        }}
         unitList={unitList}
         personnelList={personnelList}
         closeModal={closeModal}
         handleInputChange={handleInputChange}
         handleAddVehicle={handleAddMobility}
         handleUpdateVehicle={handleUpdateVehicle}
+        handleRemoveExistingPhoto={handleRemoveExistingPhoto}
         getStatusColor={getStatusColor}
       />
 
@@ -868,6 +1307,27 @@ export default function MobilityAssetsPage() {
         }}
         onConfirm={handleConfirmDelete}
       />
+
+      <MobilityAssetViewModal
+        asset={viewAsset}
+        isOpen={isViewModalOpen}
+        onClose={handleCloseView}
+      />
+
+      {showDriverLicenseModal && selectedDriverForLicense && (
+        <DriverLicenseModal
+          personnel={selectedDriverForLicense}
+          mode={licenseModalMode}
+          onClose={() => {
+            setShowDriverLicenseModal(false);
+            setSelectedDriverForLicense(null);
+          }}
+          onSave={handleSaveDriverLicense}
+          onEdit={() => {
+            setLicenseModalMode("edit");
+          }}
+        />
+      )}
     </div>
   );
 }

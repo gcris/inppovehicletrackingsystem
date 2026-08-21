@@ -497,6 +497,7 @@ export default function MobilityDashboardPage() {
               border_color="border-amber-200 dark:border-amber-800"
               expiring_soon={statistics.registrationExpiringSoon}
               expired={statistics.registrationExpired}
+              link={"/reports/registration-status"}
             />
 
             <MobilityStatCard
@@ -506,6 +507,7 @@ export default function MobilityDashboardPage() {
               border_color="border-sky-200 dark:border-sky-800"
               expiring_soon={statistics.insuranceExpiringSoon}
               expired={statistics.insuranceExpired}
+              link={"/reports/insurance-status"}
             />
 
             <MobilityStatCard
@@ -515,7 +517,7 @@ export default function MobilityDashboardPage() {
               border_color="border-slate-200 dark:border-slate-300"
               expiring_soon={statistics.dueSoon}
               expired={statistics.overdue}
-              link={"/mobility-maintenance"}
+              link={"/reports/pms"}
             />
           </div>
         </div>

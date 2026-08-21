@@ -265,8 +265,8 @@ export default function RegisterPage() {
         if (
           personnel.rank_id !== formData.rankId ||
           personnel.fullname.trim() !== formData.fullname.trim() ||
-          personnel.unit_id !== formData.unitId ||
-          personnel.designation.trim() !== formData.designation.trim()
+          personnel.unit_id !== formData.unitId
+          // personnel.designation.trim() !== formData.designation.trim()
         ) {
           setError(
             "Personnel information does not match our records. Please contact your administrator.",
@@ -297,6 +297,9 @@ export default function RegisterPage() {
           formData.phoneNumber,
           formData.viberNumber,
           formData.photoUrl || null,
+          formData.id_card_number,
+          formData.date_issued,
+          formData.expiration_date,
         );
 
         if (linkError) throw linkError;
@@ -324,8 +327,8 @@ export default function RegisterPage() {
   if (success) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 transition-colors">
-        {/* Added text-center here to align the heading and paragraph, and flex/flex-col/items-center to align the button */}
-        <div className="w-full bg-white dark:bg-slate-900 rounded-3xl shadow-xl shadow-blue-500/5 p-8 border border-slate-100 dark:border-slate-800 transition-colors flex flex-col overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 scrollbar-track-transparent">
+        {/* Added max-w-md and text-center */}
+        <div className="w-full max-w-md text-center bg-white dark:bg-slate-900 rounded-3xl shadow-xl shadow-blue-500/5 p-8 border border-slate-100 dark:border-slate-800 transition-colors flex flex-col items-center overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 scrollbar-track-transparent">
           <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle2 className="w-10 h-10 text-green-600 dark:text-green-500" />
           </div>
@@ -338,7 +341,6 @@ export default function RegisterPage() {
             Registration successful. Redirecting to login...
           </p>
 
-          {/* Changed inline-flex to flex so it stays perfectly centered within the parent container */}
           <Link
             to="/login"
             className="flex items-center justify-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl font-black hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none w-fit"
@@ -805,7 +807,7 @@ export default function RegisterPage() {
                         onChange={(e) =>
                           setFormData({
                             ...formData,
-                            fullname: e.target.value.trim(),
+                            fullname: e.target.value,
                           })
                         }
                         placeholder="Enter your full name"

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { X, CheckCircle2, XCircle, MinusCircle } from "lucide-react";
 
 import {
+  Personnel,
   VehicleInspection,
   VehicleInspectionCategory,
   VehicleInspectionItem,
@@ -9,6 +10,9 @@ import {
 } from "../../lib/supabase";
 
 import { useReactToPrint } from "react-to-print";
+import DriverLicenseModal, {
+  DriverLicensePersonnel,
+} from "../mobility/DriverLicenseModal";
 
 interface InspectionResult {
   id: string;
@@ -37,6 +41,9 @@ export default function InspectionViewModal({
   const [categories, setCategories] = useState<VehicleInspectionCategory[]>([]);
   const [results, setResults] = useState<InspectionResult[]>([]);
   const reportRef = useRef<HTMLDivElement>(null);
+  const [selectedDriverForLicense, setSelectedDriverForLicense] =
+    useState<DriverLicensePersonnel | null>(null);
+  const [showDriverLicenseModal, setShowDriverLicenseModal] = useState(false);
 
   const handlePrint = useReactToPrint({
     contentRef: reportRef,
@@ -152,6 +159,29 @@ export default function InspectionViewModal({
           </span>
         );
     }
+  };
+
+  const handleViewDriverLicense = (driver: Personnel | null | undefined) => {
+    if (!driver) return;
+
+    setSelectedDriverForLicense({
+      id: driver.id,
+      rank: driver.rank?.rank_name ?? "",
+      fullname: driver.fullname,
+
+      drivers_license_no: driver.drivers_license_no ?? null,
+
+      drivers_license_expiration: driver.drivers_license_expiration ?? null,
+
+      drivers_license_type: driver.drivers_license_type ?? null,
+
+      drivers_license_transmission: driver.drivers_license_transmission ?? null,
+
+      drivers_license_restrictions: driver.drivers_license_restrictions ?? null,
+
+      drivers_license_photo_path: driver.drivers_license_photo_path ?? null,
+    });
+    setShowDriverLicenseModal(true);
   };
 
   if (loading) {
@@ -290,10 +320,20 @@ export default function InspectionViewModal({
                     Designated Driver
                   </div>
 
-                  <div className="mt-1 font-semibold">
-                    {inspection.designated_driver?.rank?.rank_name}{" "}
-                    {inspection.designated_driver?.fullname ?? "-"}
-                  </div>
+                  {inspection.designated_driver ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleViewDriverLicense(inspection.designated_driver)
+                      }
+                      className="mt-1 text-left font-semibold text-blue-600 transition hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+                    >
+                      {inspection.designated_driver.rank?.rank_name}{" "}
+                      {inspection.designated_driver.fullname}
+                    </button>
+                  ) : (
+                    <div className="mt-1 font-semibold text-slate-400">-</div>
+                  )}
                 </div>
 
                 <div>
@@ -301,10 +341,20 @@ export default function InspectionViewModal({
                     Alternate Driver
                   </div>
 
-                  <div className="mt-1 font-semibold">
-                    {inspection.alternate_driver?.rank?.rank_name}{" "}
-                    {inspection.alternate_driver?.fullname ?? "-"}
-                  </div>
+                  {inspection.alternate_driver ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleViewDriverLicense(inspection.alternate_driver)
+                      }
+                      className="mt-1 text-left font-semibold text-blue-600 transition hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+                    >
+                      {inspection.alternate_driver.rank?.rank_name}{" "}
+                      {inspection.alternate_driver.fullname}
+                    </button>
+                  ) : (
+                    <div className="mt-1 font-semibold text-slate-400">-</div>
+                  )}
                 </div>
               </div>
 
@@ -445,6 +495,16 @@ export default function InspectionViewModal({
           </div>
         </div>
       </div>
+      {showDriverLicenseModal && selectedDriverForLicense && (
+        <DriverLicenseModal
+          personnel={selectedDriverForLicense}
+          mode="view"
+          onClose={() => {
+            setShowDriverLicenseModal(false);
+            setSelectedDriverForLicense(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,15 +1,16 @@
 import React, { memo } from "react";
 import MobilityRow from "./MobilityRow";
-import { MobilityAsset } from "../../lib/supabase";
+import { MobilityAsset, Personnel } from "../../lib/supabase";
 
 interface MobilityTableProps {
   vehicles: MobilityAsset[];
   onEdit: (vehicle: MobilityAsset) => void;
   onDelete: (id: string) => void;
-  onOpenMaintenance: (vehicle: MobilityAsset) => void;
   getStatusColor: (status: string) => string;
   isExpired: (date: string) => boolean;
   isExpiringSoon: (date: string) => boolean;
+  handleView: (asset: MobilityAsset) => void;
+  handleViewDriverLicense: (driver: Personnel) => void;
   currentPage: number;
   pageSize: number;
 }
@@ -18,10 +19,11 @@ function MobilityTable({
   vehicles,
   onEdit,
   onDelete,
-  onOpenMaintenance,
   getStatusColor,
   isExpired,
   isExpiringSoon,
+  handleView,
+  handleViewDriverLicense,
   pageSize,
   currentPage,
 }: MobilityTableProps) {
@@ -44,10 +46,11 @@ function MobilityTable({
             vehicle={vehicle}
             onEdit={onEdit}
             onDelete={onDelete}
-            onOpenMaintenance={onOpenMaintenance}
             getStatusColor={getStatusColor}
             isExpired={isExpired}
             isExpiringSoon={isExpiringSoon}
+            handleView={handleView}
+            handleViewDriverLicense={handleViewDriverLicense}
           />
         ))
       )}
@@ -59,7 +62,6 @@ export default memo(MobilityTable, (prevProps, nextProps) => {
   return (
     prevProps.vehicles === nextProps.vehicles &&
     prevProps.onEdit === nextProps.onEdit &&
-    prevProps.onDelete === nextProps.onDelete &&
-    prevProps.onOpenMaintenance === nextProps.onOpenMaintenance
+    prevProps.onDelete === nextProps.onDelete
   );
 });

@@ -2,6 +2,7 @@ import React, { memo, useCallback, useMemo } from "react";
 import { format, parseISO } from "date-fns";
 import { MaintenanceHistory, supabase } from "../../lib/supabase";
 import { Edit2, Image, Trash2 } from "lucide-react";
+import { useAuth } from "../../components/AuthProvider";
 
 interface MaintenanceHistoryRowProps {
   index: number;
@@ -59,6 +60,8 @@ const MaintenanceHistoryRow = ({
   const handleDelete = useCallback(() => {
     onDelete(history.id);
   }, [history.id, onDelete]);
+
+  const { isAdmin } = useAuth();
 
   return (
     <tr className="border-t border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50">

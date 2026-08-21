@@ -93,12 +93,12 @@ export default function LoginPage() {
             const { data: factorData } = await supabase.auth.mfa.enroll({
               factorType: "totp",
               issuer: "INPPO",
-              friendlyName: `Project J.O.E.M.A.R`,
+              friendlyName: `Project MOBILIS`,
             });
 
             if (factorData) {
               const localSecret = factorData.totp.secret;
-              const customLabel = `INPPO: Project J.O.E.M.A.R(${loggedInEmail})`;
+              const customLabel = `INPPO: Project MOBILIS(${loggedInEmail})`;
               const customUri = `otpauth://totp/${loggedInEmail}?secret=${localSecret}&issuer=${customLabel}&algorithm=SHA1&digits=6&period=30`;
 
               setMfaFactorId(factorData.id);
@@ -175,7 +175,7 @@ export default function LoginPage() {
           await supabase.auth.mfa.enroll({
             factorType: "totp",
             issuer: "INPPO",
-            friendlyName: "Project J.O.E.M.A.R",
+            friendlyName: "Project MOBILIS",
           });
         if (enrollError) {
           setError(
@@ -184,7 +184,7 @@ export default function LoginPage() {
           );
         } else if (factorData) {
           const localSecret = factorData.totp.secret;
-          const customLabel = `INPPO: Project J.O.E.M.A.R(${email})`;
+          const customLabel = `INPPO: Project MOBILIS(${email})`;
           const customUri = `otpauth://totp/${email}?secret=${localSecret}&issuer=${customLabel}&algorithm=SHA1&digits=6&period=30`;
 
           setMfaFactorId(factorData.id);
@@ -276,10 +276,9 @@ export default function LoginPage() {
                       </p>
 
                       <div className="flex justify-center bg-slate-50 dark:bg-white p-4 rounded-2xl mb-8 border border-slate-100">
-                        <img
-                          src="/assets/inppo_logo.png" // Replace with your logo path or imported logo variable
-                          alt="INPPO Logo"
-                          className="h-20 w-auto object-contain drop-shadow-md"
+                        <QRCode
+                          value={unenrolledMfaData?.qrCodeUrl}
+                          size={200}
                         />
                       </div>
 

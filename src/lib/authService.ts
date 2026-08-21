@@ -111,6 +111,9 @@ export const linkAuthUserToPersonnel = async (
   phone_number: string,
   viber_number: string,
   photoUrl: string | null,
+  id_card_number: string,
+  date_issued: string,
+  expiration_date: string,
 ) => {
   const { error } = await supabase
     .from("personnel")
@@ -119,6 +122,10 @@ export const linkAuthUserToPersonnel = async (
       photo_url: photoUrl,
       phone_number: phone_number,
       viber_number: viber_number,
+      id_card_number: id_card_number,
+      date_issued: date_issued,
+      expiration_date: expiration_date,
+      role: "supply",
     })
     .eq("badge_number", badgeNumber)
     .eq("rank_id", rankId)

@@ -35,7 +35,10 @@ import { Sidebar } from "./components/layout/Sidebar";
 import { useInactivityLogout } from "./hooks/useInactivityLogout";
 import AboutSection from "./pages/landing/mobility/AboutSection";
 import MobilisAboutUsPage from "./pages/MobilisAboutUsPage";
-import MobilityMaintenancePage from "./pages/mobility/MobilityMaintenancePage";
+import MobilityMaintenancePage from "./pages/reports/MobilityMaintenancePage";
+import InspectionComplianceReport from "./pages/reports/InspectionComplianceReport";
+import RegistrationStatusPage from "./pages/reports/RegistrationStatusPage";
+import InsuranceStatusPage from "./pages/reports/InsuranceStatusPage";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -149,7 +152,7 @@ function ProtectedRoute({
 }
 
 function Layout() {
-  useInactivityLogout(true);
+  // useInactivityLogout(true);
 
   const { user, profile, isAdmin, clearAuthCache } = useAuth();
   const theme = useTheme();
@@ -311,14 +314,6 @@ function Layout() {
                     element={<MobilityDashboardPage />}
                   />
                   <Route
-                    path="/reports/mobility-distribution"
-                    element={<MobilityDistributionPage />}
-                  />
-                  <Route
-                    path="/mobility-maintenance"
-                    element={<MobilityMaintenancePage />}
-                  />
-                  <Route
                     path="/mobility-assets"
                     element={<MobilityAssetsPage />}
                   />
@@ -334,6 +329,27 @@ function Layout() {
                   <Route
                     path="/mobilis-aboutus"
                     element={<MobilisAboutUsPage />}
+                  />
+
+                  <Route
+                    path="/reports/distribution"
+                    element={<MobilityDistributionPage />}
+                  />
+                  <Route
+                    path="reports/pms"
+                    element={<MobilityMaintenancePage />}
+                  />
+                  <Route
+                    path="reports/inspection"
+                    element={<InspectionComplianceReport />}
+                  />
+                  <Route
+                    path="reports/registration-status"
+                    element={<RegistrationStatusPage />}
+                  />
+                  <Route
+                    path="reports/insurance-status"
+                    element={<InsuranceStatusPage />}
                   />
                 </>
               )}

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { X, Save, RefreshCcw, ChevronDown } from "lucide-react";
+import { X, Save, RefreshCcw, ChevronDown, Check } from "lucide-react";
 
 import {
   MobilityAsset,
@@ -12,45 +12,9 @@ import {
 } from "../../lib/supabase";
 import e from "express";
 import { useAuth } from "../../components/AuthProvider";
-
-const driverLicenseRestrictionOptions = [
-  {
-    code: "A",
-    label: "A — Motorcycle",
-  },
-  {
-    code: "A1",
-    label: "A1 — Tricycle",
-  },
-  {
-    code: "B",
-    label: "B — Passenger Car",
-  },
-  {
-    code: "B1",
-    label: "B1 — Passenger Van / Jeepney",
-  },
-  {
-    code: "B2",
-    label: "B2 — Light Commercial Vehicle",
-  },
-  {
-    code: "BE",
-    label: "BE — Light Articulated Vehicle",
-  },
-  {
-    code: "C",
-    label: "C — Heavy Commercial Vehicle",
-  },
-  {
-    code: "CE",
-    label: "CE — Heavy Articulated Vehicle",
-  },
-  {
-    code: "D",
-    label: "D — Heavy Passenger Bus",
-  },
-];
+import DriverLicenseModal, {
+  DriverLicensePersonnel,
+} from "../mobility/DriverLicenseModal";
 
 interface Props {
   open: boolean;
@@ -80,6 +44,8 @@ export type InspectionFormData = {
   supervisor_name: string;
 };
 
+type DriverLicenseModalMode = "view" | "edit";
+
 export default function InspectionFormModal({
   open,
   onClose,
@@ -103,21 +69,12 @@ export default function InspectionFormModal({
   );
 
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
-  const [driverLicenseNo, setDriverLicenseNo] = useState("");
-  const [driverLicenseExpiration, setDriverLicenseExpiration] = useState("");
-  const [driversLicenseType, setDriversLicenseType] = useState("");
-  const [driverLicenseTransmission, setDriverLicenseTransmission] = useState<
-    "MANUAL" | "AUTOMATIC" | "BOTH" | ""
-  >("");
-  const [driverLicenseRestrictions, setDriverLicenseRestrictions] = useState<
-    string[]
-  >([]);
-  const [showRestrictionDropdown, setShowRestrictionDropdown] = useState(false);
-
-  const [selectedDriverId, setSelectedDriverId] = useState("");
   const [selectedPersonnelForLicense, setSelectedPersonnelForLicense] =
-    useState<Personnel | null>(null);
+    useState<DriverLicensePersonnel | null>(null);
   const [showLicenseModal, setShowLicenseModal] = useState(false);
+
+  const [licenseModalMode, setLicenseModalMode] =
+    useState<DriverLicenseModalMode>("view");
 
   useEffect(() => {
     if (categories.length > 0 && !activeCategoryId) {
@@ -203,12 +160,6 @@ export default function InspectionFormModal({
       return a.fullname.localeCompare(b.fullname);
     });
   }, [personnel, formData.unit_id]);
-
-  const filteredPersonnelExcludeDesignated = useMemo(() => {
-    return filteredPersonnel.filter(
-      (person) => person.id !== formData.designated_driver_id,
-    );
-  }, [filteredPersonnel, formData.designated_driver_id]);
 
   const loadPage = async () => {
     setLoading(true);
@@ -517,42 +468,178 @@ export default function InspectionFormModal({
 
   const isLastCategory = activeCategoryIndex === categoriesWithItems.length - 1;
 
-  const handleDriverChange = async (personnelId: string) => {
-    setSelectedDriverId(personnelId);
+  const handleDriverChange = (personnelId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      driver_id: personnelId || null,
+    }));
 
-    const personnel = filteredPersonnel.find((p) => p.id === personnelId);
+    if (!personnelId) return;
+
+    const personnel = filteredPersonnel.find(
+      (person) => person.id === personnelId,
+    );
 
     if (!personnel) return;
 
-    // Already has license information
-    if (personnel.drivers_license_no && personnel.drivers_license_expiration) {
-      return;
-    }
+    const hasCompleteLicenseInfo = hasDriverLicenseInfo(personnel);
 
-    // No license information
-    setSelectedPersonnelForLicense(personnel);
+    setSelectedPersonnelForLicense({
+      id: personnelId,
+      rank: personnel.rank?.rank_name ?? "",
+      fullname: personnel.fullname,
+      drivers_license_expiration: personnel.drivers_license_expiration,
+      drivers_license_no: personnel.drivers_license_no,
+      drivers_license_restrictions: personnel.drivers_license_restrictions,
+      drivers_license_type: personnel.drivers_license_type,
+      drivers_license_photo_path: personnel.drivers_license_photo_path,
+      drivers_license_transmission: personnel.drivers_license_transmission,
+      existing_photo_path: personnel.drivers_license_photo_path!,
+    });
+
+    setLicenseModalMode(hasCompleteLicenseInfo ? "view" : "edit");
     setShowLicenseModal(true);
   };
 
-  const handleSaveLicense = async () => {
+  const handleSaveDriverLicense = async (data: {
+    drivers_license_no: string;
+    drivers_license_expiration: string;
+    drivers_license_type: string;
+    drivers_license_transmission: "MANUAL" | "AUTOMATIC" | "BOTH";
+    drivers_license_restrictions: string[];
+    drivers_license_photo: File | null;
+  }) => {
     if (!selectedPersonnelForLicense) return;
+    let newPhotoPath: string | null = null;
 
     try {
-      const { error } = await supabase
+      /*
+       * 1. Upload the new photo if one was selected
+       */
+      if (data.drivers_license_photo) {
+        const file = data.drivers_license_photo;
+
+        const fileExtension =
+          file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+
+        const fileName = `${crypto.randomUUID()}.${fileExtension}`;
+
+        /*
+         * You can organize the files by personnel ID.
+         */
+        newPhotoPath = `${selectedPersonnelForLicense?.id}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("drivers-licenses")
+          .upload(newPhotoPath, file, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: file.type,
+          });
+
+        if (uploadError) {
+          throw uploadError;
+        }
+      }
+
+      /*
+       * 2. Update the personnel record
+       */
+      const { error: updateError } = await supabase
         .from("personnel")
         .update({
-          drivers_license_no: driverLicenseNo.trim(),
-          drivers_license_expiration: driverLicenseExpiration,
+          drivers_license_no: data.drivers_license_no,
+
+          drivers_license_expiration: data.drivers_license_expiration,
+
+          drivers_license_type: data.drivers_license_type,
+
+          drivers_license_transmission: data.drivers_license_transmission,
+
+          drivers_license_restrictions: data.drivers_license_restrictions,
+
+          /*
+           * Only replace the path if a new photo
+           * was actually uploaded.
+           */
+          ...(newPhotoPath
+            ? {
+                drivers_license_photo_path: newPhotoPath,
+              }
+            : {}),
         })
-        .eq("id", selectedPersonnelForLicense.id);
+        .eq("id", selectedPersonnelForLicense?.id);
 
-      if (error) throw error;
+      if (updateError) {
+        /*
+         * Database update failed.
+         *
+         * Delete the newly uploaded photo so
+         * we don't leave an orphaned file.
+         */
+        if (newPhotoPath) {
+          await supabase.storage
+            .from("drivers-licenses")
+            .remove([newPhotoPath]);
+        }
 
-      setShowLicenseModal(false);
-      setSelectedPersonnelForLicense(null);
+        throw updateError;
+      }
+
+      /*
+       * 3. Delete the OLD photo only after
+       *    everything succeeded.
+       */
+      if (newPhotoPath && selectedPersonnelForLicense.existing_photo_path) {
+        const { error: deleteError } = await supabase.storage
+          .from("drivers-licenses")
+          .remove([selectedPersonnelForLicense.existing_photo_path]);
+
+        if (deleteError) {
+          /*
+           * Don't fail the whole save because
+           * the database and new image are already
+           * successfully saved.
+           */
+          console.error(
+            "Failed to delete old driver's license photo:",
+            deleteError,
+          );
+        }
+      }
+
+      setPersonnel((prev) =>
+        prev.map((person) =>
+          person.id === selectedPersonnelForLicense.id
+            ? {
+                ...person,
+                drivers_license_no: data.drivers_license_no,
+                drivers_license_expiration: data.drivers_license_expiration,
+                drivers_license_type: data.drivers_license_type,
+                drivers_license_transmission: data.drivers_license_transmission,
+                drivers_license_restrictions: data.drivers_license_restrictions,
+                drivers_license_photo_path:
+                  newPhotoPath ?? person.drivers_license_photo_path,
+              }
+            : person,
+        ),
+      );
     } catch (error) {
       console.error("Failed to save driver's license:", error);
+
+      throw error;
     }
+  };
+
+  const hasDriverLicenseInfo = (person: Personnel) => {
+    return (
+      !!person.drivers_license_no &&
+      !!person.drivers_license_expiration &&
+      !!person.drivers_license_type &&
+      !!person.drivers_license_transmission &&
+      !!person.drivers_license_photo_path &&
+      (person.drivers_license_restrictions?.length ?? 0) > 0
+    );
   };
 
   if (loading) {
@@ -601,7 +688,7 @@ export default function InspectionFormModal({
               <button
                 type="button"
                 onClick={() => setActiveTab("mobility")}
-                className={`relative px-5 py-3 text-sm font-semibold transition ${
+                className={`relative px-5 py-3 font-semibold transition ${
                   activeTab === "mobility"
                     ? "text-blue-600 dark:text-blue-400"
                     : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
@@ -616,7 +703,7 @@ export default function InspectionFormModal({
               <button
                 type="button"
                 onClick={() => setActiveTab("checklist")}
-                className={`relative px-5 py-3 text-sm font-semibold transition ${
+                className={`relative px-5 py-3 font-semibold transition ${
                   activeTab === "checklist"
                     ? "text-blue-600 dark:text-blue-400"
                     : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
@@ -828,30 +915,91 @@ export default function InspectionFormModal({
                     Designated Driver
                   </label>
 
-                  <select
-                    value={formData.designated_driver_id}
-                    onChange={(e) => {
-                      setFormData({
-                        ...formData,
-                        designated_driver_id: e.target.value,
-                      });
-                      handleDriverChange(e.target.value);
-                    }}
-                    className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={formData.designated_driver_id}
+                      onChange={(e) => {
+                        setFormData({
+                          ...formData,
+                          designated_driver_id: e.target.value,
+                        });
+                      }}
+                      className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
                       ${
                         errors.designated_driver_id
                           ? "border-red-500"
                           : "border-slate-300"
                       }`}
-                  >
-                    <option value="">Select Driver</option>
+                    >
+                      <option value="">Select Driver</option>
 
-                    {filteredPersonnel.map((person) => (
-                      <option key={person.id} value={person.id}>
-                        {person.rank?.rank_name} {person.fullname}
-                      </option>
-                    ))}
-                  </select>
+                      {filteredPersonnel.map((person) => (
+                        <option key={person.id} value={person.id}>
+                          {person.rank?.rank_name} {person.fullname}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Driver License Status */}
+                    {formData.designated_driver_id && (
+                      <div className="group relative inline-block">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleDriverChange(formData.designated_driver_id)
+                          }
+                          className={`flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-xl border transition-colors ${(() => {
+                            const selectedDriver = filteredPersonnel.find(
+                              (person) =>
+                                person.id === formData.designated_driver_id,
+                            );
+
+                            const complete =
+                              selectedDriver &&
+                              hasDriverLicenseInfo(selectedDriver);
+
+                            return complete
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60"
+                              : "border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60";
+                          })()}`}
+                          title={(() => {
+                            const selectedDriver = filteredPersonnel.find(
+                              (person) =>
+                                person.id === formData.designated_driver_id,
+                            );
+
+                            return selectedDriver &&
+                              hasDriverLicenseInfo(selectedDriver)
+                              ? "Driver's license information complete"
+                              : "Driver's license information incomplete";
+                          })()}
+                        >
+                          {(() => {
+                            const selectedDriver = filteredPersonnel.find(
+                              (person) =>
+                                person.id === formData.designated_driver_id,
+                            );
+
+                            return selectedDriver &&
+                              hasDriverLicenseInfo(selectedDriver) ? (
+                              <Check className="h-5 w-5" />
+                            ) : (
+                              <X className="h-5 w-5" />
+                            );
+                          })()}
+                        </button>
+
+                        <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden -translate-x-1/2 flex-col items-center group-hover:flex">
+                          <div className="rounded-md border border-slate-800 bg-slate-900 px-2.5 py-1 font-medium whitespace-nowrap text-slate-100 shadow-md dark:border-slate-200 dark:bg-slate-100 dark:text-slate-900">
+                            Click to view Driver's License Information
+                          </div>
+
+                          <div className="h-2 w-2 -mt-1 rotate-45 border-r border-b border-slate-800 bg-slate-900 dark:border-slate-200 dark:bg-slate-100" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {errors.designated_driver_id && (
                     <p className="mt-1 text-red-500">
                       {errors.designated_driver_id}
@@ -865,29 +1013,91 @@ export default function InspectionFormModal({
                     Alternate Driver
                   </label>
 
-                  <select
-                    value={formData.alternate_driver_id}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        alternate_driver_id: e.target.value,
-                      })
-                    }
-                    className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={formData.alternate_driver_id}
+                      onChange={(e) => {
+                        setFormData({
+                          ...formData,
+                          alternate_driver_id: e.target.value,
+                        });
+                      }}
+                      className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
                       ${
                         errors.alternate_driver_id
                           ? "border-red-500"
                           : "border-slate-300"
                       }`}
-                  >
-                    <option value="">Select Alternate Driver</option>
+                    >
+                      <option value="">Select Alternate Driver</option>
 
-                    {filteredPersonnelExcludeDesignated.map((person) => (
-                      <option key={person.id} value={person.id}>
-                        {person.rank?.rank_name} {person.fullname}
-                      </option>
-                    ))}
-                  </select>
+                      {filteredPersonnel.map((person) => (
+                        <option key={person.id} value={person.id}>
+                          {person.rank?.rank_name} {person.fullname}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Driver License Status */}
+                    {formData.alternate_driver_id && (
+                      <div className="group relative inline-block">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleDriverChange(formData.alternate_driver_id)
+                          }
+                          className={`flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-xl border transition-colors ${(() => {
+                            const selectedDriver = filteredPersonnel.find(
+                              (person) =>
+                                person.id === formData.alternate_driver_id,
+                            );
+
+                            const complete =
+                              selectedDriver &&
+                              hasDriverLicenseInfo(selectedDriver);
+
+                            return complete
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60"
+                              : "border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60";
+                          })()}`}
+                          title={(() => {
+                            const selectedDriver = filteredPersonnel.find(
+                              (person) =>
+                                person.id === formData.alternate_driver_id,
+                            );
+
+                            return selectedDriver &&
+                              hasDriverLicenseInfo(selectedDriver)
+                              ? "Driver's license information complete"
+                              : "Driver's license information incomplete";
+                          })()}
+                        >
+                          {(() => {
+                            const selectedDriver = filteredPersonnel.find(
+                              (person) =>
+                                person.id === formData.alternate_driver_id,
+                            );
+
+                            return selectedDriver &&
+                              hasDriverLicenseInfo(selectedDriver) ? (
+                              <Check className="h-5 w-5" />
+                            ) : (
+                              <X className="h-5 w-5" />
+                            );
+                          })()}
+                        </button>
+
+                        <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden -translate-x-1/2 flex-col items-center group-hover:flex">
+                          <div className="rounded-md border border-slate-800 bg-slate-900 px-2.5 py-1 font-medium whitespace-nowrap text-slate-100 shadow-md dark:border-slate-200 dark:bg-slate-100 dark:text-slate-900">
+                            Click to view Driver's License Information
+                          </div>
+
+                          <div className="h-2 w-2 -mt-1 rotate-45 border-r border-b border-slate-800 bg-slate-900 dark:border-slate-200 dark:bg-slate-100" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {errors.alternate_driver_id && (
                     <p className="mt-1 text-red-500">
                       {errors.alternate_driver_id}
@@ -942,7 +1152,7 @@ export default function InspectionFormModal({
                         key={category.id}
                         type="button"
                         onClick={() => setActiveCategoryId(category.id)}
-                        className={`rounded-lg px-4 py-2.5 text-sm font-medium transition ${
+                        className={`rounded-lg px-4 py-2.5 font-medium transition ${
                           isActive
                             ? "bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-400"
                             : "text-slate-600 hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-700/70"
@@ -1184,176 +1394,19 @@ export default function InspectionFormModal({
           )}
         </div>
       </div>
-
       {showLicenseModal && selectedPersonnelForLicense && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900">
-            <div className="mb-5">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                Driver's License Information
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                No driver's license information was found for{" "}
-                <span className="font-semibold">
-                  {selectedPersonnelForLicense.rank?.rank_name}{" "}
-                  {selectedPersonnelForLicense.fullname}
-                </span>
-                .
-              </p>
-            </div>
-
-            {/* License Number */}
-            <div className="mb-4">
-              <label className="mb-2 block text-sm font-semibold">
-                Driver's License No.
-              </label>
-
-              <input
-                type="text"
-                value={driverLicenseNo}
-                onChange={(e) => setDriverLicenseNo(e.target.value)}
-                placeholder="Enter license number"
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800"
-              />
-            </div>
-
-            {/* Expiration */}
-            <div className="mb-6">
-              <label className="mb-2 block text-sm font-semibold">
-                Expiration Date
-              </label>
-
-              <input
-                type="date"
-                value={driverLicenseExpiration}
-                onChange={(e) => setDriverLicenseExpiration(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800"
-              />
-            </div>
-
-            {/* License Type */}
-            <div className="mb-4">
-              <label className="mb-2 block text-sm font-semibold">
-                Driver's License Type.
-              </label>
-
-              <select
-                value={driversLicenseType}
-                onChange={(e) => setDriversLicenseType(e.target.value)}
-                className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
-                ${
-                  errors.overall_status ? "border-red-500" : "border-slate-300"
-                }`}
-              >
-                <option value="Non-Professional License">
-                  Non-Professional License
-                </option>
-                <option value="Professional License">
-                  Professional License
-                </option>
-              </select>
-            </div>
-
-            {/* Restrictions */}
-            <div className="relative">
-              <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                Driver's License Restriction
-              </label>
-
-              <button
-                type="button"
-                onClick={() => setShowRestrictionDropdown((prev) => !prev)}
-                className="flex w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-4 py-3 text-left text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              >
-                <span>
-                  {driverLicenseRestrictions.length === 0
-                    ? "Select restriction"
-                    : driverLicenseRestrictions.join(", ")}
-                </span>
-
-                <ChevronDown className="h-4 w-4" />
-              </button>
-
-              {showRestrictionDropdown && (
-                <div className="absolute bottom-full z-[100] mb-2 w-full  rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-900">
-                  {driverLicenseRestrictionOptions.map((option) => {
-                    const selected = driverLicenseRestrictions.includes(
-                      option.code,
-                    );
-
-                    return (
-                      <label
-                        key={option.code}
-                        className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          onChange={() => {
-                            setDriverLicenseRestrictions((prev) =>
-                              selected
-                                ? prev.filter((code) => code !== option.code)
-                                : [...prev, option.code],
-                            );
-                          }}
-                          className="h-4 w-4 rounded border-slate-300 text-blue-600"
-                        />
-
-                        <span className="text-sm text-slate-700 dark:text-slate-200">
-                          {option.label}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Transmission */}
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                Transmission Authorization
-              </label>
-
-              <select
-                value={driverLicenseTransmission}
-                onChange={(e) =>
-                  setDriverLicenseTransmission(
-                    e.target.value as "MANUAL" | "AUTOMATIC" | "BOTH" | "",
-                  )
-                }
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              >
-                <option value="">Select transmission</option>
-                <option value="MANUAL">Manual</option>
-                <option value="AUTOMATIC">Automatic</option>
-                <option value="BOTH">Manual & Automatic</option>
-              </select>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowLicenseModal(false);
-                  setSelectedPersonnelForLicense(null);
-                }}
-                className="rounded-xl px-4 py-2.5 font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSaveLicense}
-                className="rounded-xl bg-blue-600 px-5 py-2.5 font-semibold text-white hover:bg-blue-700"
-              >
-                Save License
-              </button>
-            </div>
-          </div>
-        </div>
+        <DriverLicenseModal
+          personnel={selectedPersonnelForLicense}
+          mode={licenseModalMode}
+          onClose={() => {
+            setShowLicenseModal(false);
+            setSelectedPersonnelForLicense(null);
+          }}
+          onEdit={() => {
+            setLicenseModalMode("edit");
+          }}
+          onSave={handleSaveDriverLicense}
+        />
       )}
     </div>
   );

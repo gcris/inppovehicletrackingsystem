@@ -1,6 +1,6 @@
 import React from "react";
 import { X, Car, Gauge, AlertTriangle, Clock } from "lucide-react";
-import { MobilityAsset } from "../../lib/supabase";
+import { MobilityAsset, MobilityPhoto, supabase } from "../../lib/supabase";
 import { createPortal } from "react-dom";
 
 type MaintenanceStatus = "GOOD" | "DUE_SOON" | "OVERDUE";
@@ -140,13 +140,15 @@ const InfoItem = ({
 }) => {
   return (
     <div>
-      <p className="font-medium tracking-wide text-slate-600 dark:text-slate-300">
-        {label}
-      </p>
+      <div>
+        <p className="font-medium tracking-wide text-slate-600 dark:text-slate-300">
+          {label}
+        </p>
 
-      <p className="mt-1 font-semibold text-slate-800 dark:text-slate-200 break-words pl-1">
-        {value || "—"}
-      </p>
+        <div className="mt-1 break-words pl-1 font-semibold text-slate-800 dark:text-slate-200">
+          {value || "—"}
+        </div>
+      </div>
     </div>
   );
 };
@@ -182,7 +184,8 @@ export default function MobilityAssetViewModal({
   isOpen,
   onClose,
 }: MobilityAssetViewModalProps) {
-  if (!isOpen || !asset) return null;
+  const [selectedPhoto, setSelectedPhoto] =
+    React.useState<MobilityPhoto | null>(null);
 
   const priority: Record<MaintenanceStatus, number> = {
     OVERDUE: 0,
@@ -191,8 +194,18 @@ export default function MobilityAssetViewModal({
   };
 
   const reminders = getLatestMaintenanceByType(
-    asset.maintenance_reminders ?? [],
+    asset?.maintenance_reminders ?? [],
   ).sort((a, b) => priority[a.status] - priority[b.status]);
+
+  const getMobilityPhotoUrl = (storagePath: string) => {
+    const { data } = supabase.storage
+      .from("mobility-photos")
+      .getPublicUrl(storagePath);
+
+    return data.publicUrl;
+  };
+
+  if (!isOpen || !asset) return null;
 
   return createPortal(
     <div
@@ -475,6 +488,54 @@ export default function MobilityAssetViewModal({
                 }
               />
             </Section>
+
+            {/* Mobility Photos */}
+            <Section title="Mobility Photos" colspan={1}>
+              {!asset.photos || asset.photos.length === 0 ? (
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center dark:border-slate-700 dark:bg-slate-800/50">
+                    <Car size={32} className="mx-auto mb-2 text-slate-400" />
+
+                    <p className="font-medium text-slate-600 dark:text-slate-300">
+                      No photos uploaded.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {asset.photos
+                      .sort((a, b) => a.photo_order - b.photo_order)
+                      .map((photo) => {
+                        const photoUrl = getMobilityPhotoUrl(
+                          photo.storage_path,
+                        );
+
+                        return (
+                          <button
+                            key={photo.id}
+                            type="button"
+                            onClick={() => setSelectedPhoto(photo)}
+                            className="group cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white text-left dark:border-slate-700 dark:bg-slate-900"
+                          >
+                            <div className="relative aspect-[4/3] overflow-hidden bg-slate-100 dark:bg-slate-800">
+                              <img
+                                src={photoUrl}
+                                alt={`Mobility photo ${photo.photo_order}`}
+                                className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                              />
+
+                              <div className="absolute left-2 top-2 rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+                                Photo {photo.photo_order}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+            </Section>
           </div>
         </div>
 
@@ -489,6 +550,35 @@ export default function MobilityAssetViewModal({
           </button>
         </div>
       </div>
+      {selectedPhoto && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          onClick={() => setSelectedPhoto(null)}
+        >
+          <div
+            className="relative max-h-[90vh] max-w-6xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setSelectedPhoto(null)}
+              className="absolute right-3 top-3 z-10 rounded-full bg-black/60 p-2 text-white transition hover:bg-black/80"
+            >
+              <X size={22} />
+            </button>
+
+            <img
+              src={getMobilityPhotoUrl(selectedPhoto.storage_path)}
+              alt={`Mobility photo ${selectedPhoto.photo_order}`}
+              className="max-h-[90vh] max-w-full rounded-xl object-contain shadow-2xl"
+            />
+
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm">
+              Photo {selectedPhoto.photo_order}
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body,
   );

@@ -588,11 +588,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+          {/* Loader Container */}
+          <div className="relative flex items-center justify-center">
+            {/* Outer Spinning Ring */}
+            <div className="h-50 w-50 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
 
-          <p className="animate-pulse font-medium text-slate-500">
-            Initializing Application...
-          </p>
+            {/* Centered Logo (Absolute) */}
+            <img
+              src="/assets/inppo_logo.png"
+              alt="Logo"
+              className="absolute h-32 w-32 object-contain"
+            />
+          </div>
         </div>
       </div>
     );

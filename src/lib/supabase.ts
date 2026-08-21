@@ -74,6 +74,15 @@ export type MobilityAsset = {
   updated_by_personnel?: Personnel | null; // Optional related Personnel object
 
   remarks: string | null; // Only when UNSER/ BER
+
+  photos: MobilityPhoto[];
+};
+
+export type MobilityPhoto = {
+  id: string;
+  mobility_id: string;
+  storage_path: string;
+  photo_order: number;
 };
 
 // Maintenance history tracking
@@ -179,8 +188,9 @@ export type Personnel = {
   drivers_license_no: string;
   drivers_license_expiration: string;
   drivers_license_type: string;
-  drivers_license_restrictions: string;
-  drivers_license_transmission: string;
+  drivers_license_restrictions: string[] | null;
+  drivers_license_transmission: "MANUAL" | "AUTOMATIC" | "BOTH" | null;
+  drivers_license_photo_path?: string | null;
 };
 
 export type PatrolSchedule = {

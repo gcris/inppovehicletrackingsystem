@@ -1,8 +1,8 @@
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { Edit2, Eye, Trash2 } from "lucide-react";
-import { MobilityAsset } from "../../lib/supabase";
-import MobilityAssetViewModal from "./MobilityAssetViewModal";
+import { MobilityAsset, Personnel } from "../../lib/supabase";
+import { useAuth } from "../../components/AuthProvider";
 
 interface MobilityRowProps {
   vehicle: any;
@@ -12,6 +12,8 @@ interface MobilityRowProps {
   getStatusColor: (status: string) => string;
   isExpired: (date: string) => boolean;
   isExpiringSoon: (date: string) => boolean;
+  handleView: (asset: MobilityAsset) => void;
+  handleViewDriverLicense: (driver: Personnel) => void;
 }
 
 function MobilityRow({
@@ -22,10 +24,9 @@ function MobilityRow({
   getStatusColor,
   isExpired,
   isExpiringSoon,
+  handleView,
+  handleViewDriverLicense,
 }: MobilityRowProps) {
-  const [viewAsset, setViewAsset] = useState<MobilityAsset | null>(null);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-
   const registrationDate = useMemo(() => {
     if (!vehicle.date_registration_expires) return "";
 
@@ -48,19 +49,14 @@ function MobilityRow({
     onEdit(vehicle);
   }, [vehicle, onEdit]);
 
-  const handleView = (asset: MobilityAsset) => {
-    setViewAsset(asset);
-    setIsViewModalOpen(true);
-  };
-
-  const handleCloseView = () => {
-    setIsViewModalOpen(false);
-    setViewAsset(null);
-  };
+  const { isAdmin } = useAuth();
 
   return (
     <>
-      <tr className="border-t border-slate-100 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/30">
+      <tr
+        key={index}
+        className="border-t border-slate-100 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/30"
+      >
         <td className="p-4 font-semibold">{vehicle.plate_number}</td>
 
         <td className="p-4">
@@ -76,7 +72,17 @@ function MobilityRow({
         <td className="p-4">{vehicle.unit?.unit_name}</td>
 
         <td className="p-4">
-          {vehicle.driver?.rank?.rank_name} {vehicle.driver?.fullname ?? "-"}
+          {vehicle.driver ? (
+            <button
+              type="button"
+              onClick={() => handleViewDriverLicense(vehicle.driver)}
+              className="mt-1 text-left font-semibold text-blue-600 transition hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              {vehicle.driver.rank?.rank_name} {vehicle.driver.fullname}
+            </button>
+          ) : (
+            <div className="mt-1 font-semibold text-slate-400">-</div>
+          )}
         </td>
 
         <td className="p-4">{odometer}</td>
@@ -181,31 +187,27 @@ function MobilityRow({
               </div>
             </div>
 
-            <div className="group relative inline-block">
-              <button
-                onClick={() => onDelete(vehicle.id)}
-                className="rounded-lg border border-red-300 p-2 text-red-600 hover:bg-red-50 dark:border-red-700 dark:hover:bg-red-900/20"
-              >
-                <Trash2 className="h-5 w-5" />
-              </button>
+            {isAdmin && (
+              <div className="group relative inline-block">
+                <button
+                  onClick={() => onDelete(vehicle.id)}
+                  className="rounded-lg border border-red-300 p-2 text-red-600 hover:bg-red-50 dark:border-red-700 dark:hover:bg-red-900/20"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </button>
 
-              <div className="pointer-events-none absolute bottom-full right-0 z-50 mb-2 hidden flex-col items-end group-hover:flex">
-                <div className="rounded-md bg-slate-900 px-2.5 py-1 text-white whitespace-nowrap shadow-lg">
-                  Delete Mobility Asset
+                <div className="pointer-events-none absolute bottom-full right-0 z-50 mb-2 hidden flex-col items-end group-hover:flex">
+                  <div className="rounded-md bg-slate-900 px-2.5 py-1 text-white whitespace-nowrap shadow-lg">
+                    Delete Mobility Asset
+                  </div>
+
+                  <div className="mr-3 h-2 w-2 -mt-1 rotate-45 bg-slate-900" />
                 </div>
-
-                <div className="mr-3 h-2 w-2 -mt-1 rotate-45 bg-slate-900" />
               </div>
-            </div>
+            )}
           </div>
         </td>
       </tr>
-
-      <MobilityAssetViewModal
-        asset={viewAsset}
-        isOpen={isViewModalOpen}
-        onClose={handleCloseView}
-      />
     </>
   );
 }

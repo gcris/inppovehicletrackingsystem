@@ -23,7 +23,7 @@ export default function Footer() {
             <div className="mb-5 flex items-center gap-3">
               <div className="rounded-lg bg-white p-0.5">
                 <img
-                  src="/assets/MOBILIS-logo.png"
+                  src="/assets/mobilis-logo.png"
                   alt="Project M.O.B.I.L.I.S"
                   className="h-12 w-12 object-contain"
                 />

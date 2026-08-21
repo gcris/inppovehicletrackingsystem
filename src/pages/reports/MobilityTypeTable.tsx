@@ -13,6 +13,7 @@ interface MobilityStatusCount {
 
 interface MobilityRow {
   unit: string;
+  level: number;
   Total: number;
   vehicles: Record<string, MobilityStatusCount>;
 }
@@ -24,6 +25,7 @@ interface MobilityAssetDistribution {
   unit: {
     id: string;
     unit_name: string;
+    level: number;
   } | null;
 }
 
@@ -54,7 +56,8 @@ export default function MobilityTypeTable({
           *,
           unit:unit_id(
             id,
-            unit_name
+            unit_name,
+            level
           )
         `,
         )
@@ -86,6 +89,7 @@ export default function MobilityTypeTable({
         if (!grouped[unitName]) {
           grouped[unitName] = {
             unit: unitName,
+            level: asset.unit?.level ?? -1,
             Total: 0,
             vehicles: {},
           };
@@ -136,18 +140,28 @@ export default function MobilityTypeTable({
       });
 
       // Rebuild each row using the sorted order
-      const result = Object.values(grouped).map((row) => {
-        const sortedVehicles: typeof row.vehicles = {};
+      const result = Object.values(grouped)
+        .map((row) => {
+          const sortedVehicles: typeof row.vehicles = {};
 
-        sortedMobilityTypes.forEach((type) => {
-          sortedVehicles[type] = row.vehicles[type];
+          sortedMobilityTypes.forEach((type) => {
+            sortedVehicles[type] = row.vehicles[type];
+          });
+
+          return {
+            ...row,
+            vehicles: sortedVehicles,
+          };
+        })
+        .sort((a, b) => {
+          // Highest unit level first
+          if (a.level !== b.level) {
+            return b.level - a.level;
+          }
+
+          // Same level → alphabetical
+          return a.unit.localeCompare(b.unit);
         });
-
-        return {
-          ...row,
-          vehicles: sortedVehicles,
-        };
-      });
 
       setSortedMobilityTypes(sortedMobilityTypes); // <-- new state
       setRows(result);
@@ -309,14 +323,14 @@ export default function MobilityTypeTable({
     <div className="overflow-auto rounded-xl border border-slate-200 dark:border-slate-700">
       <div className="flex items-center justify-between p-4">
         <div>
-          <h1 className="text-3xl font-bold">Mobility Source Report</h1>
+          <h1 className="text-3xl font-bold">Mobility Status Report</h1>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={exportToExcel}
             className="rounded-xl bg-emerald-600 px-5 py-2 text-white font-medium transition hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600"
           >
-            Export Excel
+            Export
           </button>
         </div>
       </div>

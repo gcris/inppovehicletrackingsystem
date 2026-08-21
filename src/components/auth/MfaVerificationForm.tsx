@@ -59,9 +59,7 @@ export default function MfaVerificationForm({
                 {title}
               </h2>
 
-              <p className="mt-3 text-sm leading-7 text-slate-500">
-                {description}
-              </p>
+              <p className="mt-3 leading-7 text-slate-500">{description}</p>
             </div>
           </div>
 
@@ -79,7 +77,7 @@ export default function MfaVerificationForm({
                         Verification Failed
                       </p>
 
-                      <p className="mt-1 text-sm text-red-600 dark:text-red-300">
+                      <p className="mt-1 text-red-600 dark:text-red-300">
                         {error}
                       </p>
                     </div>
@@ -90,7 +88,7 @@ export default function MfaVerificationForm({
               {/* OTP */}
 
               <div>
-                <label className="mb-3 block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                <label className="mb-3 block font-semibold text-slate-700 dark:text-slate-300">
                   Authentication Code
                 </label>
 
@@ -131,7 +129,7 @@ export default function MfaVerificationForm({
               {/* Info */}
 
               <div className="rounded-2xl bg-blue-50 dark:bg-blue-900/20 p-4">
-                <p className="text-sm leading-6 text-blue-700 dark:text-blue-300">
+                <p className="leading-6 text-blue-700 dark:text-blue-300">
                   Open your authenticator application and enter the current
                   6-digit verification code displayed for your account.
                 </p>

@@ -6,15 +6,25 @@ interface Props {
   user: Personnel | null;
 }
 
-function InfoItem({ label, value }: { label: string; value?: string | null }) {
+const InfoItem = ({
+  label,
+  value,
+}: {
+  label: string;
+  value?: React.ReactNode;
+}) => {
   return (
     <div>
-      <p className="text-slate-800 dark:text-slate-200">{label}</p>
+      <p className="font-medium tracking-wide text-slate-600 dark:text-slate-300">
+        {label}
+      </p>
 
-      <p className="font-semibold">{value || "-"}</p>
+      <div className="mt-1 break-words pl-1 font-semibold text-slate-800 dark:text-slate-200">
+        {value || "—"}
+      </div>
     </div>
   );
-}
+};
 
 export default function UserDetailsModal({ open, onClose, user }: Props) {
   if (!open || !user) return null;

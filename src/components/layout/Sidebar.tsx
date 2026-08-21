@@ -2,7 +2,15 @@ import { useLocation } from "react-router-dom";
 import { useAuth } from "../../components/AuthProvider";
 import { useSidebar } from "../../hooks/useSidebar";
 import { SidebarItem } from "./SidebarItem";
-import { BarChart3, Info, User, Users } from "lucide-react";
+import {
+  BarChart3,
+  ChevronDown,
+  FileText,
+  Info,
+  User,
+  Users,
+} from "lucide-react";
+import { useState } from "react";
 
 interface MenuItem {
   href: string;
@@ -122,7 +130,11 @@ export const Sidebar = () => {
     {
       href: "/pms-type",
       icon: (
-        <img src="/assets/classification.png" alt="PMS " className="w-7 h-7" />
+        <img
+          src="/assets/classification.png"
+          alt="PMS Catalog"
+          className="w-7 h-7"
+        />
       ),
       label: "PMS Catalog",
       for: ["supply", "admin", "admin_supply"],
@@ -149,6 +161,8 @@ export const Sidebar = () => {
 
   // Check if the current location matches the item's href for active state
   const isActive = (href: string) => location.pathname === href;
+
+  const [reportsOpen, setReportsOpen] = useState(false);
 
   return (
     <aside
@@ -202,6 +216,88 @@ export const Sidebar = () => {
               isActive={isActive(item.href)}
             />
           ))}
+
+        {/* Reports Dropdown */}
+        {["admin_supply"].includes(profileRole ?? "") && (
+          <div>
+            <button
+              type="button"
+              onClick={() => {
+                if (isCollapsed) {
+                  // Expand sidebar first
+                  toggleSidebar();
+
+                  // Open reports dropdown
+                  setReportsOpen(true);
+                } else {
+                  // Normal dropdown behavior
+                  setReportsOpen((prev) => !prev);
+                }
+              }}
+              className={`
+                w-full flex items-center gap-3 rounded-xl px-3 py-3
+                text-slate-700 dark:text-slate-200
+                hover:bg-slate-100 dark:hover:bg-slate-800
+                transition-colors
+                ${isCollapsed ? "justify-center" : "justify-start"}
+              `}
+            >
+              <img src="/assets/report.png" alt="Reports" className="w-7 h-7" />
+
+              {!isCollapsed && (
+                <>
+                  <span className="flex-1 text-left font-medium">Reports</span>
+
+                  <ChevronDown
+                    className={`h-5 w-5 transition-transform duration-200 ${
+                      reportsOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </>
+              )}
+            </button>
+
+            {/* Reports submenu */}
+            {!isCollapsed && reportsOpen && (
+              <div className="ml-2 mt-1 space-y-1 border-l border-slate-200 pl-3 dark:border-slate-700">
+                <SidebarItem
+                  href="/reports/pms"
+                  label="PMS History"
+                  isCollapsed={false}
+                  isActive={isActive("/reports/pms")}
+                />
+
+                <SidebarItem
+                  href="/reports/registration-status"
+                  label="Mobility Registration Status"
+                  isCollapsed={false}
+                  isActive={isActive("/reports/registration-status")}
+                />
+
+                <SidebarItem
+                  href="/reports/insurance-status"
+                  label="Mobility Insurance Status"
+                  isCollapsed={false}
+                  isActive={isActive("/reports/insurance-status")}
+                />
+
+                <SidebarItem
+                  href="/reports/distribution"
+                  label="Mobility Distribution"
+                  isCollapsed={false}
+                  isActive={isActive("/reports/distribution")}
+                />
+
+                <SidebarItem
+                  href="/reports/inspection"
+                  label="Inspection Results"
+                  isCollapsed={false}
+                  isActive={isActive("/reports/inspection")}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800">
           {settingsItems

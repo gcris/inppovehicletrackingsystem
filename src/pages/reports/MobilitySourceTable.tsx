@@ -12,9 +12,18 @@ type VehicleSourceCount = {
 };
 interface MobilitySourceRow {
   unit: string;
+  level: number;
   Total: number;
-  vehicles: Record<string, VehicleSourceCount>;
+  vehicles: Record<
+    string,
+    {
+      Organic: number;
+      Loaned: number;
+      Donated: number;
+    }
+  >;
 }
+
 interface MobilityAssetDistribution {
   vehicle_type: string;
   status: string;
@@ -22,6 +31,7 @@ interface MobilityAssetDistribution {
   unit: {
     id: string;
     unit_name: string;
+    level: number;
   } | null;
 }
 
@@ -85,6 +95,7 @@ export default function MobilitySourceTable({
         if (!grouped[unitName]) {
           grouped[unitName] = {
             unit: unitName,
+            level: asset.unit?.level ?? -1,
             Total: 0,
             vehicles: {},
           };
@@ -102,9 +113,9 @@ export default function MobilitySourceTable({
 
         if (!mobilityType.includes(type)) return;
 
-        let source: VehicleSources;
+        let source: VehicleSources = asset.source as VehicleSources;
 
-        switch ((asset.source ?? "").trim().toUpperCase()) {
+        switch ((asset.source ?? "").trim()) {
           case "Organic":
             source = "Organic";
             break;
@@ -134,18 +145,28 @@ export default function MobilitySourceTable({
       );
 
       // Rebuild each row so the object keys follow the sorted order
-      const result = Object.values(grouped).map((row) => {
-        const sortedVehicles: typeof row.vehicles = {};
+      const result = Object.values(grouped)
+        .map((row) => {
+          const sortedVehicles: typeof row.vehicles = {};
 
-        sortedTypes.forEach((type) => {
-          sortedVehicles[type] = row.vehicles[type];
+          sortedTypes.forEach((type) => {
+            sortedVehicles[type] = row.vehicles[type];
+          });
+
+          return {
+            ...row,
+            vehicles: sortedVehicles,
+          };
+        })
+        .sort((a, b) => {
+          // Highest unit level first
+          if (a.level !== b.level) {
+            return b.level - a.level;
+          }
+
+          // Same level → alphabetical
+          return a.unit.localeCompare(b.unit);
         });
-
-        return {
-          ...row,
-          vehicles: sortedVehicles,
-        };
-      });
 
       // Save the sorted vehicle types if this table uses them
       setSortedMobilityTypes(sortedTypes);
@@ -313,14 +334,14 @@ export default function MobilitySourceTable({
     <div className="overflow-auto rounded-xl border border-slate-200 dark:border-slate-700">
       <div className="flex items-center justify-between p-4">
         <div>
-          <h1 className="text-3xl font-bold">Mobility Status Report</h1>
+          <h1 className="text-3xl font-bold">Mobility Source Report</h1>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={exportToExcel}
             className="rounded-xl bg-emerald-600 px-5 py-2 text-white font-medium transition hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600"
           >
-            Export Excel
+            Export
           </button>
         </div>
       </div>

@@ -68,27 +68,23 @@ const statusConfig: Record<
   MaintenanceStatus,
   {
     label: string;
-    icon: typeof CheckCircle2;
     className: string;
   }
 > = {
   GOOD: {
     label: "Good",
-    icon: CheckCircle2,
     className:
       "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400",
   },
 
   DUE_SOON: {
     label: "Due Soon",
-    icon: Clock3,
     className:
       "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400",
   },
 
   OVERDUE: {
     label: "Overdue",
-    icon: XCircle,
     className:
       "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400",
   },
@@ -96,7 +92,7 @@ const statusConfig: Record<
 
 export default function MobilityMaintenancePage() {
   const navigate = useNavigate();
-  const { isAdmin, profile, unitId } = useAuth();
+  const { isAdmin, unitId } = useAuth();
 
   const [assets, setAssets] = useState<MobilityAsset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -343,7 +339,7 @@ export default function MobilityMaintenancePage() {
               Maintenance Reminders
             </p>
 
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-slate-500 dark:text-slate-400">
               Monitor preventive maintenance schedules for mobility assets.
             </p>
           </div>
@@ -352,15 +348,15 @@ export default function MobilityMaintenancePage() {
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={handlePrint}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <Printer className="h-4 w-4" />
-            Print Report
+            Print
           </button>
 
           <button
             onClick={() => navigate("/pms-history")}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 font-semibold text-white shadow-sm transition hover:bg-blue-700"
           >
             <Wrench className="h-4 w-4" />
             PMS History
@@ -381,7 +377,7 @@ export default function MobilityMaintenancePage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search plate number, vehicle, unit, or maintenance..."
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             />
           </div>
 
@@ -390,7 +386,7 @@ export default function MobilityMaintenancePage() {
             <select
               value={unitFilter}
               onChange={(e) => setUnitFilter(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 lg:w-56"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-slate-700 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 lg:w-56"
             >
               <option value="ALL">All Units/Stations</option>
 
@@ -408,7 +404,7 @@ export default function MobilityMaintenancePage() {
             onChange={(e) =>
               setStatusFilter(e.target.value as "ALL" | MaintenanceStatus)
             }
-            className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-slate-600 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
           >
             <option value="ALL">All Status</option>
             <option value="OVERDUE">Overdue</option>
@@ -485,7 +481,7 @@ export default function MobilityMaintenancePage() {
                       <div className="flex flex-col items-center">
                         <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
 
-                        <p className="mt-3 text-sm text-slate-500">
+                        <p className="mt-3 text-slate-500">
                           Loading maintenance reminders...
                         </p>
                       </div>
@@ -501,7 +497,7 @@ export default function MobilityMaintenancePage() {
                           No maintenance reminders found
                         </p>
 
-                        <p className="mt-1 text-sm text-slate-500">
+                        <p className="mt-1 text-slate-500">
                           Try changing your search or status filter.
                         </p>
                       </div>
@@ -510,7 +506,6 @@ export default function MobilityMaintenancePage() {
                 ) : (
                   filteredReminders.map((item) => {
                     const config = statusConfig[item.status];
-                    const StatusIcon = config.icon;
 
                     return (
                       <tr
@@ -534,7 +529,7 @@ export default function MobilityMaintenancePage() {
                         </td>
 
                         {/* Unit */}
-                        <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-300">
+                        <td className="px-5 py-4 text-slate-600 dark:text-slate-300">
                           {item.asset.unit?.unit_name || "—"}
                         </td>
 
@@ -552,13 +547,13 @@ export default function MobilityMaintenancePage() {
                         </td>
 
                         {/* Current Odometer */}
-                        <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-300">
+                        <td className="px-5 py-4 text-slate-600 dark:text-slate-300">
                           {formatNumber(item.asset.current_odometer)} km
                         </td>
 
                         {/* Next Service */}
                         <td className="px-5 py-4">
-                          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                          <p className="font-medium text-slate-700 dark:text-slate-200">
                             {formatDate(item.history.next_service_date)}
                           </p>
 
@@ -573,7 +568,6 @@ export default function MobilityMaintenancePage() {
                           <span
                             className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-semibold ${config.className}`}
                           >
-                            <StatusIcon className="h-3.5 w-3.5" />
                             {config.label}
                           </span>
                         </td>
