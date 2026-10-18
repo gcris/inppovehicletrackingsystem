@@ -1,26 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MobilityAsset, PatrolLog, Personnel, supabase } from "../lib/supabase";
 import { useAuth } from "../components/AuthProvider";
-import { getMaintenanceReminders } from "../pages/utils/maintenanceStatus";
-
-export interface PMSNotification {
-  vehicle_id: string;
-  plate_number: string;
-  unit_name: string | null;
-
-  maintenance_type_id: string;
-  maintenance_type_name: string;
-
-  next_service_date: string | null;
-  next_service_odometer: number | null;
-
-  current_odometer: number | null;
-
-  days_remaining: number | null;
-  km_remaining: number | null;
-
-  status: "OVERDUE" | "DUE_SOON";
-}
 
 export function useVehicleRealtime() {
   const { unitId, isAdmin } = useAuth();
@@ -40,15 +20,6 @@ export function useVehicleRealtime() {
   const [personnel, setPersonnel] = useState<
     Record<string, Personnel>
   >({});
-
-  const [notificationCounts, setNotificationCounts] = useState({
-    overdue: 0,
-    dueSoon: 0,
-  });
-
-  const [pmsNotifications, setPmsNotifications] = useState<
-    PMSNotification[]
-  >([]);
 
   // ============================
   // Refs
@@ -79,199 +50,6 @@ export function useVehicleRealtime() {
   }, [logs]);
 
   // =====================================================
-  // LOAD NOTIFICATION COUNTS
-  // =====================================================
-
-  const loadNotificationCounts = async (
-    currentVehicles?: Record<string, MobilityAsset>,
-  ) => {
-    try {
-      const vehicleMap = currentVehicles ?? vehiclesRef.current;
-
-      const vehicleIds = Object.keys(vehicleMap);
-
-      if (vehicleIds.length === 0) {
-        setNotificationCounts({
-          overdue: 0,
-          dueSoon: 0,
-        });
-
-        setPmsNotifications([]);
-
-        return;
-      }
-
-      //-----------------------------------------
-      // Load Maintenance History
-      //-----------------------------------------
-
-      const { data: maintenanceData, error } = await supabase
-        .from("mobility_assets_maintenance_history")
-        .select(`
-        *,
-        items:mobility_assets_maintenance_history_items(
-          *,
-          maintenance_type:maintenance_types(*)
-        )
-      `)
-        .in("mobility_asset_id", vehicleIds)
-        .order("changed_at", {
-          ascending: false,
-        });
-
-      if (error) throw error;
-
-      //-----------------------------------------
-      // Track VEHICLES for counts
-      //-----------------------------------------
-
-      const overdueVehicles = new Set<string>();
-      const dueSoonVehicles = new Set<string>();
-
-      //-----------------------------------------
-      // Detailed PMS notifications
-      //-----------------------------------------
-
-      const notifications: PMSNotification[] = [];
-
-      //-----------------------------------------
-      // Calculate reminders per vehicle
-      //-----------------------------------------
-
-      Object.values(vehicleMap).forEach((vehicle) => {
-        //-----------------------------------------
-        // Unit filtering
-        //-----------------------------------------
-
-        if (
-          !isAdmin &&
-          unitId &&
-          vehicle.unit_id !== unitId
-        ) {
-          return;
-        }
-
-        //-----------------------------------------
-        // Get this vehicle's maintenance history
-        //-----------------------------------------
-
-        const histories = maintenanceData?.filter(
-          (history) => history.mobility_asset_id === vehicle.id,
-        ) ?? [];
-
-        if (histories.length === 0) {
-          return;
-        }
-
-        //-----------------------------------------
-        // Use your EXISTING PMS calculation
-        //-----------------------------------------
-
-        const reminders = getMaintenanceReminders(
-          histories,
-          Number(vehicle.current_odometer ?? 0),
-        );
-
-        //-----------------------------------------
-        // Process reminders
-        //-----------------------------------------
-
-        reminders.forEach((reminder: any) => {
-          //---------------------------------------
-          // Count vehicles
-          //---------------------------------------
-
-          if (reminder.status === "OVERDUE") {
-            overdueVehicles.add(vehicle.id);
-          }
-
-          if (reminder.status === "DUE_SOON") {
-            dueSoonVehicles.add(vehicle.id);
-          }
-
-          //---------------------------------------
-          // Only show actionable notifications
-          //---------------------------------------
-
-          if (
-            reminder.status !== "OVERDUE" &&
-            reminder.status !== "DUE_SOON"
-          ) {
-            return;
-          }
-
-          //---------------------------------------
-          // Add vehicle information
-          //---------------------------------------
-
-          notifications.push({
-            vehicle_id: vehicle.id,
-
-            plate_number: vehicle.plate_number,
-
-            unit_name: vehicle.unit?.unit_name ?? null,
-
-            maintenance_type_id: reminder.maintenance_type_id,
-
-            maintenance_type_name: reminder.maintenance_type_name,
-
-            next_service_date: reminder.next_service_date ?? null,
-
-            next_service_odometer: reminder.next_service_odometer != null
-              ? Number(
-                reminder.next_service_odometer,
-              )
-              : null,
-
-            current_odometer: Number(
-              vehicle.current_odometer ?? 0,
-            ),
-
-            days_remaining: reminder.days_remaining ?? null,
-
-            km_remaining: reminder.km_remaining ?? null,
-
-            status: reminder.status,
-          });
-        });
-      });
-
-      //-----------------------------------------
-      // Sort notifications
-      //-----------------------------------------
-
-      notifications.sort((a, b) => {
-        const priority = {
-          OVERDUE: 0,
-          DUE_SOON: 1,
-        };
-
-        return priority[a.status] - priority[b.status];
-      });
-
-      //-----------------------------------------
-      // Update counts
-      //-----------------------------------------
-
-      setNotificationCounts({
-        overdue: overdueVehicles.size,
-        dueSoon: dueSoonVehicles.size,
-      });
-
-      //-----------------------------------------
-      // Update detailed notifications
-      //-----------------------------------------
-
-      setPmsNotifications(notifications);
-    } catch (error) {
-      console.error(
-        "Failed to load notification counts:",
-        error,
-      );
-    }
-  };
-
-  // =====================================================
   // LOAD INITIAL DATA
   // =====================================================
 
@@ -280,9 +58,9 @@ export function useVehicleRealtime() {
 
     const loadInitialData = async () => {
       try {
-        //-----------------------------------------
-        // Load Vehicles
-        //-----------------------------------------
+        // =====================================================
+        // LOAD VEHICLES
+        // =====================================================
 
         let vehicleQuery = supabase
           .from("mobility_assets")
@@ -302,9 +80,9 @@ export function useVehicleRealtime() {
 
         if (vehicleError) throw vehicleError;
 
-        //-----------------------------------------
-        // Convert Vehicles to Map
-        //-----------------------------------------
+        // =====================================================
+        // CONVERT VEHICLES TO MAP
+        // =====================================================
 
         const vehicleMap: Record<
           string,
@@ -315,66 +93,14 @@ export function useVehicleRealtime() {
           vehicleMap[vehicle.id] = vehicle;
         });
 
-        //-----------------------------------------
-        // Load Personnel
-        //-----------------------------------------
+        // =====================================================
+        // LOAD LATEST LOGS FIRST
+        // =====================================================
 
-        let personnelQuery = supabase
-          .from("personnel")
-          .select("*, unit(*)");
+        const tenDaysAgo = new Date();
 
-        if (!isAdmin && unitId) {
-          personnelQuery = personnelQuery.eq(
-            "unit_id",
-            unitId,
-          );
-        }
-
-        const {
-          data: personnelData,
-          error: personnelError,
-        } = await personnelQuery;
-
-        if (personnelError) throw personnelError;
-
-        //-----------------------------------------
-        // Convert Personnel to Map
-        //-----------------------------------------
-
-        const personnelMap: Record<
-          string,
-          Personnel
-        > = {};
-
-        personnelData?.forEach((member) => {
-          personnelMap[member.id] = member;
-        });
-
-        //-----------------------------------------
-        // Update State
-        //-----------------------------------------
-
-        if (!cancelled) {
-          setVehicles(vehicleMap);
-          setPersonnel(personnelMap);
-        }
-
-        //-----------------------------------------
-        // Load Notification Counts
-        //-----------------------------------------
-
-        if (!cancelled) {
-          await loadNotificationCounts(vehicleMap);
-        }
-
-        //-----------------------------------------
-        // Load Latest Logs
-        //-----------------------------------------
-
-        const twoDaysAgo = new Date();
-
-        twoDaysAgo.setDate(
-          twoDaysAgo.getDate() - 10,
+        tenDaysAgo.setDate(
+          tenDaysAgo.getDate() - 10,
         );
 
         const {
@@ -395,10 +121,55 @@ export function useVehicleRealtime() {
           )
           .gt(
             "captured_at",
-            twoDaysAgo.toISOString(),
+            tenDaysAgo.toISOString(),
           );
 
         if (logError) throw logError;
+
+        // =====================================================
+        // GET ONLY PERSONNEL IDS ACTUALLY USED BY LOGS
+        // =====================================================
+
+        const personnelIds = [
+          ...new Set(
+            (logData ?? [])
+              .map((log) => log.personnel_id)
+              .filter(
+                (id): id is string => Boolean(id),
+              ),
+          ),
+        ];
+
+        // =====================================================
+        // LOAD ONLY REQUIRED PERSONNEL
+        // =====================================================
+
+        const personnelMap: Record<
+          string,
+          Personnel
+        > = {};
+
+        if (personnelIds.length > 0) {
+          const {
+            data: personnelData,
+            error: personnelError,
+          } = await supabase
+            .from("personnel")
+            .select("*, rank(*), unit(*)")
+            .in("id", personnelIds);
+
+          if (personnelError) {
+            throw personnelError;
+          }
+
+          personnelData?.forEach((member) => {
+            personnelMap[member.id] = member;
+          });
+        }
+
+        // =====================================================
+        // BUILD LATEST LOG MAP
+        // =====================================================
 
         const latestLogs: Record<
           string,
@@ -406,9 +177,14 @@ export function useVehicleRealtime() {
         > = {};
 
         logData?.forEach((log) => {
-          const trackingKey = log.vehicle_id ?? log.personnel_id;
+          const trackingKey = log.vehicle_id ??
+            log.personnel_id;
 
           if (!trackingKey) return;
+
+          // ------------------------------------------
+          // Validate coordinates
+          // ------------------------------------------
 
           const lat = Number(log.latitude);
           const lng = Number(log.longitude);
@@ -420,7 +196,12 @@ export function useVehicleRealtime() {
             return;
           }
 
+          // ------------------------------------------
+          // Unit filtering
+          // ------------------------------------------
+
           if (!isAdmin && unitId) {
+            // Vehicle patrol
             if (log.vehicle_id) {
               const vehicle = vehicleMap[log.vehicle_id];
 
@@ -432,6 +213,7 @@ export function useVehicleRealtime() {
               }
             }
 
+            // Foot/personnel patrol
             if (log.personnel_id) {
               const officer = personnelMap[log.personnel_id];
 
@@ -444,6 +226,10 @@ export function useVehicleRealtime() {
             }
           }
 
+          // ------------------------------------------
+          // Keep only newest log
+          // ------------------------------------------
+
           const existing = latestLogs[trackingKey];
 
           if (
@@ -455,7 +241,13 @@ export function useVehicleRealtime() {
           }
         });
 
+        // =====================================================
+        // UPDATE STATE
+        // =====================================================
+
         if (!cancelled) {
+          setVehicles(vehicleMap);
+          setPersonnel(personnelMap);
           setLogs(latestLogs);
         }
       } catch (err) {
@@ -500,12 +292,6 @@ export function useVehicleRealtime() {
             ...prev,
             [vehicle.id]: vehicle,
           }));
-
-          // Refresh notifications
-          loadNotificationCounts({
-            ...vehiclesRef.current,
-            [vehicle.id]: vehicle,
-          });
         },
       )
       // ==========================================
@@ -528,32 +314,22 @@ export function useVehicleRealtime() {
             vehicle.unit_id !== unitId
           ) {
             setVehicles((prev) => {
-              const clone = { ...prev };
+              const clone = {
+                ...prev,
+              };
 
               delete clone[vehicle.id];
 
               return clone;
             });
 
-            loadNotificationCounts(
-              vehiclesRef.current,
-            );
-
             return;
           }
 
-          const updatedVehicles = {
-            ...vehiclesRef.current,
+          setVehicles((prev) => ({
+            ...prev,
             [vehicle.id]: vehicle,
-          };
-
-          setVehicles(updatedVehicles);
-
-          // Important:
-          // current_odometer changes can change PMS status.
-          loadNotificationCounts(
-            updatedVehicles,
-          );
+          }));
         },
       )
       // ==========================================
@@ -570,37 +346,17 @@ export function useVehicleRealtime() {
         ({ old }) => {
           const vehicle = old as MobilityAsset;
 
-          const updatedVehicles = {
-            ...vehiclesRef.current,
-          };
+          setVehicles((prev) => {
+            const clone = {
+              ...prev,
+            };
 
-          delete updatedVehicles[vehicle.id];
+            delete clone[vehicle.id];
 
-          setVehicles(updatedVehicles);
-
-          loadNotificationCounts(
-            updatedVehicles,
-          );
+            return clone;
+          });
         },
-      )
-      // ==========================================
-      // MAINTENANCE HISTORY CHANGES
-      // ==========================================
-
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "mobility_assets_maintenance_history",
-        },
-        () => {
-          loadNotificationCounts(
-            vehiclesRef.current,
-          );
-        },
-      )
-      .subscribe();
+      );
 
     // =====================================================
     // PATROL LOG REALTIME
@@ -615,12 +371,12 @@ export function useVehicleRealtime() {
           schema: "public",
           table: "patrol_logs",
         },
-        ({ new: inserted }) => {
+        async ({ new: inserted }) => {
           const log = inserted as PatrolLog;
 
-          //------------------------------------------
-          // Validate Coordinates
-          //------------------------------------------
+          // ------------------------------------------
+          // Validate coordinates
+          // ------------------------------------------
 
           const lat = Number(log.latitude);
           const lng = Number(log.longitude);
@@ -632,9 +388,9 @@ export function useVehicleRealtime() {
             return;
           }
 
-          //------------------------------------------
-          // Vehicle OR Foot Patrol
-          //------------------------------------------
+          // ------------------------------------------
+          // Vehicle OR Foot Patrolling
+          // ------------------------------------------
 
           const trackingKey = log.vehicle_id ??
             log.personnel_id;
@@ -643,48 +399,109 @@ export function useVehicleRealtime() {
             return;
           }
 
-          //------------------------------------------
-          // Unit Filtering
-          //------------------------------------------
+          // ------------------------------------------
+          // Unit filtering - VEHICLE
+          // ------------------------------------------
 
-          if (!isAdmin && unitId) {
-            if (log.vehicle_id) {
-              const vehicle = vehiclesRef.current[
-                log.vehicle_id
-              ];
+          if (
+            !isAdmin &&
+            unitId &&
+            log.vehicle_id
+          ) {
+            const vehicle = vehiclesRef.current[
+              log.vehicle_id
+            ];
 
-              if (
-                !vehicle ||
-                vehicle.unit_id !== unitId
-              ) {
-                return;
-              }
+            if (
+              !vehicle ||
+              vehicle.unit_id !== unitId
+            ) {
+              return;
+            }
+          }
+
+          // ------------------------------------------
+          // Personnel may not be loaded yet
+          // ------------------------------------------
+
+          if (
+            log.personnel_id &&
+            !personnelRef.current[
+              log.personnel_id
+            ]
+          ) {
+            const {
+              data: officer,
+              error,
+            } = await supabase
+              .from("personnel")
+              .select("*, unit(*)")
+              .eq(
+                "id",
+                log.personnel_id,
+              )
+              .maybeSingle();
+
+            if (error) {
+              console.error(
+                "Failed to load patrol personnel:",
+                error,
+              );
+              return;
             }
 
-            if (log.personnel_id) {
-              const officer = personnelRef.current[
-                log.personnel_id
-              ];
-
+            if (officer) {
               if (
-                !officer ||
+                !isAdmin &&
+                unitId &&
                 officer.unit_id !== unitId
               ) {
                 return;
               }
+
+              setPersonnel((prev) => ({
+                ...prev,
+                [officer.id]: officer,
+              }));
             }
           }
 
-          //------------------------------------------
+          // ------------------------------------------
+          // Unit filtering - PERSONNEL
+          // ------------------------------------------
+
+          if (
+            !isAdmin &&
+            unitId &&
+            log.personnel_id
+          ) {
+            const officer = personnelRef.current[
+              log.personnel_id
+            ];
+
+            // The newly fetched officer may not
+            // have reached the ref yet, so allow
+            // the state update above to handle it.
+            if (
+              officer &&
+              officer.unit_id !== unitId
+            ) {
+              return;
+            }
+          }
+
+          // ------------------------------------------
           // Update only if newer
-          //------------------------------------------
+          // ------------------------------------------
 
           setLogs((prev) => {
             const existing = prev[trackingKey];
 
             if (
               existing &&
-              new Date(existing.captured_at) >=
+              new Date(
+                  existing.captured_at,
+                ) >=
                 new Date(log.captured_at)
             ) {
               return prev;
@@ -724,7 +541,5 @@ export function useVehicleRealtime() {
     vehicles,
     logs,
     personnel,
-    notificationCounts,
-    pmsNotifications,
   };
 }

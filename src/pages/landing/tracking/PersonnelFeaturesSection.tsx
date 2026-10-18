@@ -96,7 +96,7 @@ export default function PersonnelFeaturesSection() {
           </p>
 
           <h2 className="mt-8 text-5xl font-black tracking-tight text-slate-900 dark:text-white">
-            Project JOEMAR
+            Project P.A.T.R.O.L
           </h2>
 
           <p className="mt-6 text-lg leading-8 text-slate-600 dark:text-slate-400">

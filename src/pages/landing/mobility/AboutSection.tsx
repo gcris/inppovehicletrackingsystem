@@ -55,7 +55,7 @@ export default function AboutSection() {
           {/* Badge */}
 
           <span className="text-sm font-semibold uppercase tracking-[0.25em] text-blue-600">
-            About Project M.O.B.I.L.I.S
+            About Project J.O.E.M.A.R
           </span>
 
           {/* Title */}
@@ -63,8 +63,7 @@ export default function AboutSection() {
           <h2 className="mt-8 text-4xl font-extrabold tracking-tight text-slate-900 md:text-6xl">
             Transforming
             <span className="block bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
-              Maintenance and Operations-Based Inventory of Logistics
-              Information System
+              Joint Operations, Enforcement, Monitoring, and Response
             </span>
           </h2>
 

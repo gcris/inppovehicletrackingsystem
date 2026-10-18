@@ -24,7 +24,7 @@ export default function MfaVerificationForm({
   buttonText = "Verify Code",
 }: MfaVerificationFormProps) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 via-blue-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 px-6">
+    <div className="min-h-screen flex items-center justify-center px-6">
       <div className="w-full max-w-md">
         <div
           className="

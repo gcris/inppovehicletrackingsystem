@@ -32,7 +32,7 @@ export const SidebarItem = ({
           flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all duration-200
           ${
             active
-              ? "font-bold bg-blue-600 text-white shadow-lg shadow-blue-100 dark:shadow-none"
+              ? "font-bold bg-green-600 text-white shadow-lg shadow-blue-100 dark:shadow-none"
               : "hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200"
           }
         `;

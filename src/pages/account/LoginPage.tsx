@@ -37,11 +37,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user && isMfaVerified) {
-      navigate(
-        profile?.role?.includes("supply")
-          ? "/dashboard-mobility"
-          : "/dashboard",
-      );
+      navigate("/dashboard");
     }
   }, [user, isMfaVerified, navigate]);
 
@@ -407,11 +403,10 @@ export default function LoginPage() {
                       </h2>
 
                       <p className="text-xl text-slate-700 dark:text-slate-200 mt-1">
-                        Project M.O.B.I.L.I.S
+                        Project J.O.E.M.A.R
                       </p>
                       <p className="text-slate-700 dark:text-slate-200 mt-1">
-                        Mobility Operations-Based Information and Logistics
-                        Inspection System
+                        Joint Operations, Enforcement, Monitoring, and Response
                       </p>
                     </div>
 

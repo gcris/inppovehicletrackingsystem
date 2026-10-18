@@ -235,3 +235,33 @@ h6 {
     page-break-inside: avoid;
   }
 }
+
+/* Keep Google Maps InfoWindow independent of the app theme */
+.gm-style .gm-style-iw-c {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+
+.gm-style .gm-style-iw-d {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  overflow: auto !important;
+}
+
+.gm-style .gm-style-iw-tc::after {
+  background-color: #ffffff !important;
+}
+
+.gm-style .gm-ui-hover-effect {
+  filter: none !important;
+}
+
+.strategic-marker-label {
+  background: #ffffff;
+  padding: 3px 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  white-space: nowrap;
+  margin-top: 34px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 20%);
+}

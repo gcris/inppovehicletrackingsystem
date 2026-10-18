@@ -6,21 +6,18 @@ import {
   UserCheck,
   UserX,
   RefreshCw,
-  Filter,
   Plus,
   RefreshCcw,
   AlertCircle,
   X,
-  Info,
-  Edit,
   ThumbsUp,
   ThumbsDown,
-  InfoIcon,
+  Check,
 } from "lucide-react";
-import { Personnel, supabase, Unit } from "../../lib/supabase";
+import { type Personnel, supabase, type Unit } from "../../lib/supabase";
 import { useAuth } from "../../components/AuthProvider";
 import UserDetailsModal from "./UserDetailsModal";
-import { FaCheck, FaEdit, FaInfo, FaUserEdit } from "react-icons/fa";
+import { FaCheck, FaEye, FaInfo, FaUserEdit } from "react-icons/fa";
 
 export default function UserManagementPage() {
   const { profile } = useAuth();
@@ -50,18 +47,17 @@ export default function UserManagementPage() {
         .from("personnel_accounts")
         .select(
           `
-            *,
-            unit(*),
-            rank(*)
+          *,
+          unit:unit_id(id, unit_name, level),
+          rank:rank_id(id, rank_name, level)
         `,
         )
-        .eq("has_account", true) // Ensures personnel with null user_id are excluded
-        //.not("role", "in", "(admin, admin_supply)")
+        .eq("has_account", true)
+        .eq("role", "operation")
+        .eq("role", "user")
         .order("fullname");
 
       if (error) throw error;
-
-      console.log("Fetched users:", data);
 
       setUsers(data ?? []);
     } catch (err) {
@@ -95,8 +91,6 @@ export default function UserManagementPage() {
       pending: users.filter((u) => !u.is_approved).length,
 
       blocked: users.filter((u) => u.is_blocked).length,
-
-      admins: users.filter((u) => u.role.includes("admin")).length,
     };
   }, [users]);
 
@@ -130,7 +124,11 @@ export default function UserManagementPage() {
 
     setSuccess("User approved.");
 
-    fetchUsers();
+    setUsers((prev) =>
+      prev.map((item) =>
+        item.id === user.id ? { ...item, is_approved: true } : item,
+      ),
+    );
   };
 
   const blockUser = async (user: Personnel, blocked: boolean) => {
@@ -158,7 +156,11 @@ export default function UserManagementPage() {
 
     setSuccess(blocked ? "User blocked." : "User unblocked.");
 
-    fetchUsers();
+    setUsers((prev) =>
+      prev.map((item) =>
+        item.id === user.id ? { ...item, is_approved: true } : item,
+      ),
+    );
   };
 
   const resetMFA = async (id: string) => {
@@ -183,7 +185,11 @@ export default function UserManagementPage() {
     } catch (err: any) {
       setError(err.message ?? "Failed to reset MFA.");
     } finally {
-      fetchUsers();
+      setUsers((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, is_approved: true } : item,
+        ),
+      );
     }
   };
 
@@ -201,7 +207,8 @@ export default function UserManagementPage() {
       result = result.filter((user) => {
         return (
           user.fullname.toLowerCase().includes(keyword) ||
-          user.badge_number?.toLowerCase().includes(keyword)
+          user.badge_number?.toLowerCase().includes(keyword) ||
+          user.unit?.unit_name.toLowerCase().includes(keyword)
         );
       });
     }
@@ -278,14 +285,26 @@ export default function UserManagementPage() {
       )}
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <p className="text-2xl font-bold text-slate-800 dark:text-white">
-            User Management
-          </p>
+        <div className="flex items-center gap-3 ">
+          <div className="relative shrink-0">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20">
+              <Users className="w-7 h-7" />
+            </div>
 
-          <p className="mt-1 text-slate-800 dark:text-slate-200">
-            Manage user accounts, permissions, approvals and MFA.
-          </p>
+            <div className="absolute -right-1 -bottom-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 border-2 border-white dark:border-slate-950">
+              <Check className="w-3 h-3 text-white" />
+            </div>
+          </div>
+
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+              User Management
+            </h1>
+
+            <p className="mt-1 text-slate-800 dark:text-slate-200">
+              Manage user accounts, permissions, approvals and MFA.
+            </p>
+          </div>
         </div>
 
         <button
@@ -308,7 +327,7 @@ export default function UserManagementPage() {
 
       {/* Statistics */}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Total Users"
           value={statistics.total.toString()}
@@ -335,13 +354,6 @@ export default function UserManagementPage() {
           value={statistics.blocked.toString()}
           color="text-red-600"
           icon={<UserX size={22} />}
-        />
-
-        <StatCard
-          title="Administrators"
-          value={statistics.admins.toString()}
-          color="text-purple-600"
-          icon={<Shield size={22} />}
         />
       </div>
 
@@ -427,141 +439,150 @@ export default function UserManagementPage() {
           dark:bg-slate-900
         "
         >
-          <table className="min-w-full">
-            <thead className="bg-slate-100 dark:bg-slate-800">
-              <tr>
-                <th className="px-5 py-3 text-left">No.</th>
+          {filteredUsers.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-700">
+              <Users className="mx-auto mb-3 h-8 w-8 text-slate-400" />
 
-                <th className="px-5 py-3 text-left">Badge</th>
+              <p className="text-slate-500 dark:text-slate-400">
+                No users recorded.
+              </p>
+            </div>
+          ) : (
+            <table className="min-w-full">
+              <thead className="bg-slate-100 dark:bg-slate-800">
+                <tr>
+                  <th className="px-5 py-3 text-left">No.</th>
 
-                <th className="px-5 py-3 text-left">Personnel</th>
+                  <th className="px-5 py-3 text-left">Badge</th>
 
-                <th className="px-5 py-3 text-left">Unit/Station</th>
+                  <th className="px-5 py-3 text-left">Personnel</th>
 
-                <th className="px-5 py-3 text-left">Role</th>
+                  <th className="px-5 py-3 text-left">Unit/Station</th>
 
-                <th className="px-5 py-3 text-center" colSpan={2}>
-                  Access Status
-                </th>
+                  <th className="px-5 py-3 text-left">Role</th>
 
-                <th className="px-5 py-3 text-left">MFA Status</th>
+                  <th className="px-5 py-3 text-center" colSpan={2}>
+                    Access Status
+                  </th>
 
-                <th className="px-5 py-3 text-left">Actions</th>
-              </tr>
-            </thead>
+                  <th className="px-5 py-3 text-left">MFA Status</th>
 
-            <tbody>
-              {filteredUsers.map((user, index) => (
-                <tr
-                  key={user.id}
-                  className="border-t border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-                >
-                  <td className="px-5 py-4">{index + 1}</td>
-                  <td className="px-5 py-4">{user.badge_number}</td>
+                  <th className="px-5 py-3 text-left">Actions</th>
+                </tr>
+              </thead>
 
-                  <td className="px-5 py-4">
-                    <div className="font-medium">
-                      {user.rank?.rank_name} {user.fullname}
-                    </div>
+              <tbody>
+                {filteredUsers.map((user, index) => (
+                  <tr
+                    key={user.id}
+                    className="border-t border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    <td className="px-5 py-4">{index + 1}</td>
+                    <td className="px-5 py-4">{user.badge_number}</td>
 
-                    <div className="text-slate-800 dark:text-slate-200">
-                      {user.designation}
-                    </div>
-                  </td>
+                    <td className="px-5 py-4">
+                      <div className="font-medium">
+                        {user.rank?.rank_name} {user.fullname}
+                      </div>
 
-                  <td className="px-5 py-4">{user.unit?.unit_name}</td>
+                      <div className="text-slate-800 dark:text-slate-200">
+                        {user.designation}
+                      </div>
+                    </td>
 
-                  <td className="px-5 py-4">{formatRole(user.role)}</td>
+                    <td className="px-5 py-4">{user.unit?.unit_name}</td>
 
-                  <td className="px-5 py-4">
-                    {user.is_approved ? (
-                      <span className="rounded-full bg-green-100 px-3 py-1 text-green-700">
-                        Approved
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-yellow-100 px-3 py-1 text-yellow-700">
-                        Pending
-                      </span>
-                    )}
-                  </td>
+                    <td className="px-5 py-4">{formatRole(user.role)}</td>
 
-                  <td className="px-5 py-4">
-                    {user.is_blocked && (
-                      <span className="rounded-full bg-red-100 px-3 py-1 text-red-700">
-                        Blocked
-                      </span>
-                    )}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    {!user.mfa_enabled ? (
-                      <span className="rounded-full bg-red-100 px-3 py-1 text-red-700">
-                        MFA disabled
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-green-100 px-3 py-1 text-green-700">
-                        MFA enabled
-                      </span>
-                    )}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <div className="flex flex-wrap gap-2">
-                      {/* View */}
-                      <button
-                        onClick={() => {
-                          setSelectedUser(user);
-                          setShowViewModal(true);
-                        }}
-                        className="rounded-lg border p-2 border-blue-600 text-blue-600"
-                      >
-                        <FaInfo className="h-5 w-5" />
-                      </button>
-
-                      {/* Edit */}
-                      <button
-                        onClick={() => {
-                          setSelectedUser(user);
-                          setShowEditModal(true);
-                        }}
-                        className="rounded-lg border p-2 border-orange-600 text-orange-600"
-                      >
-                        <FaUserEdit className="h-5 w-5" />
-                      </button>
-
-                      {/* Approve */}
-                      {!user.is_approved && (
-                        <button
-                          onClick={() => approveUser(user)}
-                          className="rounded-lg border p-2 border-green-600 text-green-600"
-                        >
-                          <FaCheck className="h-5 w-5" />
-                        </button>
+                    <td className="px-5 py-4">
+                      {user.is_approved ? (
+                        <span className="rounded-full bg-green-100 px-3 py-1 text-green-700">
+                          Approved
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-yellow-100 px-3 py-1 text-yellow-700">
+                          Pending
+                        </span>
                       )}
+                    </td>
 
-                      {/* Block / Unblock */}
-                      <button
-                        onClick={() => blockUser(user, !user.is_blocked)}
-                        className={`rounded-lg border p-2
+                    <td className="px-5 py-4">
+                      {user.is_blocked && (
+                        <span className="rounded-full bg-red-100 px-3 py-1 text-red-700">
+                          Blocked
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="px-5 py-4">
+                      {!user.mfa_enabled ? (
+                        <span className="rounded-full bg-red-100 px-3 py-1 text-red-700">
+                          MFA disabled
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-green-100 px-3 py-1 text-green-700">
+                          MFA enabled
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <div className="flex flex-wrap gap-2">
+                        {/* View */}
+                        <button
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setShowViewModal(true);
+                          }}
+                          className="rounded-lg border p-2 border-blue-600 text-blue-600"
+                        >
+                          <FaEye className="h-5 w-5" />
+                        </button>
+
+                        {/* Edit */}
+                        <button
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setShowEditModal(true);
+                          }}
+                          className="rounded-lg border p-2 border-orange-600 text-orange-600"
+                        >
+                          <FaUserEdit className="h-5 w-5" />
+                        </button>
+
+                        {/* Approve */}
+                        {!user.is_approved && (
+                          <button
+                            onClick={() => approveUser(user)}
+                            className="rounded-lg border p-2 border-green-600 text-green-600"
+                          >
+                            <FaCheck className="h-5 w-5" />
+                          </button>
+                        )}
+
+                        {/* Block / Unblock */}
+                        <button
+                          onClick={() => blockUser(user, !user.is_blocked)}
+                          className={`rounded-lg border p-2
                             ${
                               user.is_blocked
                                 ? "border-green-600 text-green-600"
                                 : "border-red-600 text-red-600"
                             }
                         `}
-                      >
-                        {user.is_blocked ? (
-                          <ThumbsUp className="h-5 w-5" />
-                        ) : (
-                          <ThumbsDown className="h-5 w-5" />
-                        )}
-                      </button>
+                        >
+                          {user.is_blocked ? (
+                            <ThumbsUp className="h-5 w-5" />
+                          ) : (
+                            <ThumbsDown className="h-5 w-5" />
+                          )}
+                        </button>
 
-                      {/* Reset MFA */}
-                      {user.mfa_enabled && (
-                        <button
-                          onClick={() => resetMFA(user.id)}
-                          className="
+                        {/* Reset MFA */}
+                        {user.mfa_enabled && (
+                          <button
+                            onClick={() => resetMFA(user.id)}
+                            className="
                             rounded-lg
                             bg-purple-600
                             px-3
@@ -571,16 +592,17 @@ export default function UserManagementPage() {
                             transition
                             hover:bg-purple-700
                         "
-                        >
-                          Reset MFA
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                          >
+                            Reset MFA
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
 

@@ -10,8 +10,6 @@ export function useInactivityLogout(enabled = true) {
         if (!enabled) return;
 
         const logout = async () => {
-            console.log("User inactive. Logging out...");
-
             await supabase.auth.signOut();
 
             // Optional: redirect to login

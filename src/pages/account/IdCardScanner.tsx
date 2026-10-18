@@ -161,19 +161,10 @@ export default function IdCardScanner({
     let worker: Awaited<ReturnType<typeof createWorker>> | null = null;
 
     try {
-      console.log("Starting driver's license OCR:", file.name);
-
       /*
        * Preprocess image.
        */
       const processedImage = await preprocessImage(file);
-
-      console.log(
-        "Processed image:",
-        processedImage.width,
-        "x",
-        processedImage.height,
-      );
 
       /*
        * Create Tesseract worker.
@@ -194,15 +185,10 @@ export default function IdCardScanner({
       const {
         data: { text },
       } = await worker.recognize(processedImage);
-
-      console.log("OCR TEXT:", text);
-
       /*
        * Extract driver's license information.
        */
       const extractedData = extractIdData(text);
-
-      console.log("EXTRACTED DATA:", extractedData);
 
       /*
        * Send result back to DriverLicenseModal.
@@ -296,8 +282,6 @@ export default function IdCardScanner({
  */
 function extractIdData(text: string): ExtractedIdData {
   const normalizedText = normalizeOcrText(text);
-
-  console.log("NORMALIZED OCR TEXT:", normalizedText);
 
   return {
     licenseNumber: extractLicenseNumber(normalizedText),
@@ -514,14 +498,10 @@ function extractDlCodes(text: string): string {
   // Only take the text between DL Codes and Conditions.
   section = section.split(/CONDITIONS?/i)[0];
 
-  console.log("DL CODE SECTION:", section);
-
   const raw = section
     .replace(/DL\s*CODE[S]?/i, "")
     .replace(/[^A-Z0-9]/g, "")
     .trim();
-
-  console.log("DL CODE RAW:", raw);
 
   /*
    * ---------------------------------------------

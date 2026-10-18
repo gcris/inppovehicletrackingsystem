@@ -14,7 +14,7 @@ import { FaGithub } from "react-icons/fa";
 const screenshots = [
   {
     image: "/mobile/splash.png",
-    title: "Project JOEMAR",
+    title: "Project P.A.T.R.O.L",
   },
   {
     image: "/mobile/login.png",

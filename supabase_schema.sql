@@ -41,7 +41,7 @@ create table patrol_schedule (
 create table mobility_assets (
   id uuid primary key default uuid_generate_v4(),
   plate_number text not null unique,
-  vehicle_type text, -- e.g., 'Mobile Patrol', 'TMRU', 'Bike Patrol', 'Other'
+  vehicle_type text, -- e.g., 'Mobile Patrolling', 'TMRU', 'Bike Patrolling', 'Other'
   load_status text default 'Normal' check (load_status in ('Normal', 'Expired', 'Maintenance')),
   created_at timestamptz default now(),
   personnel_id uuid references personnel(id) on delete set null,

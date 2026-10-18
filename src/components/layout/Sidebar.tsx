@@ -12,12 +12,13 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-interface MenuItem {
-  href: string;
+type MenuItem = {
+  href?: string;
   icon: React.ReactNode;
   label: string;
-  for: string[];
-}
+  for?: string[];
+  children?: MenuItem[];
+};
 
 /**
  * Sidebar component with collapse/expand functionality
@@ -46,6 +47,30 @@ export const Sidebar = () => {
       for: ["operation", "admin"],
     },
     {
+      href: "/sectors",
+      icon: (
+        <img
+          src="/assets/sector.png"
+          alt="Sector Mapping"
+          className="w-7 h-7"
+        />
+      ),
+      label: "Sector Mapping",
+      for: ["operation", "admin"],
+    },
+    {
+      href: "/critical-infrastructure",
+      icon: (
+        <img
+          src="/assets/critical-infrastructure.png"
+          alt="Critical Infrastructure"
+          className="w-7 h-7"
+        />
+      ),
+      label: "Critical Infrastructure",
+      for: ["operation", "admin"],
+    },
+    {
       href: "/personnel",
       icon: (
         <img src="/assets/personnel.png" alt="Personnel" className="w-7 h-7" />
@@ -66,7 +91,7 @@ export const Sidebar = () => {
       for: ["operation", "admin"],
     },
     {
-      href: "/dashboard-mobility",
+      href: "/dashboard",
       icon: (
         <img src="/assets/dashboard.png" alt="Dashboard" className="w-7 h-7" />
       ),
@@ -83,31 +108,7 @@ export const Sidebar = () => {
         />
       ),
       label: "Mobility Assets",
-      for: ["supply", "admin", "admin_supply"],
-    },
-    {
-      href: "/pms-history",
-      icon: (
-        <img
-          src="/assets/maintenance.png"
-          alt="PMS History"
-          className="w-7 h-7"
-        />
-      ),
-      label: "PMS History",
-      for: ["supply", "admin", "admin_supply"],
-    },
-    {
-      href: "/mobility-inspection",
-      icon: (
-        <img
-          src="/assets/vehicle-inspection.png"
-          alt="Mobility Inspection"
-          className="w-7 h-7"
-        />
-      ),
-      label: "Mobility Inspection",
-      for: ["supply", "admin", "admin_supply"],
+      for: ["admin"],
     },
     {
       href: "/calendar",
@@ -122,22 +123,29 @@ export const Sidebar = () => {
   // Define settings items (the ones after the separator in App.tsx)
   const settingsItems: MenuItem[] = [
     {
-      href: "/analytics",
-      icon: <BarChart3 className="w-7 h-7" />,
       label: "Analytics",
+      icon: <BarChart3 className="w-7 h-7" />,
       for: ["operation", "admin"],
+      children: [
+        {
+          href: "/analytics-station",
+          icon: <BarChart3 className="w-5 h-5" />,
+          label: "Analytics by Station",
+          for: ["operation", "admin"],
+        },
+        {
+          href: "/analytics",
+          icon: <BarChart3 className="w-5 h-5" />,
+          label: "Analytics by Personnel",
+          for: ["operation", "admin"],
+        },
+      ],
     },
     {
-      href: "/pms-type",
-      icon: (
-        <img
-          src="/assets/classification.png"
-          alt="PMS Catalog"
-          className="w-7 h-7"
-        />
-      ),
-      label: "PMS Catalog",
-      for: ["supply", "admin", "admin_supply"],
+      href: "/patrol-summary",
+      icon: <FileText className="w-7 h-7" />,
+      label: "Patrol Summary",
+      for: ["operation", "admin"],
     },
     {
       href: "/account",
@@ -149,7 +157,7 @@ export const Sidebar = () => {
       href: "/users",
       icon: <Users className="w-7 h-7" />,
       label: "User Management",
-      for: ["admin", "admin_supply"],
+      for: ["admin"],
     },
     {
       href: "/mobilis-aboutus",
@@ -163,6 +171,10 @@ export const Sidebar = () => {
   const isActive = (href: string) => location.pathname === href;
 
   const [reportsOpen, setReportsOpen] = useState(false);
+
+  const [analyticsOpen, setAnalyticsOpen] = useState(
+    isActive("/analytics-station") || isActive("/analytics"),
+  );
 
   return (
     <aside
@@ -185,9 +197,7 @@ export const Sidebar = () => {
           {!isCollapsed && (
             <div>
               <h1 className="font-bold leading-tight text-slate-900 dark:text-white">
-                {profileRole?.includes("supply")
-                  ? "Project M.O.B.I.L.I.S"
-                  : "Project JOEMAR"}
+                Project P.A.T.R.O.L
               </h1>
               <p className="text-[12px] text-slate-500 dark:text-slate-400 uppercase tracking-widest font-black">
                 Ilocos Norte PPO
@@ -209,11 +219,11 @@ export const Sidebar = () => {
           .map((item, index) => (
             <SidebarItem
               key={index}
-              href={item.href}
+              href={item.href ?? "#"}
               icon={item.icon}
               label={item.label}
               isCollapsed={isCollapsed}
-              isActive={isActive(item.href)}
+              isActive={isActive(item.href ?? "#")}
             />
           ))}
 
@@ -307,16 +317,96 @@ export const Sidebar = () => {
                 item.for.includes("all") ||
                 item.for.includes(profileRole!),
             )
-            .map((item, index) => (
-              <SidebarItem
-                key={index}
-                href={item.href}
-                icon={item.icon}
-                label={item.label}
-                isCollapsed={isCollapsed}
-                isActive={isActive(item.href)}
-              />
-            ))}
+            .map((item, index) => {
+              // Render Analytics as a dropdown parent.
+              if (item.children?.length) {
+                const visibleChildren = item.children.filter(
+                  (child) =>
+                    !child.for ||
+                    child.for.includes("all") ||
+                    child.for.includes(profileRole!),
+                );
+
+                if (visibleChildren.length === 0) return null;
+
+                const analyticsActive = visibleChildren.some(
+                  (child) => child.href && isActive(child.href),
+                );
+
+                return (
+                  <div key={item.label}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isCollapsed) {
+                          toggleSidebar();
+                          setAnalyticsOpen(true);
+                        } else {
+                          setAnalyticsOpen((prev) => !prev);
+                        }
+                      }}
+                      className={`
+                        w-full flex items-center gap-3 rounded-xl px-3 py-3
+                        transition-colors
+                        ${
+                          analyticsActive
+                            ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                            : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                        }
+                        ${isCollapsed ? "justify-center" : "justify-start"}
+                      `}
+                      aria-expanded={analyticsOpen}
+                      title={isCollapsed ? item.label : undefined}
+                    >
+                      {item.icon}
+
+                      {!isCollapsed && (
+                        <>
+                          <span className="flex-1 text-left font-medium">
+                            {item.label}
+                          </span>
+
+                          <ChevronDown
+                            className={`h-5 w-5 transition-transform duration-200 ${
+                              analyticsOpen ? "rotate-180" : ""
+                            }`}
+                          />
+                        </>
+                      )}
+                    </button>
+
+                    {!isCollapsed && analyticsOpen && (
+                      <div className="ml-2 mt-1 space-y-1 border-l border-slate-200 pl-3 dark:border-slate-700">
+                        {visibleChildren.map((child) => (
+                          <SidebarItem
+                            key={child.href}
+                            href={child.href!}
+                            icon={child.icon}
+                            label={child.label}
+                            isCollapsed={false}
+                            isActive={isActive(child.href!)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // Render regular settings items as before.
+              if (!item.href) return null;
+
+              return (
+                <SidebarItem
+                  key={item.href}
+                  href={item.href}
+                  icon={item.icon}
+                  label={item.label}
+                  isCollapsed={isCollapsed}
+                  isActive={isActive(item.href)}
+                />
+              );
+            })}
         </div>
       </nav>
 

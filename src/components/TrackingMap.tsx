@@ -1,369 +1,1110 @@
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
-import L from "leaflet";
-import { MobilityAsset, PatrolLog, Personnel } from "../lib/supabase";
-import { formatDistanceToNow } from "date-fns";
+import React, {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  useEffect,
+} from "react";
+import {
+  GoogleMap,
+  OverlayView,
+  OverlayViewF,
+  useGoogleMap,
+  useJsApiLoader,
+} from "@react-google-maps/api";
+import { GOOGLE_MAPS_LOADER_OPTIONS } from "../lib/googleMapsConfig";
+import { renderToStaticMarkup } from "react-dom/server";
 import {
   Signal,
   Navigation,
-  Maximize2,
-  Minimize2,
   Notebook,
   ShieldCheck,
   Network,
+  Car,
+  Bike,
+  Footprints,
+  Waves,
+  Activity,
+  Star,
+  Siren,
+  Motorbike,
+  LucideIcon,
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { Link } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { snapToRoad } from "../lib/snapToRoad";
-import { createMarkerIcon } from "../helper/MarkerIcon";
 
-// Isolate Leaflet SSR crash by ensuring it only runs in the browser
-if (typeof window !== "undefined") {
-  // Fix for default marker icons in Leaflet + Vite
-  delete (L.Icon.Default.prototype as any)._getIconUrl;
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl:
-      "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-    iconUrl:
-      "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-    shadowUrl:
-      "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
-  });
+import { MobilityAsset, PatrolLog, Personnel } from "../lib/supabase";
+
+/* ============================================================
+   DUTY TYPE ICONS
+============================================================ */
+
+export const dutyTypeIconMap: Record<string, LucideIcon> = {
+  "Mobile Patrolling": Car,
+  "TMRU Patrolling": Motorbike,
+  "Foot Patrolling": Footprints,
+  "Bike Patrolling": Bike,
+  "Seaborne Patrolling": Waves,
+  Checkpoint: ShieldCheck,
+  "Simulation Exercise": Activity,
+  "Special Event": Star,
+  EMERGENCY_SOS: Siren,
+};
+
+function getIconForDutyType(dutyType?: string): LucideIcon {
+  if (!dutyType) {
+    return Car;
+  }
+
+  if (dutyTypeIconMap[dutyType]) {
+    return dutyTypeIconMap[dutyType];
+  }
+
+  const formatted = dutyType
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+
+  if (dutyTypeIconMap[formatted]) {
+    return dutyTypeIconMap[formatted];
+  }
+
+  if (dutyType === "CHECKPOINT") {
+    return ShieldCheck;
+  }
+
+  return Car;
 }
 
-// Component to handle map resizing
-function ResizeMap({ isFullscreen }: { isFullscreen?: boolean }) {
-  const map = useMap();
-  useEffect(() => {
-    const interval = setInterval(() => {
-      map.invalidateSize();
-    }, 100);
-
-    const timeout = setTimeout(() => {
-      clearInterval(interval);
-      map.invalidateSize();
-    }, 600);
-
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
-    };
-  }, [map, isFullscreen]);
-  return null;
-}
-
-// Automatically centers and flies to active SOS signals
-function AutoFlyToEmergency({
-  patrolLogs: patrolLogs,
-}: {
-  patrolLogs: Record<string, PatrolLog>;
-}) {
-  const map = useMap();
-
-  useEffect(() => {
-    const emergencyLog = Object.values(patrolLogs).find(
-      (log) => log.duty_type === "EMERGENCY_SOS",
-    );
-
-    if (emergencyLog) {
-      const logDate = new Date(emergencyLog.captured_at);
-      const now = new Date();
-
-      const ONE_HOUR_IN_MS = 60 * 60 * 1000;
-      const animate_ping = now.getTime() - logDate.getTime() <= ONE_HOUR_IN_MS;
-      if (!animate_ping) return;
-
-      const lat = Number(emergencyLog.latitude);
-      const lng = Number(emergencyLog.longitude);
-
-      if (!isNaN(lat) && !isNaN(lng)) {
-        map.flyTo([lat, lng], 16, {
-          animate: true,
-          duration: 1.5,
-        });
-      }
-    }
-  }, [patrolLogs, map]);
-
-  return null;
-}
+/* ============================================================
+   TYPES
+============================================================ */
 
 interface MapProps {
   vehicles: Record<string, MobilityAsset>;
   logs: Record<string, PatrolLog>;
+  personnel: Record<string, Personnel>;
 }
 
+interface Position {
+  lat: number;
+  lng: number;
+}
+
+interface SelectedMarker {
+  trackingId: string;
+  trackingKey: string;
+  log: PatrolLog;
+  position: Position;
+}
+
+interface TrackingItem {
+  trackingId: string;
+  trackingKey: string;
+  log: PatrolLog;
+}
+
+/* ============================================================
+   MAP CONSTANTS
+============================================================ */
+
+const containerStyle: React.CSSProperties = {
+  width: "100%",
+  height: "100%",
+};
+
+const DEFAULT_CENTER: Position = Object.freeze({
+  lat: 18.196,
+  lng: 120.5927,
+});
+
+const DEFAULT_ZOOM = 11;
+
+const mapOptions: google.maps.MapOptions = {
+  streetViewControl: true,
+  mapTypeControl: true,
+  fullscreenControl: true,
+  zoomControl: true,
+  draggable: true,
+  scrollwheel: true,
+  gestureHandling: "auto",
+  disableDoubleClickZoom: false,
+  draggableCursor: "grab",
+  draggingCursor: "grabbing",
+  mapId: import.meta.env.VITE_GOOGLE_MAPS_MAP_ID,
+};
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+/**
+ * Returns the actual identity of a tracking log.
+ *
+ * IMPORTANT:
+ *
+ * A log can be:
+ *
+ *   vehicle_id = UUID
+ *   personnel_id = UUID
+ *
+ * or:
+ *
+ *   vehicle_id = null
+ *   personnel_id = UUID
+ *
+ * Therefore we MUST NOT use the Record<string, PatrolLog>
+ * object's key as the vehicle ID.
+ */
+function getTrackingIdentity(log: PatrolLog): {
+  trackingId: string | null;
+  trackingKey: string | null;
+} {
+  if (log.vehicle_id) {
+    return {
+      trackingId: log.vehicle_id,
+      trackingKey: `vehicle:${log.vehicle_id}`,
+    };
+  }
+
+  if (log.personnel_id) {
+    return {
+      trackingId: log.personnel_id,
+      trackingKey: `personnel:${log.personnel_id}`,
+    };
+  }
+
+  return {
+    trackingId: null,
+    trackingKey: null,
+  };
+}
+
+/**
+ * Offset markers that have exactly the same coordinates.
+ *
+ * This prevents multiple markers from sitting directly on top
+ * of each other.
+ */
 function getOffsetPosition(
   lat: number,
   lng: number,
   index: number,
   total: number,
-): [number, number] {
-  if (total <= 1) return [lat, lng];
+): Position {
+  if (total <= 1) {
+    return { lat, lng };
+  }
 
-  const radius = 0.00003; // ~3 meters
+  const radius = 0.00003;
   const angle = (2 * Math.PI * index) / total;
 
-  return [lat + radius * Math.cos(angle), lng + radius * Math.sin(angle)];
+  return {
+    lat: lat + radius * Math.cos(angle),
+    lng: lng + radius * Math.sin(angle),
+  };
 }
 
-export default function TrackingMap({
+/**
+ * Used for grouping markers that occupy approximately the same
+ * physical location.
+ */
+function getCoordinateGroupKey(lat: number, lng: number): string {
+  return `${lat.toFixed(5)},${lng.toFixed(5)}`;
+}
+
+/* ============================================================
+   ADVANCED MARKER ENTRY
+============================================================ */
+
+interface AdvancedMarkerEntry {
+  marker: google.maps.marker.AdvancedMarkerElement;
+  element: HTMLDivElement;
+  iconContainer: HTMLSpanElement;
+
+  clickHandler: (event: Event) => void;
+  mouseEnterHandler: () => void;
+  mouseLeaveHandler: () => void;
+}
+
+/* ============================================================
+   TRACKING MARKERS
+============================================================ */
+
+function findPersonnel(
+  personnel: Record<string, Personnel>,
+  personnelId?: string | null,
+): Personnel | undefined {
+  if (!personnelId) {
+    return undefined;
+  }
+
+  return personnel[personnelId] || undefined;
+}
+
+const TrackingMarkers = React.memo(function TrackingMarkers({
   vehicles,
   logs,
   personnel,
-}: MapProps & { personnel: Record<string, Personnel> }) {
-  const center: [number, number] = [18.196, 120.5927]; // Ilocos Norte Coordinates
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-  const [now, setNow] = useState(Date.now());
-  const [description, setDescription] = useState<string>();
-  const [snappedPositions, setSnappedPositions] = useState<
-    Record<string, { lat: number; lng: number }>
-  >({});
+  onSelect,
+}: MapProps & {
+  onSelect: (marker: SelectedMarker) => void;
+}) {
+  const map = useGoogleMap();
+
+  const markersRef = useRef<Map<string, AdvancedMarkerEntry>>(new Map());
+
+  const logsRef = useRef(logs);
+  const vehiclesRef = useRef(vehicles);
+  const personnelRef = useRef(personnel);
+  const onSelectRef = useRef(onSelect);
+
+  const groupedMarkersRef = useRef<Map<string, TrackingItem[]>>(new Map());
+
+  /* ============================================================
+     KEEP REFS CURRENT
+  ============================================================ */
 
   useEffect(() => {
-    setIsMounted(true);
+    logsRef.current = logs;
+  }, [logs]);
 
-    const timer = setInterval(() => {
-      setNow(Date.now());
-    }, 1000); // or 30000
+  useEffect(() => {
+    vehiclesRef.current = vehicles;
+  }, [vehicles]);
 
-    return () => clearInterval(timer);
+  useEffect(() => {
+    personnelRef.current = personnel;
+  }, [personnel]);
+
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
+
+  /* ============================================================
+     BUILD TRACKING ITEMS
+  ============================================================ */
+
+  const trackingItems = useMemo(() => {
+    const items: TrackingItem[] = [];
+
+    Object.values(logs).forEach((log) => {
+      const { trackingId, trackingKey } = getTrackingIdentity(log);
+
+      /*
+       * IMPORTANT:
+       *
+       * Do not rely on the Object.entries(logs) key.
+       *
+       * latest_asset_logs may contain:
+       *
+       *   vehicle_id = null
+       *   personnel_id = UUID
+       *
+       * In that case the personnel UUID becomes the tracking
+       * identity.
+       */
+      if (!trackingId || !trackingKey) {
+        return;
+      }
+
+      const lat = Number(log.latitude);
+      const lng = Number(log.longitude);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return;
+      }
+
+      items.push({
+        trackingId,
+        trackingKey,
+        log,
+      });
+    });
+
+    return items;
+  }, [logs]);
+
+  /* ============================================================
+     GROUP TRACKERS BY LOCATION
+  ============================================================ */
+
+  const groupedMarkers = useMemo<Map<string, TrackingItem[]>>(() => {
+    const groups = new Map<string, TrackingItem[]>();
+
+    trackingItems.forEach((item) => {
+      const lat = Number(item.log.latitude);
+      const lng = Number(item.log.longitude);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return;
+      }
+
+      const key = getCoordinateGroupKey(lat, lng);
+
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+
+      groups.get(key)!.push(item);
+    });
+
+    return groups;
+  }, [trackingItems]);
+
+  useEffect(() => {
+    groupedMarkersRef.current = groupedMarkers;
+  }, [groupedMarkers]);
+
+  /* ============================================================
+     CREATE / UPDATE / REMOVE ADVANCED MARKERS
+  ============================================================ */
+
+  useEffect(() => {
+    if (!map) {
+      return;
+    }
+
+    if (!window.google?.maps?.marker?.AdvancedMarkerElement) {
+      console.warn(
+        "AdvancedMarkerElement is not available. Make sure the Google Maps marker library is loaded.",
+      );
+
+      return;
+    }
+
+    const activeMarkerIds = new Set<string>();
+
+    /* ==========================================================
+       PROCESS EACH LOCATION GROUP
+    ========================================================== */
+
+    groupedMarkers.forEach((group) => {
+      /*
+       * Stable sorting is important.
+       *
+       * If multiple trackers are in the same location,
+       * their offset positions should not randomly change
+       * between realtime updates.
+       */
+      const sortedGroup = [...group].sort((a, b) =>
+        a.trackingKey.localeCompare(b.trackingKey),
+      );
+
+      sortedGroup.forEach((item, index) => {
+        const { trackingId, trackingKey, log } = item;
+
+        /*
+         * trackingId is the actual database ID.
+         * trackingKey is the namespaced marker identity.
+         *
+         * Vehicle and personnel are resolved from the LOG's
+         * actual IDs.
+         *
+         * We do NOT do:
+         *
+         * vehicles[trackingKey]
+         *
+         * because trackingKey may represent a personnel tracker.
+         */
+        const vehicle = log.vehicle_id ? vehicles[log.vehicle_id] : undefined;
+
+        const personnelInfo = findPersonnel(personnel, log.personnel_id);
+
+        /*
+         * DO NOT discard the GPS marker if metadata
+         * isn't available.
+         *
+         * The PatrolLog itself contains a valid GPS position.
+         */
+        if (!vehicle && !personnelInfo) {
+          console.warn("Creating tracking marker without metadata:", {
+            trackingKey,
+            vehicleId: log.vehicle_id,
+            personnelId: log.personnel_id,
+          });
+        }
+
+        const lat = Number(log.latitude);
+        const lng = Number(log.longitude);
+
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          return;
+        }
+
+        activeMarkerIds.add(trackingKey);
+
+        const position = getOffsetPosition(lat, lng, index, sortedGroup.length);
+
+        const lastUpdated = new Date(log.captured_at);
+
+        const isStale = Date.now() - lastUpdated.getTime() > 5 * 60 * 1000;
+
+        const dutyType = log.duty_type || "MOBILE_PATROL";
+
+        const isEmergency =
+          dutyType === "EMERGENCY_SOS" || dutyType === "DISTRESS_SIGNAL";
+
+        let entry = markersRef.current.get(trackingKey);
+
+        /* ======================================================
+           CREATE MARKER
+        ====================================================== */
+
+        if (!entry) {
+          const element = document.createElement("div");
+
+          element.className = [
+            "flex",
+            "h-10",
+            "w-10",
+            "cursor-pointer",
+            "items-center",
+            "justify-center",
+            "rounded-full",
+            "border-2",
+            "shadow-md",
+            "select-none",
+          ].join(" ");
+
+          /*
+           * These styles prevent browser drag behavior and
+           * reduce visual jumping when the Google Map itself
+           * is being dragged.
+           */
+          element.style.width = "40px";
+          element.style.height = "40px";
+          element.style.userSelect = "none";
+          element.style.webkitUserSelect = "none";
+          element.style.cursor = "pointer";
+          element.style.touchAction = "none";
+          element.style.transformOrigin = "center";
+          element.style.transition = "transform 120ms ease";
+          element.style.willChange = "transform";
+          element.draggable = false;
+
+          /* ====================================================
+             ICON CONTAINER
+          ==================================================== */
+
+          const iconContainer = document.createElement("span");
+
+          iconContainer.style.display = "flex";
+          iconContainer.style.alignItems = "center";
+          iconContainer.style.justifyContent = "center";
+          iconContainer.style.width = "20px";
+          iconContainer.style.height = "20px";
+          iconContainer.style.pointerEvents = "none";
+          iconContainer.style.flexShrink = "0";
+
+          const IconComponent = getIconForDutyType(log.duty_type);
+
+          iconContainer.innerHTML = renderToStaticMarkup(
+            <IconComponent size={20} strokeWidth={2.5} />,
+          );
+
+          element.appendChild(iconContainer);
+
+          /* ====================================================
+             CLICK HANDLER
+          ==================================================== */
+
+          const clickHandler = (event: Event) => {
+            event.stopPropagation();
+
+            // ------------------------------------------------------------
+            // DO NOT assume the logs object is keyed by trackingKey.
+            // Find the actual PatrolLog by vehicle_id/personnel_id.
+            // ------------------------------------------------------------
+
+            const currentLog = Object.values(logsRef.current).find(
+              (candidate) => {
+                const identity = getTrackingIdentity(candidate);
+
+                return identity.trackingKey === trackingKey;
+              },
+            );
+
+            if (!currentLog) {
+              console.warn("Unable to find log for clicked marker:", {
+                trackingKey,
+              });
+
+              return;
+            }
+
+            const currentLat = Number(currentLog.latitude);
+            const currentLng = Number(currentLog.longitude);
+
+            if (!Number.isFinite(currentLat) || !Number.isFinite(currentLng)) {
+              console.warn("Invalid coordinates for clicked marker:", {
+                trackingKey,
+                latitude: currentLog.latitude,
+                longitude: currentLog.longitude,
+              });
+
+              return;
+            }
+
+            // ------------------------------------------------------------
+            // Recalculate the marker's offset position.
+            // ------------------------------------------------------------
+
+            const currentKey = `${currentLat.toFixed(5)},${currentLng.toFixed(5)}`;
+
+            const currentGroup =
+              groupedMarkersRef.current.get(currentKey) || [];
+
+            const currentSortedGroup = [...currentGroup].sort((a, b) =>
+              a.trackingKey.localeCompare(b.trackingKey),
+            );
+
+            const currentIndex = currentSortedGroup.findIndex(
+              (item) => item.trackingKey === trackingKey,
+            );
+
+            const currentPosition = getOffsetPosition(
+              currentLat,
+              currentLng,
+              Math.max(currentIndex, 0),
+              Math.max(currentSortedGroup.length, 1),
+            );
+
+            // ------------------------------------------------------------
+            // THIS OPENS THE INFO WINDOW / MODAL
+            // ------------------------------------------------------------
+
+            onSelectRef.current({
+              trackingId:
+                currentLog.vehicle_id || currentLog.personnel_id || trackingKey,
+              trackingKey,
+              log: currentLog,
+              position: currentPosition,
+            });
+          };
+
+          /* ====================================================
+             HOVER HANDLERS
+          ==================================================== */
+
+          const mouseEnterHandler = () => {
+            element.style.transform = "scale(1.10)";
+          };
+
+          const mouseLeaveHandler = () => {
+            element.style.transform = "scale(1)";
+          };
+
+          element.addEventListener("click", clickHandler);
+
+          element.addEventListener("mouseenter", mouseEnterHandler);
+
+          element.addEventListener("mouseleave", mouseLeaveHandler);
+
+          /* ====================================================
+             ADVANCED MARKER
+          ==================================================== */
+
+          const displayTitle =
+            vehicle?.plate_number ||
+            personnelInfo?.fullname ||
+            "Tracking Marker";
+
+          const marker = new google.maps.marker.AdvancedMarkerElement({
+            map,
+            position,
+            content: element,
+            title: displayTitle,
+            zIndex: 100,
+            gmpClickable: true,
+          });
+
+          entry = {
+            marker,
+            element,
+            iconContainer,
+            clickHandler,
+            mouseEnterHandler,
+            mouseLeaveHandler,
+          };
+
+          markersRef.current.set(trackingKey, entry);
+        }
+
+        if (!entry) {
+          return;
+        }
+
+        /* ======================================================
+            REATTACH MARKER TO THE CURRENT MAP
+          ====================================================== */
+
+        // Important when navigating between pages that use
+        // different Google Maps instances.
+        if (entry.marker.map !== map) {
+          entry.marker.map = map;
+        }
+
+        /* ======================================================
+            UPDATE EXISTING MARKER
+          ====================================================== */
+
+        entry.marker.position = position;
+
+        entry.marker.title =
+          vehicle?.plate_number || personnelInfo?.fullname || "Tracking Marker";
+
+        entry.marker.zIndex = isEmergency ? 200 : 100;
+
+        /* ======================================================
+           RESET VISUAL CLASSES
+        ====================================================== */
+
+        entry.element.className = [
+          "flex",
+          "h-10",
+          "w-10",
+          "cursor-pointer",
+          "items-center",
+          "justify-center",
+          "rounded-full",
+          "border-2",
+          "shadow-md",
+          "select-none",
+        ].join(" ");
+
+        /* ======================================================
+           APPLY STATUS
+        ====================================================== */
+
+        if (isStale) {
+          entry.element.classList.add(
+            "border-slate-400",
+            "bg-white",
+            "text-slate-400",
+          );
+        } else if (isEmergency) {
+          entry.element.classList.add(
+            "border-red-600",
+            "bg-red-50",
+            "text-red-600",
+          );
+        } else {
+          entry.element.classList.add(
+            "border-slate-700",
+            "bg-white",
+            "text-slate-700",
+          );
+        }
+
+        /* ======================================================
+           UPDATE ICON
+        ====================================================== */
+
+        const CurrentIconComponent = getIconForDutyType(log.duty_type);
+
+        entry.iconContainer.innerHTML = renderToStaticMarkup(
+          <CurrentIconComponent size={20} strokeWidth={2.5} />,
+        );
+      });
+    });
+
+    /* ==========================================================
+       REMOVE MARKERS NO LONGER ACTIVE
+    ========================================================== */
+
+    markersRef.current.forEach((entry, trackingKey) => {
+      if (!activeMarkerIds.has(trackingKey)) {
+        entry.marker.map = null;
+
+        entry.element.removeEventListener("click", entry.clickHandler);
+
+        entry.element.removeEventListener(
+          "mouseenter",
+          entry.mouseEnterHandler,
+        );
+
+        entry.element.removeEventListener(
+          "mouseleave",
+          entry.mouseLeaveHandler,
+        );
+
+        entry.element.remove();
+
+        markersRef.current.delete(trackingKey);
+      }
+    });
+  }, [map, groupedMarkers, vehicles, logs, personnel]);
+
+  /* ============================================================
+     CLEANUP
+  ============================================================ */
+
+  useEffect(() => {
+    return () => {
+      markersRef.current.forEach((entry) => {
+        entry.marker.map = null;
+
+        entry.element.removeEventListener("click", entry.clickHandler);
+
+        entry.element.removeEventListener(
+          "mouseenter",
+          entry.mouseEnterHandler,
+        );
+
+        entry.element.removeEventListener(
+          "mouseleave",
+          entry.mouseLeaveHandler,
+        );
+
+        entry.element.remove();
+      });
+
+      markersRef.current.clear();
+    };
   }, []);
+
+  return null;
+});
+
+/* ============================================================
+   MAIN TRACKING MAP
+============================================================ */
+
+function TrackingMap({ vehicles, logs, personnel }: MapProps) {
+  const [selectedMarker, setSelectedMarker] = useState<SelectedMarker | null>(
+    null,
+  );
+  /*
+   * IMPORTANT:
+   *
+   * These refs are intentionally NOT passed to <GoogleMap>
+   * as center/zoom props.
+   *
+   * This prevents React realtime updates from repeatedly
+   * controlling the camera while the user is dragging/
+   * zooming the map.
+   */
+  const centerRef = useRef<Position>(DEFAULT_CENTER);
+
+  const zoomRef = useRef<number>(DEFAULT_ZOOM);
+
+  const mapRef = useRef<google.maps.Map | null>(null);
+
+  /* ============================================================
+     LOAD GOOGLE MAPS API
+  ============================================================ */
+
+  const { isLoaded, loadError } = useJsApiLoader(GOOGLE_MAPS_LOADER_OPTIONS);
+
+  const [isMarkerLibraryReady, setIsMarkerLibraryReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function updatePositions() {
-      const positions: Record<string, { lat: number; lng: number }> = {};
-
-      await Promise.all(
-        Object.entries(logs).map(async ([index, log]) => {
-          const lat = Number(log.latitude);
-          const lng = Number(log.longitude);
-
-          if (isNaN(lat) || isNaN(lng)) return;
-
-          positions[index] = { lat, lng };
-        }),
-      );
-
-      if (!cancelled) {
-        setSnappedPositions(positions);
-      }
+    if (!isLoaded) {
+      setIsMarkerLibraryReady(false);
+      return;
     }
 
-    updatePositions();
+    google.maps
+      .importLibrary("marker")
+      .then(() => {
+        if (!cancelled) {
+          setIsMarkerLibraryReady(true);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load Google Maps marker library:", error);
+      });
 
     return () => {
       cancelled = true;
     };
-  }, [logs]);
+  }, [isLoaded]);
 
-  if (!isMounted) {
+  const isApiReady = isLoaded && isMarkerLibraryReady;
+
+  /* ============================================================
+     MAP LOAD
+  ============================================================ */
+
+  const onLoad = useCallback((map: google.maps.Map) => {
+    mapRef.current = map;
+
+    requestAnimationFrame(() => {
+      if (!window.google?.maps) {
+        return;
+      }
+
+      google.maps.event.trigger(map, "resize");
+
+      /*
+       * Set the initial camera only once when the map
+       * becomes available.
+       *
+       * Realtime marker updates do not modify the map
+       * camera.
+       */
+      map.setCenter(centerRef.current);
+
+      map.setZoom(zoomRef.current);
+    });
+  }, []);
+
+  /* ============================================================
+     MAP UNMOUNT
+  ============================================================ */
+
+  const onUnmount = useCallback(() => {
+    mapRef.current = null;
+  }, []);
+
+  /* ============================================================
+     MARKER SELECTION
+  ============================================================ */
+
+  const handleSelectMarker = useCallback((marker: SelectedMarker) => {
+    setSelectedMarker(marker);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setSelectedMarker(null);
+  }, []);
+
+  /* ============================================================
+     API LOADING STATE
+  ============================================================ */
+
+  if (!isApiReady) {
     return (
-      <div className="w-full h-full min-h-[500px] bg-[var(--background)]/90 dark:bg-[var(--primary)]/[0.9] animate-pulse rounded-3xl" />
+      <div className="flex h-full min-h-[500px] w-full items-center justify-center rounded-3xl border border-slate-200 bg-slate-100 font-medium text-slate-400 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        Connecting to Map API...
+      </div>
     );
   }
 
-  const groupedMarkers = new Map<
-    string,
-    {
-      vehicleId: string;
-      log: PatrolLog;
-    }[]
-  >();
-
-  Object.entries(logs).forEach(([vehicleId, log]) => {
-    const lat = Number(log.latitude).toFixed(5);
-    const lng = Number(log.longitude).toFixed(5);
-
-    const key = `${lat},${lng}`;
-
-    if (!groupedMarkers.has(key)) {
-      groupedMarkers.set(key, []);
-    }
-
-    groupedMarkers.get(key)!.push({
-      vehicleId,
-      log,
-    });
-  });
+  /* ============================================================
+     MAP
+  ============================================================ */
 
   return (
-    <div
-      className={`${
-        isFullscreen
-          ? "fixed inset-0 z-[9999] bg-[var(--background)]/[0.95] dark:bg-[var(--primary)]/[0.95] p-1"
-          : "h-full w-full rounded-3xl overflow-hidden border border-[var(--secondary)]/[0.35] dark:border-[var(--secondary)]/[0.25] shadow-[var(--accent)]/[0.15] dark:shadow-[var(--accent)]/[0.08] z-0 relative bg-[var(--background)]/[0.9] dark:bg-[var(--primary)]/[0.85]"
-      } transition-[width,height,transform] duration-300`}
-    >
-      <div className="h-full w-full relative rounded-3xl overflow-hidden min-h-[500px]">
-        <MapContainer
-          center={center}
-          zoom={11}
-          style={{ height: "100%", width: "100%" }}
-          scrollWheelZoom={true}
-        >
-          <ResizeMap isFullscreen={isFullscreen} />
-          <AutoFlyToEmergency patrolLogs={logs} />
+    <div className="relative h-full min-h-[500px] w-full overflow-hidden rounded-3xl border border-slate-200 bg-slate-100 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <GoogleMap
+        mapContainerStyle={containerStyle}
+        options={mapOptions}
+        mapTypeId="hybrid"
+        onLoad={onLoad}
+        onUnmount={onUnmount}
+        onClick={() => {
+          setSelectedMarker(null);
+        }}
+      >
+        <TrackingMarkers
+          vehicles={vehicles}
+          logs={logs}
+          personnel={personnel}
+          onSelect={handleSelectMarker}
+        />
 
-          <TileLayer
-            attribution='Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>'
-            url={`https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/{z}/{x}/{y}?access_token=${import.meta.env.VITE_MAPBOX_TOKEN}`}
-            tileSize={512}
-            zoomOffset={-1}
+        {selectedMarker && (
+          <TrackingInfoWindow
+            selectedMarker={selectedMarker}
+            vehicles={vehicles}
+            personnel={personnel}
+            onClose={handleClose}
           />
-
-          {/* Vehicle Markers */}
-          {Array.from(groupedMarkers.entries()).map(([, group]) => {
-            return group.map(({ vehicleId, log }, index) => {
-              const vehicle = vehicles[vehicleId];
-              const personnelInfo = personnel[log?.personnel_id || ""];
-              if (!vehicle && !personnelInfo) return null;
-
-              const lat = Number(log.latitude);
-              const lng = Number(log.longitude);
-              if (isNaN(lat) || isNaN(lng)) return null;
-
-              const lastUpdated = new Date(log.captured_at);
-              const age = now - lastUpdated.getTime();
-              const isStale = age > 5 * 60 * 1000;
-
-              // Calculate offset position to prevent marker overlap
-              const [displayLat, displayLng] = getOffsetPosition(
-                lat,
-                lng,
-                index,
-                group.length,
-              );
-
-              return (
-                <Marker
-                  key={`${vehicleId}-${index}`} // Unique key for each marker in group
-                  position={[
-                    snappedPositions[vehicleId]?.lat ?? displayLat,
-                    snappedPositions[vehicleId]?.lng ?? displayLng,
-                  ]}
-                  icon={createMarkerIcon(
-                    log.duty_type,
-                    log.captured_at,
-                    log.status,
-                    isStale,
-                  )}
-                >
-                  <Popup className="custom-popup">
-                    <div className="p-4 min-w-[260px] min-h-[200px] bg-white dark:bg-slate-900">
-                      <div className="flex items-center justify-between mb-4 border-b border-[var(--secondary)]/[0.2] pb-3">
-                        <span className="font-black text-xl text-[var(--text)]">
-                          {vehicle?.plate_number ||
-                            personnelInfo?.rank?.rank_name +
-                              " " +
-                              personnelInfo?.fullname ||
-                            "Unknown"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between mb-4 border-b border-[var(--secondary)]/[0.2] pb-3">
-                        <span className="font-black text-md text-[var(--text)]">
-                          {vehicle
-                            ? vehicle.unit?.unit_name || "Unknown Unit"
-                            : personnelInfo?.unit?.unit_name || "Unknown Unit"}
-                        </span>
-                        <span
-                          className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${
-                            isStale
-                              ? "bg-[var(--secondary)]/[0.15] text-[var(--text)]/[0.6]"
-                              : "bg-[var(--accent)]/[0.15] text-[var(--accent)]"
-                          }`}
-                        >
-                          {isStale ? "No Movement" : "Moving"}
-                        </span>
-                      </div>
-                      <div className="space-y-3 text-[var(--text)]/[0.9] mb-5">
-                        {vehicle && vehicle.description && (
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <Notebook className="w-4 h-4" />
-                              <span className="font-medium">Description</span>
-                            </div>
-                            <span className="font-black text-[var(--text)]">
-                              {vehicle.description}
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Navigation className="w-4 h-4" />
-                            <span className="font-medium">Current Speed</span>
-                          </div>
-                          <span className="font-black text-[var(--text)]">
-                            {log.speed.toFixed(2)} km/h
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Network className="w-4 h-4" />
-                            <span className="font-medium">Network Signal</span>
-                          </div>
-                          <span className="font-black text-[var(--text)]">
-                            {log.network_signal > 5
-                              ? log.network_signal
-                              : log.network_signal + "/4"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <ShieldCheck className="w-4 h-4" />
-                            <span className="font-medium">Duty Type</span>
-                          </div>
-                          <span className="font-black text-[var(--text)]">
-                            {log.duty_type}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Signal className="w-4 h-4" />
-                            <span className="font-medium">Last Update</span>
-                          </div>
-                          <span className="font-bold text-[var(--text)]">
-                            {formatDistanceToNow(lastUpdated)} ago
-                          </span>
-                        </div>
-                      </div>
-
-                      <Link
-                        to={`/trackingmap/${vehicleId}`}
-                        className="text-[16px] text-white-800 dark:text-slate-200 flex items-center justify-center gap-3 w-full py-3 px-6 rounded-xl transition-colors duration-200"
-                      >
-                        View History Replay
-                      </Link>
-
-                      {isStale && (
-                        <div className="text-red-800 dark:text-slate-200 mt-4 p-3 leading-tight rounded-xl border border-red-50/[0.3]">
-                          No Movement: Showing last known position from{" "}
-                          {formatDistanceToNow(lastUpdated)} ago
-                        </div>
-                      )}
-                    </div>
-                  </Popup>
-                </Marker>
-              );
-            });
-          })}
-        </MapContainer>
-
-        {/* Fullscreen Toggle Button */}
-        <button
-          onClick={() => setIsFullscreen(!isFullscreen)}
-          className="bg-white dark:bg-slate-900 absolute top-6 right-6 z-[1000] p-4 rounded-3xl shadow-[var(--accent)]/[0.2] dark:shadow-[var(--accent)]/[0.1] border border-[var(--secondary)]/[0.3] dark:border-[var(--secondary)]/[0.2] text-[var(--text)]/[0.8] hover:text-[var(--accent)] transition-all duration-200 hover:scale-105 active:scale-95"
-          title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Map"}
-        >
-          {isFullscreen ? (
-            <Minimize2 className="w-6 h-6" />
-          ) : (
-            <Maximize2 className="w-6 h-6" />
-          )}
-        </button>
-      </div>
+        )}
+      </GoogleMap>
     </div>
   );
 }
+
+/* ============================================================
+   TRACKING INFO WINDOW
+============================================================ */
+
+const TrackingInfoWindow = React.memo(function TrackingInfoWindow({
+  selectedMarker,
+  vehicles,
+  personnel,
+  onClose,
+}: {
+  selectedMarker: SelectedMarker;
+  vehicles: Record<string, MobilityAsset>;
+  personnel: Record<string, Personnel>;
+  onClose: () => void;
+}) {
+  const { trackingId, log, position } = selectedMarker;
+
+  /*
+   * IMPORTANT:
+   *
+   * Resolve vehicle from log.vehicle_id.
+   *
+   * Do NOT use:
+   *
+   * vehicles[trackingId]
+   *
+   * because trackingId may actually be a
+   * personnel_id when vehicle_id is null.
+   */
+  const vehicle = log.vehicle_id ? vehicles[log.vehicle_id] : undefined;
+
+  const personnelInfo = findPersonnel(personnel, log.personnel_id);
+
+  const lastUpdated = new Date(log.captured_at);
+
+  const isStale = Date.now() - lastUpdated.getTime() > 5 * 60 * 1000;
+
+  /* ==========================================================
+       DISPLAY NAME
+    ========================================================== */
+
+  const personnelDisplayName = [
+    personnelInfo?.rank?.rank_name,
+    personnelInfo?.fullname,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const displayName =
+    vehicle?.plate_number || personnelDisplayName || "Unknown Asset";
+
+  /* ==========================================================
+       UNIT
+    ========================================================== */
+
+  const unitName =
+    vehicle?.unit?.unit_name ||
+    personnelInfo?.unit?.unit_name ||
+    "Unassigned Unit";
+
+  /* ==========================================================
+       STATUS
+    ========================================================== */
+
+  const statusText = isStale ? "No Movement" : log.status;
+
+  /* ==========================================================
+       HISTORY TARGET
+    ========================================================== */
+
+  /*
+   * vehicle_id is preferred because the existing
+   * /trackingmap/:id route historically represents a
+   * mobility asset.
+   *
+   * If this is a personnel-only tracker, trackingId
+   * becomes the personnel ID.
+   *
+   * This preserves your existing route structure while
+   * ensuring the correct ID is passed.
+   */
+  const historyId = log.vehicle_id || log.personnel_id || trackingId;
+
+  return (
+    <OverlayViewF
+      position={position}
+      mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+      zIndex={999999}
+    >
+      <div className="relative min-w-[280px] max-w-[340px] -translate-x-1/2 -translate-y-full rounded-xl border border-slate-200 bg-white p-3 font-sans text-slate-900 shadow-xl">
+        {/* HEADER */}
+        <div className="mb-3 border-b border-slate-200 pb-3">
+          <p className="text-lg font-black tracking-tight">{displayName}</p>
+
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span className="text-sm font-bold text-slate-600">{unitName}</span>
+
+            <span
+              className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${
+                isStale
+                  ? "bg-slate-100 text-slate-600"
+                  : log.status === "Moving"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-amber-100 text-amber-700"
+              }`}
+            >
+              {statusText}
+            </span>
+          </div>
+        </div>
+
+        {/* DETAILS */}
+        <div className="space-y-2.5 text-sm">
+          {vehicle?.description && (
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2 text-slate-500">
+                <Notebook className="h-4 w-4 shrink-0" />
+                <span className="font-medium">Description</span>
+              </div>
+              <span className="break-words text-right font-bold">
+                {vehicle.description}
+              </span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 text-slate-500">
+              <Navigation className="h-4 w-4 shrink-0" />
+              <span className="font-medium">Current Speed</span>
+            </div>
+            <span className="shrink-0 font-black">
+              {Number(log.speed ?? 0).toFixed(1)} km/h
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 text-slate-500">
+              <Network className="h-4 w-4 shrink-0" />
+              <span className="font-medium">Network Signal</span>
+            </div>
+            <span className="shrink-0 font-black">
+              {log.network_signal > 5
+                ? log.network_signal
+                : `${log.network_signal}/4`}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 text-slate-500">
+              <ShieldCheck className="h-4 w-4 shrink-0" />
+              <span className="font-medium">Duty Type</span>
+            </div>
+            <span className="text-right font-black">{log.duty_type}</span>
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 text-slate-500">
+              <Signal className="h-4 w-4 shrink-0" />
+              <span className="font-medium">Last Update</span>
+            </div>
+            <span className="shrink-0 text-right font-bold">
+              {formatDistanceToNow(lastUpdated)} ago
+            </span>
+          </div>
+        </div>
+
+        {/* HISTORY */}
+        {historyId && (
+          <Link
+            to={`/trackingmap/${historyId}`}
+            className="mt-4 flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-blue-700 active:bg-blue-800"
+          >
+            View History Replay
+          </Link>
+        )}
+
+        {/* POINTER */}
+        <div className="absolute -bottom-2 left-1/2 h-4 w-4 -translate-x-1/2 rotate-45 border-b border-r border-slate-200 bg-white" />
+      </div>
+    </OverlayViewF>
+  );
+});
+
+/* ============================================================
+   EXPORT
+============================================================ */
+
+export default React.memo(TrackingMap);

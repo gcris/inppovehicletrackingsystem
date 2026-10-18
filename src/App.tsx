@@ -10,35 +10,26 @@ import LiveMapPage from "./pages/personnel/LiveMapPage";
 import TrackingMapPage from "./pages/personnel/TrackingMapPage";
 import SchedulePage from "./pages/personnel/SchedulePage";
 import PersonnelPage from "./pages/personnel/PersonnelPage";
-import AnalyticsPage from "./pages/performance/AnalyticsPage";
+import AnalyticsPage from "./pages/reports/AnalyticsPage";
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/account/LoginPage";
 import RegisterPage from "./pages/account/RegisterPage";
 import ForgotPasswordPage from "./pages/account/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/account/ResetPasswordPage";
 import AccountPage from "./pages/account/AccountPage";
-import MaintenanceHistoryPage from "./pages/history/MaintenanceHistoryPage";
 import { EmergencyProvider } from "./services/EmergencyProvider";
-import AnalyticsPerPersonnelPage from "./pages/performance/AnalyticsPerPersonnelPage";
+import AnalyticsPerPersonnelPage from "./pages/reports/AnalyticsPerPersonnelPage";
 import { AlertCircle, LogOut, User } from "lucide-react";
 import CalendarPage from "./pages/personnel/CalendarPage";
-import MobilityAssetsPage from "./pages/mobility/MobilityAssetsPage";
-import MaintenanceTypesPage from "./pages/history/MaintenanceTypesPage";
-import VehicleInspectionPage from "./pages/inspection/MobilityInspectionPage";
-import MobilityDashboardPage from "./pages/MobilityDashboardPage";
-import MobilityDistributionPage from "./pages/reports/MobilityDistributionPage";
 import PageNotFound from "./pages/PageNotFound";
 import UserManagementPage from "./pages/admin/UserManagementPage";
-import { useVehicleRealtime } from "./hooks/useVehicleRealtime";
-import SidebarNotifications from "./components/layout/SidebarNotifications";
 import { Sidebar } from "./components/layout/Sidebar";
 import { useInactivityLogout } from "./hooks/useInactivityLogout";
-import AboutSection from "./pages/landing/mobility/AboutSection";
-import MobilisAboutUsPage from "./pages/MobilisAboutUsPage";
-import MobilityMaintenancePage from "./pages/reports/MobilityMaintenancePage";
-import InspectionComplianceReport from "./pages/reports/InspectionComplianceReport";
-import RegistrationStatusPage from "./pages/reports/RegistrationStatusPage";
-import InsuranceStatusPage from "./pages/reports/InsuranceStatusPage";
+import MobilityAssetsPage from "./pages/mobility/MobilityAssetsPage";
+import SectorMappingPage from "./pages/personnel/SectorMappingPage";
+import PatrolSummaryManagementPage from "./pages/reports/PatrolSummaryManagementPage";
+import StrategicLocationsPage from "./pages/admin/StrategicLocationsPage";
+import AnalyticsByStationPage from "./pages/reports/AnalyticsByStationPage";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -157,8 +148,6 @@ function Layout() {
   const { user, profile, isAdmin, clearAuthCache } = useAuth();
   const theme = useTheme();
   const { toggleTheme } = useThemeActions();
-  const { notificationCounts, pmsNotifications } = useVehicleRealtime();
-  const navigate = useNavigate();
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950 font-sans selection:bg-blue-100 dark:selection:bg-blue-900/30 selection:text-blue-900 transition-colors duration-300">
@@ -252,15 +241,6 @@ function Layout() {
               </div>
             </a>
 
-            <SidebarNotifications
-              overdueCount={notificationCounts.overdue}
-              dueSoonCount={notificationCounts.dueSoon}
-              pmsNotifications={pmsNotifications}
-              onViewPms={() => {
-                navigate("/mobility-assets?query=Due for PMS");
-              }}
-            />
-
             <button
               onClick={clearAuthCache}
               className="p-2 font-bold text-blue-600 dark:text-blue-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-colors"
@@ -276,86 +256,34 @@ function Layout() {
           {/* Page Routes */}
           <div className="flex-1 min-h-0">
             <Routes>
-              {!profile?.role.includes("supply") && (
-                <>
-                  <Route
-                    path="/"
-                    element={<Navigate to="/dashboard" replace />}
-                  />
-                  <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/map" element={<LiveMapPage />} />
-                  <Route
-                    path="/trackingmap/:id"
-                    element={<TrackingMapPage />}
-                  />
-                  <Route path="/schedule" element={<SchedulePage />} />
-                  <Route path="/calendar" element={<CalendarPage />} />
-                  {isAdmin && (
-                    <>
-                      <Route path="/personnel" element={<PersonnelPage />} />
-                      <Route path="/analytics" element={<AnalyticsPage />} />
-                      <Route
-                        path="/analytics-per-personnel/:id"
-                        element={<AnalyticsPerPersonnelPage />}
-                      />
-                    </>
-                  )}
-                </>
-              )}
-
-              {(profile?.role.includes("supply") || isAdmin) && (
-                <>
-                  <Route
-                    path="/"
-                    element={<Navigate to="/dashboard-mobility" replace />}
-                  />
-                  <Route
-                    path="/dashboard-mobility"
-                    element={<MobilityDashboardPage />}
-                  />
-                  <Route
-                    path="/mobility-assets"
-                    element={<MobilityAssetsPage />}
-                  />
-                  <Route
-                    path="/pms-history"
-                    element={<MaintenanceHistoryPage />}
-                  />
-                  <Route path="/pms-type" element={<MaintenanceTypesPage />} />
-                  <Route
-                    path="/mobility-inspection"
-                    element={<VehicleInspectionPage />}
-                  />
-                  <Route
-                    path="/mobilis-aboutus"
-                    element={<MobilisAboutUsPage />}
-                  />
-
-                  <Route
-                    path="/reports/distribution"
-                    element={<MobilityDistributionPage />}
-                  />
-                  <Route
-                    path="reports/pms"
-                    element={<MobilityMaintenancePage />}
-                  />
-                  <Route
-                    path="reports/inspection"
-                    element={<InspectionComplianceReport />}
-                  />
-                  <Route
-                    path="reports/registration-status"
-                    element={<RegistrationStatusPage />}
-                  />
-                  <Route
-                    path="reports/insurance-status"
-                    element={<InsuranceStatusPage />}
-                  />
-                </>
-              )}
-
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/map" element={<LiveMapPage />} />
+              <Route path="/trackingmap/:id" element={<TrackingMapPage />} />
+              <Route path="/schedule" element={<SchedulePage />} />
+              <Route path="/sectors" element={<SectorMappingPage />} />
+              <Route
+                path="/critical-infrastructure"
+                element={<StrategicLocationsPage />}
+              />
+              <Route path="/mobility-assets" element={<MobilityAssetsPage />} />
+              <Route
+                path="/patrol-summary"
+                element={<PatrolSummaryManagementPage />}
+              />
+              <Route path="/calendar" element={<CalendarPage />} />
               {isAdmin && (
                 <>
+                  <Route path="/personnel" element={<PersonnelPage />} />
+                  <Route path="/analytics" element={<AnalyticsPage />} />
+                  <Route
+                    path="/analytics-station"
+                    element={<AnalyticsByStationPage />}
+                  />
+                  <Route
+                    path="/analytics-per-personnel/:id"
+                    element={<AnalyticsPerPersonnelPage />}
+                  />
                   <Route path="/users" element={<UserManagementPage />} />
                 </>
               )}

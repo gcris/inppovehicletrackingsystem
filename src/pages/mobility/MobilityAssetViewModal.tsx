@@ -408,7 +408,7 @@ export default function MobilityAssetViewModal({
 
               <div className="sm:col-span-2 lg:col-span-3">
                 <InfoItem
-                  label={`Remarks/Reason why it is ${asset.status}`}
+                  label={`Remarks/Reason ${asset.status !== "Serviceable" ? " why it is " + asset.status + "." : ""}`}
                   value={asset.remarks}
                 />
               </div>

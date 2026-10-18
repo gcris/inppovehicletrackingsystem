@@ -434,3 +434,14 @@ entrypoint = "./functions/verify-current-password/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/verify-current-password/*.html" ]
+
+[functions.snap-patrol-route]
+enabled = true
+verify_jwt = false
+import_map = "./functions/snap-patrol-route/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/snap-patrol-route/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/snap-patrol-route/*.html" ]

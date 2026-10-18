@@ -112,8 +112,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     profileLoadingRef.current = true;
 
     try {
-      console.log("AUTH: Fetching profile:", uid);
-
       const { data, error } = await supabase
         .from("personnel")
         .select("*, unit(*), rank(*)")
@@ -121,8 +119,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       if (error) {
-        console.error("AUTH: Error fetching profile:", error.message);
-
         if (mountedRef.current) {
           setProfile(null);
         }
@@ -137,7 +133,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        console.log("data: ", data);
         const expires = checkIfPnpIdExpired(data.expiration_date);
 
         setIsPnpIdExpires(expires);
@@ -177,8 +172,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const verified = data?.currentLevel === "aal2";
 
       setIsMfaVerifiedState(verified);
-
-      console.log("AUTH: MFA status:", verified ? "AAL2" : "AAL1");
     } catch (error) {
       console.error("AUTH: MFA status check failed:", error);
     }
@@ -269,8 +262,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const initializeAuth = async () => {
       try {
-        console.log("AUTH: Initializing...");
-
         const {
           data: { session: currentSession },
           error,
@@ -351,8 +342,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange((event, currentSession) => {
       if (!mountedRef.current) return;
 
-      console.log("AUTH EVENT:", event, currentSession?.user?.id ?? null);
-
       /**
        * ---------------------------------------------------
        * SIGNED OUT
@@ -421,8 +410,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
        * SIGNED IN
        * ---------------------------------------------------
        */
-
-      console.log("AUTH EVENT:", event);
 
       if (event === "SIGNED_IN") {
         setTimeout(() => {

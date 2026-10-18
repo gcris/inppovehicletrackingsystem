@@ -1,7 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || "";
-const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || "";
+const supabaseAnonKey =
+  (import.meta as any).env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
 
 export const isMock = supabaseUrl === "" ||
   supabaseUrl === "your-project-url" ||
@@ -32,7 +33,7 @@ export const supabase = createClient(
 export type MobilityAsset = {
   id: string;
   plate_number: string;
-  vehicle_type: string; // e.g., 'Mobile Patrol', 'TMRU', 'Bike Patrol', 'Other'
+  vehicle_type: string; // e.g., 'Mobile Patrolling', 'TMRU', 'Bike Patrolling', 'Other'
   unit_id: string;
   last_log?: PatrolLog;
   description: string | null;
@@ -164,7 +165,7 @@ export type Personnel = {
   unit_id: string;
   unit?: Unit;
   is_approved: boolean;
-  role: "operation" | "admin" | "supply" | "admin_supply";
+  role: "operation" | "admin";
   email: string | null;
   phone_number: string | null;
   viber_number: string | null;
@@ -193,25 +194,65 @@ export type Personnel = {
   drivers_license_photo_path?: string | null;
 };
 
+export type Sector = {
+  id: string;
+  deployment: string | null;
+  sector: number | null;
+  unit_id: string | null;
+
+  unit?: Unit;
+
+  sector_details?: SectorDetail[];
+};
+
+export type SectorDetail = {
+  id: string;
+  brgy_id: number | null;
+  sector_id: string | null;
+
+  barangay?: Barangay | Barangay[] | null;
+};
+
+export type Barangay = {
+  id: number;
+  city_mun_id: number;
+  name: string;
+
+  city_mun?: CityMunicipality;
+};
+
+export type CityMunicipality = {
+  id: number;
+  name: string;
+  district: number;
+  province: string;
+};
+
 export type PatrolSchedule = {
   id: string;
   date: string;
   time_from: string;
   time_to: string;
-  sector: string;
+
+  sector_id: string | null;
+
   unit_id: string;
   mobility_id: string | null;
   patrol_type: string;
   description: string | null;
+
   unit?: Unit;
   mobility?: MobilityAsset;
-  // Note: personnel_id is removed, we now have a junction table
+  sector?: Sector;
+
   schedule_assignments?: {
     id: string;
     schedule_id: string;
     personnel_id: string;
     personnel?: Personnel;
   }[];
+
+  location: string | null;
 };
 
 export type DutyShift = {

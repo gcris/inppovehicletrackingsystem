@@ -15,12 +15,18 @@ import {
   Eye,
   User,
   X,
+  ShieldCheck,
+  Camera,
+  CheckCircle2,
+  LockKeyhole,
+  UserRound,
+  BriefcaseBusiness,
+  Check,
 } from "lucide-react";
 
 export default function AccountPage() {
   const { user, profile, loading: authLoading } = useAuth();
 
-  // Form state for editable fields (Rank, Full Name, Phone Number, Viber Number, Designation, Photo)
   const [formData, setFormData] = useState({
     rank_id: profile?.rank?.id || "",
     fullname: "",
@@ -30,7 +36,6 @@ export default function AccountPage() {
     photo_url: profile?.photo_url || "",
   });
 
-  // Original values to detect changes and reset
   const [originalFormData, setOriginalFormData] = useState({
     rank_id: profile?.rank?.id || "",
     fullname: "",
@@ -40,10 +45,8 @@ export default function AccountPage() {
     photo_url: profile?.photo_url || "",
   });
 
-  // Photo upload state
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoUrlPreview, setPhotoUrlPreview] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,37 +55,42 @@ export default function AccountPage() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [ranks, setRanks] = useState<Array<Rank>>([]);
 
-  // Modal state
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] =
     useState(false);
 
-  // Validate the profile form
   const validateForm = () => {
     if (!formData.fullname.trim()) {
       return "Full name is required.";
-    } else if (!formData.rank_id) {
-      return "Rank is required.";
-    } else if (!formData.designation) {
-      return "Designation is required.";
-    } else if (!formData.phone_number.trim()) {
-      return "Phone Number is required.";
-    } else if (!formData.viber_number.trim()) {
-      return "Viber Number is required.";
     }
+
+    if (!formData.rank_id) {
+      return "Rank is required.";
+    }
+
+    if (!formData.designation.trim()) {
+      return "Designation is required.";
+    }
+
+    if (!formData.phone_number.trim()) {
+      return "Phone number is required.";
+    }
+
+    if (!formData.viber_number.trim()) {
+      return "Viber number is required.";
+    }
+
     return null;
   };
 
   useEffect(() => {
-    if (error || success) {
-      // Automatically clear the error after 5 seconds (5000ms)
-      const timer = setTimeout(() => {
-        setError(null); // Replace setError with whatever your state setter is named
-        setSuccess(null);
-      }, 8000);
+    if (!error && !success) return;
 
-      // Clean up the timer if the component unmounts or if error changes before 5s
-      return () => clearTimeout(timer);
-    }
+    const timer = setTimeout(() => {
+      setError(null);
+      setSuccess(null);
+    }, 8000);
+
+    return () => clearTimeout(timer);
   }, [error, success]);
 
   useEffect(() => {
@@ -93,80 +101,62 @@ export default function AccountPage() {
           .select("id, rank_name, description, level")
           .order("level");
 
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
 
         setRanks(data || []);
       } catch (err) {
         console.error("Error fetching ranks:", err);
-        // Don't set error state here as it might confuse users - just log and continue with empty ranks
         setRanks([]);
       }
     };
+
     fetchRanks();
   }, []);
 
-  // Check if there are unsaved changes
   useEffect(() => {
-    const hasChanges =
+    const changed =
       formData.rank_id !== originalFormData.rank_id ||
       formData.fullname !== originalFormData.fullname ||
       formData.phone_number !== originalFormData.phone_number ||
       formData.viber_number !== originalFormData.viber_number ||
       formData.designation !== originalFormData.designation ||
       formData.photo_url !== originalFormData.photo_url;
-    setHasChanges(hasChanges);
-  }, [
-    formData.rank_id,
-    formData.fullname,
-    formData.phone_number,
-    formData.viber_number,
-    formData.designation,
-    formData.photo_url,
-    originalFormData.rank_id,
-    originalFormData.fullname,
-    originalFormData.phone_number,
-    originalFormData.viber_number,
-    originalFormData.designation,
-    originalFormData.photo_url,
-  ]);
 
-  // Initialize form with profile data when available
+    setHasChanges(changed);
+  }, [formData, originalFormData]);
+
   useEffect(() => {
-    if (profile) {
-      setFormData({
-        rank_id: profile.rank?.id || "",
-        fullname: profile.fullname || "",
-        phone_number: profile.phone_number || "",
-        viber_number: profile.viber_number || "",
-        designation: profile.designation || "",
-        photo_url: profile.photo_url || "",
-      });
-      setOriginalFormData({
-        rank_id: profile.rank?.id || "",
-        fullname: profile.fullname || "",
-        phone_number: profile.phone_number || "",
-        viber_number: profile.viber_number || "",
-        designation: profile.designation || "",
-        photo_url: profile.photo_url || "",
-      });
-    }
+    if (!profile) return;
+
+    const profileData = {
+      rank_id: profile.rank?.id || "",
+      fullname: profile.fullname || "",
+      phone_number: profile.phone_number || "",
+      viber_number: profile.viber_number || "",
+      designation: profile.designation || "",
+      photo_url: profile.photo_url || "",
+    };
+
+    setFormData(profileData);
+    setOriginalFormData(profileData);
   }, [profile]);
 
-  // Handle form submission
   const handleSubmit = async (e: React.SyntheticEvent) => {
     e.preventDefault();
 
-    // Validate
     const validationError = validateForm();
+
     if (validationError) {
       setError(validationError);
       setSuccess(null);
       return;
     }
 
-    // Trim whitespace
+    if (!user?.id) {
+      setError("User not authenticated.");
+      return;
+    }
+
     const trimmedData = {
       rank_id: formData.rank_id || "",
       fullname: formData.fullname.trim(),
@@ -175,21 +165,16 @@ export default function AccountPage() {
       designation: formData.designation.trim(),
     };
 
-    if (!user?.id) {
-      setError("User not authenticated.");
-      return;
-    }
-
     setIsLoading(true);
     setError(null);
     setSuccess(null);
 
     try {
-      let photoUrlToSave = formData.photo_url; // Keep existing photo by default
+      let photoUrlToSave = formData.photo_url;
 
       if (photoFile) {
-        // 1. Upload new photo
-        const fileExt = photoFile.name.split(".").pop()?.toLowerCase() || "";
+        const fileExt = photoFile.name.split(".").pop()?.toLowerCase() || "jpg";
+
         const fileName = `${user.id}-${Date.now()}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
@@ -201,18 +186,14 @@ export default function AccountPage() {
 
         if (uploadError) throw uploadError;
 
-        // 2. Get public URL for the new photo
         const {
           data: { publicUrl },
         } = supabase.storage.from("personnel-photos").getPublicUrl(fileName);
 
         photoUrlToSave = publicUrl;
 
-        // 3. CLEANUP LOGIC: Delete the old photo if it exists
         if (formData.photo_url) {
           try {
-            // Extract the filename from the old URL string
-            // Supabase public URLs end with /storage/v1/object/public/bucket-name/filename.ext
             const oldFileName = formData.photo_url.split("/").pop();
 
             if (oldFileName) {
@@ -221,14 +202,11 @@ export default function AccountPage() {
                 .remove([oldFileName]);
             }
           } catch (deleteErr) {
-            // We wrap this in a separate try/catch so that if deleting the old photo fails,
-            // it doesn't crash the entire update operation for the user.
-            console.error("Failed to delete old avatar file:", deleteErr);
+            console.error("Failed to delete old profile photo:", deleteErr);
           }
         }
       }
 
-      // Update profile in database
       const { error: updateError } = await supabase
         .from("personnel")
         .update({
@@ -243,31 +221,28 @@ export default function AccountPage() {
 
       if (updateError) throw updateError;
 
-      // Update original data to reset change detection
       const updatedFormData = {
         ...trimmedData,
         photo_url: photoUrlToSave,
       };
+
       setOriginalFormData(updatedFormData);
       setFormData(updatedFormData);
 
-      setSuccess("Profile updated successfully!");
+      setSuccess("Your profile has been updated successfully.");
       setError(null);
 
-      // Reset photo upload state
       setPhotoFile(null);
       setPhotoUrlPreview(null);
+      setIsEditMode(false);
     } catch (err: any) {
       setError(err.message || "Failed to update profile.");
       setSuccess(null);
     } finally {
       setIsLoading(false);
-      // Explicitly check for setIsUploading existence since it was in your finally block
-      if (typeof setIsUploading === "function") setIsUploading(false);
     }
   };
 
-  // Handle reset button (reset to original values)
   const handleReset = useCallback(() => {
     setFormData({
       rank_id: originalFormData.rank_id,
@@ -277,577 +252,826 @@ export default function AccountPage() {
       designation: originalFormData.designation,
       photo_url: originalFormData.photo_url,
     });
-    // Reset photo upload state
+
     setPhotoFile(null);
     setPhotoUrlPreview(null);
     setIsEditMode(false);
   }, [originalFormData]);
 
-  // Warn before leaving if there are unsaved changes
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasChanges) {
-        e.preventDefault();
-        e.returnValue = "";
-      }
+      if (!hasChanges) return;
+
+      e.preventDefault();
+      e.returnValue = "";
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
+
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [hasChanges]);
 
+  const getInitials = (name?: string | null) => {
+    if (!name) return "?";
+
+    return name
+      .trim()
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join("")
+      .substring(0, 2)
+      .toUpperCase();
+  };
+
   if (authLoading || !user || !profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin" />
-          <p className="text-slate-900 dark:text-white">Loading...</p>
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
+        <div className="flex items-center gap-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-6 py-5 shadow-xl">
+          <Loader2 className="w-7 h-7 animate-spin text-blue-600" />
+
+          <div>
+            <p className="text-base font-bold text-slate-900 dark:text-white">
+              Loading your account
+            </p>
+
+            <p className="text-base text-slate-500 dark:text-slate-400">
+              Please wait while your profile is being loaded.
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
+  const selectedRank =
+    ranks.find((rank) => rank.id === formData.rank_id)?.description ||
+    profile.rank?.description ||
+    "Not assigned";
+
   return (
-    // Change 'justify-center' to 'justify-start md:px-8' (or your preferred spacing)
-    <div className="w-full bg-[#f8fafc] dark:bg-slate-950 flex items-start justify-center p-4 pt-12 md:pt-16 transition-colors">
-      {/* Increased max-width to accommodate a 2-column desktop layout */}
-      <div className="max-w-5xl w-full">
-        <div>
-          <h1 className="text-2xl text-[var(--text)] flex items-center gap-4">
-            <User className="w-7 h-7" />
-            Account Settings
-          </h1>
-          <p className="text-[var(--text)]/[0.9] mt-2"></p>
+    <div className="min-h-screen w-full bg-slate-50 dark:bg-slate-950 transition-colors">
+      <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-10">
+        {/* ============================================================
+            PAGE HEADER
+        ============================================================ */}
+
+        <div className="mb-8">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/20">
+                <UserRound className="h-7 w-7" />
+              </div>
+
+              <div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                    Account Settings
+                  </h1>
+
+                  <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-base font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Active account
+                  </span>
+                </div>
+
+                <p className="mt-2 text-base text-slate-500 dark:text-slate-400">
+                  Manage your personnel information and account security.
+                </p>
+              </div>
+            </div>
+
+            {!isEditMode && (
+              <button
+                type="button"
+                onClick={() => setIsEditMode(true)}
+                disabled={isLoading}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-base font-bold text-white shadow-lg shadow-blue-600/20 transition-all hover:bg-blue-700 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Edit className="h-5 w-5" />
+                Edit profile
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-[32px] shadow-2xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 overflow-hidden transition-colors">
-          <div className="p-6 md:p-10">
-            {success && (
-              <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm p-4 bg-green-50 dark:bg-green-900 border border-green-500 dark:border-green-900/30 text-green-600 dark:text-green-400 rounded-xl flex items-start gap-3 shadow-2xl transition-all pointer-events-auto">
-                {/* Alert Icon */}
-                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+        {/* ============================================================
+            NOTIFICATIONS
+        ============================================================ */}
 
-                {/* Error Text Message */}
-                <div className="flex-1">
-                  <p className="text-base font-medium">Account Settings</p>
-                  <p className="text-base opacity-90 mt-0.5">{success}</p>
+        {success && (
+          <div className="fixed left-1/2 top-5 z-50 flex w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 items-start gap-4 rounded-2xl border border-emerald-200 bg-white p-4 text-emerald-700 shadow-2xl dark:border-emerald-900/50 dark:bg-slate-900 dark:text-emerald-400">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-500/10">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+
+            <div className="flex-1">
+              <p className="text-base font-bold">Profile updated</p>
+
+              <p className="mt-1 text-base text-slate-600 dark:text-slate-400">
+                {success}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSuccess(null)}
+              className="rounded-lg p-2 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <div className="fixed left-1/2 top-5 z-50 flex w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 items-start gap-4 rounded-2xl border border-red-200 bg-white p-4 text-red-700 shadow-2xl dark:border-red-900/50 dark:bg-slate-900 dark:text-red-400">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 dark:bg-red-500/10">
+              <AlertCircle className="h-5 w-5" />
+            </div>
+
+            <div className="flex-1">
+              <p className="text-base font-bold">Unable to save changes</p>
+
+              <p className="mt-1 text-base text-slate-600 dark:text-slate-400">
+                {error}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              className="rounded-lg p-2 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        )}
+
+        {/* ============================================================
+            PROFILE HERO
+        ============================================================ */}
+
+        <div className="mb-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+          <div className="relative overflow-hidden bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 px-6 py-8 md:px-10 md:py-10">
+            <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
+            <div className="absolute -bottom-32 left-1/3 h-72 w-72 rounded-full bg-indigo-300/10 blur-3xl" />
+
+            <div className="relative flex flex-col gap-6 md:flex-row md:items-center">
+              <div className="relative shrink-0">
+                <div className="h-28 w-28 overflow-hidden rounded-3xl border-4 border-white/30 bg-white/10 shadow-2xl backdrop-blur-sm md:h-32 md:w-32">
+                  {formData.photo_url ? (
+                    <img
+                      src={formData.photo_url}
+                      alt="Profile"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-3xl font-black text-white">
+                      {getInitials(formData.fullname)}
+                    </div>
+                  )}
                 </div>
 
-                {/* Manual Dismiss Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSuccess(null);
-                  }} // Clears the state instantly
-                  className="p-1 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors shrink-0"
-                  aria-label="Dismiss error"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-            {error && (
-              <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm p-4 bg-red-500 dark:bg-red-900 border border-red-100 dark:border-red-900/30 text-white rounded-xl flex items-start gap-3 shadow-2xl transition-all pointer-events-auto">
-                {/* Alert Icon */}
-                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-
-                {/* Error Text Message */}
-                <div className="flex-1">
-                  <p className="text-base font-medium">Account Settings</p>
-                  <p className="text-base opacity-90 mt-0.5">{error}</p>
+                <div className="absolute -bottom-2 -right-2 flex h-9 w-9 items-center justify-center rounded-xl border-4 border-blue-600 bg-emerald-500 text-white shadow-lg">
+                  <Check className="h-4 w-4" />
                 </div>
-
-                {/* Manual Dismiss Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setError(null);
-                  }} // Clears the state instantly
-                  className="p-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 text-white transition-colors shrink-0"
-                  aria-label="Dismiss error"
-                >
-                  <X className="w-4 h-4" />
-                </button>
               </div>
-            )}
-            {/* 2-Column Grid Layout container with vertical/horizontal dividers */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-start divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800">
-              {/* Column 1: Profile Information */}
-              <div className="space-y-6 pb-8 md:pb-0 pr-8">
+
+              <div className="min-w-0 flex-1 text-white">
+                <p className="mb-1 text-base font-medium text-blue-100">
+                  Personnel profile
+                </p>
+
+                <h2 className="truncate text-3xl font-black md:text-4xl">
+                  {formData.fullname || "Personnel"}
+                </h2>
+
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <span className="inline-flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2 text-base font-bold backdrop-blur-sm">
+                    <BadgeCheck className="h-5 w-5" />
+                    {selectedRank}
+                  </span>
+
+                  <span className="inline-flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2 text-base font-bold backdrop-blur-sm">
+                    <BriefcaseBusiness className="h-5 w-5" />
+                    {formData.designation || "No designation"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm md:min-w-[220px]">
+                <p className="text-base font-medium text-blue-100">
+                  Badge number
+                </p>
+
+                <p className="mt-1 text-2xl font-black text-white">
+                  {profile.badge_number || "Not assigned"}
+                </p>
+
+                <div className="mt-3 flex items-center gap-2 text-base text-blue-100">
+                  <ShieldCheck className="h-5 w-5" />
+                  Personnel account
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ============================================================
+            MAIN CONTENT
+        ============================================================ */}
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+          {/* ==========================================================
+              PROFILE INFORMATION
+          ========================================================== */}
+
+          <div className="lg:col-span-3">
+            <div className="h-full rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/30 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+              <div className="border-b border-slate-200 px-6 py-6 dark:border-slate-800 md:px-8">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
+                        <UserRound className="h-5 w-5" />
+                      </div>
+
+                      <div>
+                        <h2 className="text-xl font-black text-slate-900 dark:text-white">
+                          Profile information
+                        </h2>
+
+                        <p className="mt-1 text-base text-slate-500 dark:text-slate-400">
+                          Your personal and contact information.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {!isEditMode && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditMode(true)}
+                      className="hidden items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-base font-bold text-slate-700 transition-all hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 sm:flex dark:border-slate-700 dark:text-slate-300 dark:hover:border-blue-500/40 dark:hover:bg-blue-500/10 dark:hover:text-blue-400"
+                    >
+                      <Edit className="h-4 w-4" />
+                      Edit
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-6 md:p-8">
                 {!isEditMode ? (
-                  // Read-only view
                   <div className="space-y-4">
-                    {/* Profile Picture Section */}
-                    <div className="space-y-6">
-                      <div className="flex flex-col items-center">
-                        <div className="relative w-24 h-24">
-                          {formData.photo_url ? (
-                            <img
-                              src={formData.photo_url}
-                              alt="Profile"
-                              className="w-full h-full object-cover rounded-full border-2 border-slate-200 dark:border-slate-700 shadow-md"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-blue-100 dark:bg-blue-900/30 rounded-full border-2 border-slate-200 dark:border-slate-700 shadow-md text-slate-600 dark:text-slate-400 font-bold text-xl">
-                              {formData.fullname
-                                ? formData.fullname
-                                    .split(" ")
-                                    .map((n) => n[0])
-                                    .join("")
-                                    .substring(0, 2)
-                                : "?"}
-                            </div>
-                          )}
-                          {isEditMode && (
-                            <div className="absolute bottom-0 right-0 flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full shadow-md hover:bg-blue-700 transition-colors cursor-pointer">
-                              <Edit className="w-4 h-4" />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                    <ProfileDisplayField
+                      icon={<BadgeCheck />}
+                      label="Rank"
+                      value={profile.rank?.description || "Not assigned"}
+                    />
 
-                    <h2 className="text-2xl text-slate-900 dark:text-white mb-2">
-                      Profile Information
-                    </h2>
-                    <p className="text-base text-slate-600 dark:text-slate-400">
-                      Update your personal details below.
-                    </p>
+                    <ProfileDisplayField
+                      icon={<User />}
+                      label="Full name"
+                      value={formData.fullname || "Not set"}
+                    />
 
-                    <hr className="border-gray-300" />
+                    <ProfileDisplayField
+                      icon={<Phone />}
+                      label="Phone number"
+                      value={formData.phone_number || "Not set"}
+                    />
 
-                    {/* Display fields as read-only text */}
-                    <div className="space-y-6">
-                      {/* Rank */}
-                      <div className="space-y-2">
-                        <label className="text-slate-600 dark:text-slate-400 text-base">
-                          Rank
-                        </label>
-                        <div>
-                          <span className="font-bold text-slate-900 dark:text-white">
-                            {profile.rank?.description || "Not assigned"}
-                          </span>
-                        </div>
-                      </div>
+                    <ProfileDisplayField
+                      icon={<MessageCircle />}
+                      label="Viber number"
+                      value={formData.viber_number || "Not set"}
+                    />
 
-                      {/* Full Name */}
-                      <div className="space-y-2">
-                        <label className="text-slate-600 dark:text-slate-400 text-base">
-                          Full Name
-                        </label>
-                        <div>
-                          <span className="font-bold text-slate-900 dark:text-white">
-                            {formData.fullname || "Not set"}
-                          </span>
-                        </div>
-                      </div>
+                    <ProfileDisplayField
+                      icon={<Building2 />}
+                      label="Designation"
+                      value={formData.designation || "Not set"}
+                    />
 
-                      {/* Phone Number */}
-                      <div className="space-y-2">
-                        <label className="text-slate-600 dark:text-slate-400 text-base">
-                          Phone Number
-                        </label>
-                        <div>
-                          <span className="font-bold text-slate-900 dark:text-white">
-                            {formData.phone_number || "Not set"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Viber Number */}
-                      <div className="space-y-2">
-                        <label className="text-slate-600 dark:text-slate-400 text-base">
-                          Viber Number
-                        </label>
-                        <div>
-                          <span className="font-bold text-slate-900 dark:text-white">
-                            {formData.viber_number || "Not set"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Designation */}
-                      <div className="space-y-2">
-                        <label className="text-slate-600 dark:text-slate-400 text-base">
-                          Designation
-                        </label>
-                        <div>
-                          <span className="font-bold text-slate-900 dark:text-white">
-                            {formData.designation || "Not set"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Edit Button */}
-                    <div className="flex justify-end pt-4">
+                    <div className="pt-4 sm:hidden">
                       <button
                         type="button"
                         onClick={() => setIsEditMode(true)}
-                        disabled={isLoading}
-                        className="px-4 py-2 text-base font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-base font-bold text-white transition-all hover:bg-blue-700"
                       >
-                        {isLoading ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Edit className="w-4 h-4" />
-                        )}
-                        <span className={isLoading ? "hidden" : "inline-block"}>
-                          Edit
-                        </span>
+                        <Edit className="h-5 w-5" />
+                        Edit profile
                       </button>
                     </div>
                   </div>
                 ) : (
-                  // Edit view
-                  <div className="space-y-4">
-                    <h2 className="text-2xl text-slate-900 dark:text-white mb-2">
-                      Profile Information
-                    </h2>
-                    <p className="text-base font-bold text-slate-600 dark:text-slate-400">
-                      Update your personal details below.
-                    </p>
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Avatar */}
 
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                      {/* Profile Picture Section */}
-                      <div className="flex flex-col items-center justify-center space-y-4 py-2">
-                        {/* The title label is now centered above the image */}
-                        <label className="block text-base font-medium text-slate-700 dark:text-slate-200 text-center">
-                          Profile Picture
-                        </label>
-
-                        {/* Relative wrapper holding both the circular image and the floating button */}
-                        <div className="relative w-32 h-32">
-                          {/* Circular Avatar Container */}
-                          <div className="w-full h-full rounded-full overflow-hidden border-4 border-white dark:border-slate-800 bg-slate-100 dark:bg-slate-800 shadow-md flex items-center justify-center transition-colors">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950/50">
+                      <div className="flex flex-col items-center gap-5 sm:flex-row">
+                        <div className="relative shrink-0">
+                          <div className="h-28 w-28 overflow-hidden rounded-3xl border-4 border-white bg-slate-200 shadow-lg dark:border-slate-800 dark:bg-slate-800">
                             {photoUrlPreview ? (
-                              // Show preview of newly selected file
                               <img
                                 src={photoUrlPreview}
                                 alt="Preview"
-                                className="w-full h-full object-cover"
+                                className="h-full w-full object-cover"
                               />
                             ) : formData.photo_url ? (
-                              // Show current photo
                               <img
                                 src={formData.photo_url}
                                 alt="Profile"
-                                className="w-full h-full object-cover"
+                                className="h-full w-full object-cover"
                               />
                             ) : (
-                              // Show fallback icon when no photo is uploaded yet
-                              <User className="w-16 h-16 text-slate-600 dark:text-slate-400" />
+                              <div className="flex h-full w-full items-center justify-center">
+                                <User className="h-12 w-12 text-slate-400" />
+                              </div>
                             )}
                           </div>
 
-                          {/* The Floating Edit Trigger Button (Bottom Right) */}
-                          {/* This label acts as the button for the hidden input field below */}
-                          {isEditMode && (
-                            <label
-                              htmlFor="avatar-upload"
-                              className="absolute bottom-0 right-0 p-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg border-4 border-white dark:border-slate-900 cursor-pointer transition-all hover:scale-105 flex items-center justify-center group"
-                              title="Upload/Change Photo"
-                            >
-                              <Edit className="w-5 h-5 group-hover:animate-pulse" />
-                            </label>
-                          )}
+                          <label
+                            htmlFor="avatar-upload"
+                            className="absolute -bottom-2 -right-2 flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl border-4 border-white bg-blue-600 text-white shadow-lg transition-all hover:scale-105 hover:bg-blue-700 dark:border-slate-900"
+                            title="Change profile photo"
+                          >
+                            <Camera className="h-5 w-5" />
+                          </label>
 
-                          {/* Hidden Native File Input linked by id to the label above */}
                           <input
                             id="avatar-upload"
                             type="file"
-                            accept="image/*"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="hidden"
                             onChange={(e) => {
                               const file = e.target.files?.[0];
-                              if (file) {
-                                // Validate file type
-                                const validTypes = [
-                                  "image/jpeg",
-                                  "image/png",
-                                  "image/webp",
-                                ];
-                                if (!validTypes.includes(file.type)) {
-                                  setError(
-                                    "Only JPG, JPEG, PNG, and WEBP images are allowed.",
-                                  );
-                                  return;
-                                }
 
-                                // Validate file size (5MB limit)
-                                if (file.size > 5 * 1024 * 1024) {
-                                  setError("File size must be less than 5 MB.");
-                                  return;
-                                }
+                              if (!file) return;
 
-                                setPhotoFile(file);
-                                setPhotoUrlPreview(URL.createObjectURL(file));
-                                setError(null);
+                              const validTypes = [
+                                "image/jpeg",
+                                "image/png",
+                                "image/webp",
+                              ];
+
+                              if (!validTypes.includes(file.type)) {
+                                setError(
+                                  "Only JPG, JPEG, PNG, and WEBP images are allowed.",
+                                );
+                                return;
                               }
+
+                              if (file.size > 5 * 1024 * 1024) {
+                                setError(
+                                  "Profile photo must be smaller than 5 MB.",
+                                );
+                                return;
+                              }
+
+                              setPhotoFile(file);
+                              setPhotoUrlPreview(URL.createObjectURL(file));
+                              setError(null);
                             }}
-                            className="hidden" // Hides the native input completely
                           />
                         </div>
 
-                        {/* Simplified Preview Indicator below the image, only when previewing */}
-                        {photoUrlPreview && (
-                          <div className="flex items-center gap-2 text-base text-blue-600 dark:text-blue-400 font-medium">
-                            <Eye className="w-4 h-4" />
-                            <span>Previewing New Image</span>
-                          </div>
-                        )}
-                      </div>
-                      {/* Rank Dropdown */}
-                      <div className="space-y-2">
-                        <label className="text-slate-600 dark:text-slate-400 text-base">
-                          Rank
-                        </label>
-                        <div className="relative">
-                          <select
-                            value={formData.rank_id}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                rank_id: e.target.value,
-                              })
-                            }
-                            className={`w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 pl-4 pr-4 text-base font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all ${
-                              formData.rank_id !== originalFormData.rank_id
-                                ? "border-2 border-blue-500"
-                                : ""
-                            }`}
-                          >
-                            <option value="">Select Rank</option>
-                            {ranks.map((option) => (
-                              <option key={option.id} value={option.id}>
-                                {option.description}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
+                        <div className="text-center sm:text-left">
+                          <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                            Profile photo
+                          </h3>
 
-                      {/* Full Name */}
-                      <div className="space-y-2">
-                        <label className="text-slate-600 dark:text-slate-400 text-base">
-                          Full Name
-                        </label>
-                        <div className="relative">
-                          <input
-                            required
-                            type="text"
-                            value={formData.fullname}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                fullname: e.target.value,
-                              })
-                            }
-                            className={`w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 pl-4 pr-4 text-base font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all ${
-                              formData.fullname !== originalFormData.fullname
-                                ? "border-2 border-blue-500"
-                                : ""
-                            }`}
-                            placeholder="Enter your full name"
-                          />
-                        </div>
-                      </div>
+                          <p className="mt-1 text-base text-slate-500 dark:text-slate-400">
+                            Upload a clear personnel photo.
+                          </p>
 
-                      {/* Phone Number */}
-                      <div className="space-y-2">
-                        <label className="text-slate-600 dark:text-slate-400 text-base">
-                          Phone Number
-                        </label>
-                        <div className="relative">
-                          <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 dark:text-slate-700" />
-                          <input
-                            type="tel"
-                            value={formData.phone_number}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                phone_number: e.target.value,
-                              })
-                            }
-                            className={`w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 pl-12 pr-4 text-base font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all ${
-                              formData.phone_number !==
-                              originalFormData.phone_number
-                                ? "border-2 border-blue-500"
-                                : ""
-                            }`}
-                            placeholder="Enter your phone number"
-                          />
-                        </div>
-                      </div>
+                          <p className="mt-2 text-base text-slate-400 dark:text-slate-500">
+                            JPG, PNG, or WEBP up to 5 MB.
+                          </p>
 
-                      {/* Viber Number */}
-                      <div className="space-y-2">
-                        <label className="text-slate-600 dark:text-slate-400 text-base">
-                          Viber Number
-                        </label>
-                        <div className="relative">
-                          <MessageCircle className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 dark:text-slate-700" />
-                          <input
-                            type="tel"
-                            value={formData.viber_number}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                viber_number: e.target.value,
-                              })
-                            }
-                            className={`w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 pl-12 pr-4 text-base font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all ${
-                              formData.viber_number !==
-                              originalFormData.viber_number
-                                ? "border-2 border-blue-500"
-                                : ""
-                            }`}
-                            placeholder="Enter your Viber number"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Designation */}
-                      <div className="space-y-2">
-                        <label className="text-slate-600 dark:text-slate-400 text-base">
-                          Designation
-                        </label>
-                        <div className="relative">
-                          <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 dark:text-slate-700" />
-                          <input
-                            type="text"
-                            value={formData.designation}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                designation: e.target.value,
-                              })
-                            }
-                            className={`w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 pl-12 pr-4 text-base font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all ${
-                              formData.designation !==
-                              originalFormData.designation
-                                ? "border-2 border-blue-500"
-                                : ""
-                            }`}
-                            placeholder="Enter your designation"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Submit and Reset Buttons */}
-                      <div className="flex justify-end space-x-3 pt-4">
-                        <button
-                          type="button"
-                          onClick={handleReset}
-                          disabled={isLoading}
-                          className={`px-4 py-2 text-base font-medium text-black dark:text-white border rounded-xl hover:text-slate-900 dark:hover:text-slate-100 transition-colors disabled:opacity-50 ${
-                            !hasChanges ? "opacity-50" : ""
-                          }`}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={isLoading}
-                          className="w-auto px-4 py-2 text-base font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                        >
-                          {isLoading ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Save className="w-4 h-4" />
+                          {photoUrlPreview && (
+                            <div className="mt-3 inline-flex items-center gap-2 rounded-xl bg-blue-50 px-3 py-2 text-base font-bold text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">
+                              <Eye className="h-4 w-4" />
+                              New photo selected
+                            </div>
                           )}
-                          <span
-                            className={isLoading ? "hidden" : "inline-block"}
-                          >
-                            Save Changes
-                          </span>
-                        </button>
+                        </div>
                       </div>
-                    </form>
-                  </div>
+                    </div>
+
+                    {/* Rank */}
+
+                    <FormField
+                      label="Rank"
+                      changed={formData.rank_id !== originalFormData.rank_id}
+                    >
+                      <select
+                        value={formData.rank_id}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            rank_id: e.target.value,
+                          })
+                        }
+                        className={`w-full rounded-xl border bg-slate-50 px-4 py-3.5 text-base font-bold text-slate-900 outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:bg-slate-950 dark:text-white ${
+                          formData.rank_id !== originalFormData.rank_id
+                            ? "border-blue-500"
+                            : "border-slate-200 dark:border-slate-800"
+                        }`}
+                      >
+                        <option value="">Select rank</option>
+
+                        {ranks.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.description}
+                          </option>
+                        ))}
+                      </select>
+                    </FormField>
+
+                    {/* Full Name */}
+
+                    <FormField
+                      label="Full name"
+                      changed={formData.fullname !== originalFormData.fullname}
+                    >
+                      <InputWithIcon
+                        icon={<User />}
+                        value={formData.fullname}
+                        placeholder="Enter your full name"
+                        onChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            fullname: value,
+                          })
+                        }
+                      />
+                    </FormField>
+
+                    {/* Phone */}
+
+                    <FormField
+                      label="Phone number"
+                      changed={
+                        formData.phone_number !== originalFormData.phone_number
+                      }
+                    >
+                      <InputWithIcon
+                        icon={<Phone />}
+                        type="tel"
+                        value={formData.phone_number}
+                        placeholder="Enter your phone number"
+                        onChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            phone_number: value,
+                          })
+                        }
+                      />
+                    </FormField>
+
+                    {/* Viber */}
+
+                    <FormField
+                      label="Viber number"
+                      changed={
+                        formData.viber_number !== originalFormData.viber_number
+                      }
+                    >
+                      <InputWithIcon
+                        icon={<MessageCircle />}
+                        type="tel"
+                        value={formData.viber_number}
+                        placeholder="Enter your Viber number"
+                        onChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            viber_number: value,
+                          })
+                        }
+                      />
+                    </FormField>
+
+                    {/* Designation */}
+
+                    <FormField
+                      label="Designation"
+                      changed={
+                        formData.designation !== originalFormData.designation
+                      }
+                    >
+                      <InputWithIcon
+                        icon={<Building2 />}
+                        value={formData.designation}
+                        placeholder="Enter your designation"
+                        onChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            designation: value,
+                          })
+                        }
+                      />
+                    </FormField>
+
+                    {/* Actions */}
+
+                    <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={handleReset}
+                        disabled={isLoading}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-base font-bold text-slate-700 transition-all hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                      >
+                        <X className="h-5 w-5" />
+                        Cancel
+                      </button>
+
+                      <button
+                        type="submit"
+                        disabled={isLoading || !hasChanges}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-base font-bold text-white shadow-lg shadow-blue-600/20 transition-all hover:bg-blue-700 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            Saving changes
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-5 w-5" />
+                            Save changes
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {hasChanges && !isLoading && (
+                      <div className="flex items-center justify-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-base font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
+                        <AlertCircle className="h-5 w-5" />
+                        You have unsaved changes.
+                      </div>
+                    )}
+                  </form>
                 )}
               </div>
+            </div>
+          </div>
 
-              {/* Column 2: Account Details (Includes left-padding to keep gap from the line on desktop) */}
-              <div className="space-y-4 pt-8 md:pt-0 md:pl-12">
-                <h2 className="text-2xl text-slate-900 dark:text-white mb-2">
-                  Account Details
-                </h2>
-                <p className="text-base text-slate-600 dark:text-slate-400">
-                  View your account information below.
-                </p>
+          {/* ==========================================================
+              ACCOUNT DETAILS
+          ========================================================== */}
 
-                <hr className="border-gray-300" />
-
-                <div className="space-y-6">
-                  {/* Badge Number */}
-                  <div className="space-y-2">
-                    <label className="text-slate-600 dark:text-slate-400 text-base">
-                      Badge Number
-                    </label>
-                    <div className="relative">
-                      <BadgeCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 dark:text-slate-700" />
-                      <span className="inline-block pl-12 font-bold text-slate-700 dark:text-slate-300 py-3">
-                        {profile.badge_number || "Not assigned"}
-                      </span>
-                    </div>
+          <div className="space-y-6 lg:col-span-2">
+            <div className="rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/30 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+              <div className="border-b border-slate-200 px-6 py-6 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
+                    <ShieldCheck className="h-5 w-5" />
                   </div>
 
-                  {/* Unit/Station */}
-                  <div className="space-y-2">
-                    <label className="text-slate-600 dark:text-slate-400 text-base">
-                      Unit/Station
-                    </label>
-                    <div className="relative">
-                      <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 dark:text-slate-700" />
-                      <span className="inline-block pl-12 font-bold text-slate-700 dark:text-slate-300 py-3">
-                        {profile.unit?.unit_name || "Not assigned"}
-                      </span>
-                    </div>
-                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 dark:text-white">
+                      Account details
+                    </h2>
 
-                  {/* Email Address */}
-                  <div className="space-y-2">
-                    <label className="text-slate-600 dark:text-slate-400 text-base">
-                      Email Address
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 dark:text-slate-700" />
-                      <span className="inline-block pl-12 font-bold text-slate-700 dark:text-slate-300 py-3">
-                        {user.email || "Not available"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Password Change */}
-                  <div className="space-y-6">
-                    {/* Button to open password change modal */}
-                    <button
-                      type="button"
-                      onClick={() => setIsChangePasswordModalOpen(true)}
-                      className="px-4 py-2 text-base font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                    >
-                      <span>Change Password</span>
-                      <Edit className="w-4 h-4" />
-                    </button>
+                    <p className="mt-1 text-base text-slate-500 dark:text-slate-400">
+                      Your official account information.
+                    </p>
                   </div>
                 </div>
               </div>
-            </div>{" "}
-            {/* End grid */}
+
+              <div className="space-y-4 p-6">
+                <AccountInfoCard
+                  icon={<BadgeCheck />}
+                  label="Badge number"
+                  value={profile.badge_number || "Not assigned"}
+                />
+
+                <AccountInfoCard
+                  icon={<Building2 />}
+                  label="Unit or station"
+                  value={profile.unit?.unit_name || "Not assigned"}
+                />
+
+                <AccountInfoCard
+                  icon={<Mail />}
+                  label="Email address"
+                  value={user.email || "Not available"}
+                />
+              </div>
+            </div>
+
+            {/* Security */}
+
+            <div className="rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/30 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+              <div className="border-b border-slate-200 px-6 py-6 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
+                    <LockKeyhole className="h-5 w-5" />
+                  </div>
+
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 dark:text-white">
+                      Account security
+                    </h2>
+
+                    <p className="mt-1 text-base text-slate-500 dark:text-slate-400">
+                      Keep your account credentials secure.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950/50">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-slate-600 shadow-sm dark:bg-slate-900 dark:text-slate-300">
+                      <LockKeyhole className="h-5 w-5" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                        Password
+                      </h3>
+
+                      <p className="mt-1 text-base text-slate-500 dark:text-slate-400">
+                        Change your password regularly to keep your account
+                        protected.
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsChangePasswordModalOpen(true)}
+                        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-base font-bold text-white shadow-lg shadow-blue-600/20 transition-all hover:bg-blue-700"
+                      >
+                        <Edit className="h-5 w-5" />
+                        Change password
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Account status */}
+
+            <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 dark:border-emerald-900/40 dark:bg-emerald-500/5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/20">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-black text-emerald-900 dark:text-emerald-300">
+                    Account is active
+                  </h3>
+
+                  <p className="mt-1 text-base leading-6 text-emerald-700 dark:text-emerald-400">
+                    Your personnel account is currently active and available for
+                    system access.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Password Change Modal */}
+      {/* ==============================================================
+          PASSWORD MODAL
+      ============================================================== */}
+
       <PasswordChangeModal
         isOpen={isChangePasswordModalOpen}
         onClose={() => setIsChangePasswordModalOpen(false)}
         email={user.email!}
-        title="Change Password"
+        title="Change password"
         description="For security, please enter your current and new password."
       />
+    </div>
+  );
+}
+
+/* ==========================================================================
+   REUSABLE DISPLAY FIELD
+============================================================================ */
+
+function ProfileDisplayField({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition-all hover:border-blue-200 hover:bg-blue-50/50 dark:border-slate-800 dark:bg-slate-950/50 dark:hover:border-blue-500/30 dark:hover:bg-blue-500/5">
+      <div className="min-w-0 flex-1">
+        <p className="text-base font-medium text-slate-500 dark:text-slate-400">
+          {label}
+        </p>
+
+        <p className="mt-1 break-words text-base font-black text-slate-900 dark:text-white">
+          {value}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ==========================================================================
+   FORM FIELD
+============================================================================ */
+
+function FormField({
+  label,
+  changed,
+  children,
+}: {
+  label: string;
+  changed?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <label className="text-base font-bold text-slate-700 dark:text-slate-200">
+          {label}
+        </label>
+
+        {changed && (
+          <span className="inline-flex items-center gap-1.5 text-base font-bold text-blue-600 dark:text-blue-400">
+            <span className="h-2 w-2 rounded-full bg-blue-500" />
+            Changed
+          </span>
+        )}
+      </div>
+
+      {children}
+    </div>
+  );
+}
+
+/* ==========================================================================
+   INPUT WITH ICON
+============================================================================ */
+
+function InputWithIcon({
+  icon,
+  value,
+  placeholder,
+  onChange,
+  type = "text",
+}: {
+  icon: React.ReactNode;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
+  return (
+    <div className="relative">
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-base font-bold text-slate-900 outline-none transition-all placeholder:font-medium placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-600 dark:focus:border-blue-500 dark:focus:bg-slate-950"
+      />
+    </div>
+  );
+}
+
+/* ==========================================================================
+   ACCOUNT INFO CARD
+============================================================================ */
+
+function AccountInfoCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+      <div className="flex items-start gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-medium text-slate-500 dark:text-slate-400">
+            {label}
+          </p>
+
+          <p className="mt-1 break-words text-base font-black text-slate-900 dark:text-white">
+            {value}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

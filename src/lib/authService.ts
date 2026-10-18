@@ -125,7 +125,7 @@ export const linkAuthUserToPersonnel = async (
       id_card_number: id_card_number,
       date_issued: date_issued,
       expiration_date: expiration_date,
-      role: "supply",
+      role: "user",
     })
     .eq("badge_number", badgeNumber)
     .eq("rank_id", rankId)

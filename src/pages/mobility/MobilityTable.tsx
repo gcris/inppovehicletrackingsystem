@@ -4,11 +4,6 @@ import { MobilityAsset, Personnel } from "../../lib/supabase";
 
 interface MobilityTableProps {
   vehicles: MobilityAsset[];
-  onEdit: (vehicle: MobilityAsset) => void;
-  onDelete: (id: string) => void;
-  getStatusColor: (status: string) => string;
-  isExpired: (date: string) => boolean;
-  isExpiringSoon: (date: string) => boolean;
   handleView: (asset: MobilityAsset) => void;
   handleViewDriverLicense: (driver: Personnel) => void;
   currentPage: number;
@@ -17,11 +12,6 @@ interface MobilityTableProps {
 
 function MobilityTable({
   vehicles,
-  onEdit,
-  onDelete,
-  getStatusColor,
-  isExpired,
-  isExpiringSoon,
   handleView,
   handleViewDriverLicense,
   pageSize,
@@ -44,11 +34,6 @@ function MobilityTable({
             key={vehicle.id}
             index={(currentPage - 1) * pageSize + index}
             vehicle={vehicle}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            getStatusColor={getStatusColor}
-            isExpired={isExpired}
-            isExpiringSoon={isExpiringSoon}
             handleView={handleView}
             handleViewDriverLicense={handleViewDriverLicense}
           />
@@ -59,9 +44,5 @@ function MobilityTable({
 }
 
 export default memo(MobilityTable, (prevProps, nextProps) => {
-  return (
-    prevProps.vehicles === nextProps.vehicles &&
-    prevProps.onEdit === nextProps.onEdit &&
-    prevProps.onDelete === nextProps.onDelete
-  );
+  return prevProps.vehicles === nextProps.vehicles;
 });

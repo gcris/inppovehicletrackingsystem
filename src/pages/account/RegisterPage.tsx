@@ -104,8 +104,6 @@ export default function RegisterPage() {
           throw error;
         }
 
-        console.log("data: ", data);
-
         setUnits(data || []);
       } catch (err) {
         console.error("Error fetching units:", err);
@@ -266,7 +264,6 @@ export default function RegisterPage() {
           personnel.rank_id !== formData.rankId ||
           personnel.fullname.trim() !== formData.fullname.trim() ||
           personnel.unit_id !== formData.unitId
-          // personnel.designation.trim() !== formData.designation.trim()
         ) {
           setError(
             "Personnel information does not match our records. Please contact your administrator.",
