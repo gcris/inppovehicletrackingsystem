@@ -845,14 +845,8 @@ export default function AccountPage() {
 
               <div className="space-y-4 p-6">
                 <AccountInfoCard
-                  icon={<BadgeCheck />}
-                  label="Badge number"
-                  value={profile.badge_number || "Not assigned"}
-                />
-
-                <AccountInfoCard
                   icon={<Building2 />}
-                  label="Unit or station"
+                  label="Unit/Station"
                   value={profile.unit?.unit_name || "Not assigned"}
                 />
 

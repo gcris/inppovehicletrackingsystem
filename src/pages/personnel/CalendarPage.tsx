@@ -218,20 +218,24 @@ export default function CalendarPage() {
         .from("calendar")
         .select(
           `
-            *,
-            unit:unit_id(
-              unit_name
-            )
-          `,
+    *,
+    unit:unit_id (
+      unit_name
+    )
+  `,
         )
         .order("start_date", {
           ascending: true,
         });
 
       if (!isAdmin && unitId) {
-        calendarsQuery = calendarsQuery.contains("distributions", [unitId]);
-      } else if (isAdmin && unitFilter) {
-        calendarsQuery = calendarsQuery.contains("distributions", [unitFilter]);
+        calendarsQuery = calendarsQuery.or(
+          `unit_id.eq.${unitId},distributions.cs.{${unitId}}`,
+        );
+      } else if (unitFilter) {
+        calendarsQuery = calendarsQuery.or(
+          `unit_id.eq.${unitFilter},distributions.cs.{${unitFilter}}`,
+        );
       }
 
       const { data, error } = await calendarsQuery;

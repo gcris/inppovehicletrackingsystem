@@ -95,7 +95,7 @@ export default function HeroSection() {
             className="relative"
           >
             <BrowserFrame
-              title="MOBILIS Dashboard"
+              title="PATROL Dashboard"
               image="/screenshots/dashboard.png"
             />
           </motion.div>

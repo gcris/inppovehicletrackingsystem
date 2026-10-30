@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 
 const executiveLeadership1 = {
   name: "PCOL JOEMAR Q LABIANO",
-  position: "Provincial Director/Project Supervisor",
+  position: "Provincial Director/Project Director",
   image: "/team/pd.png",
 };
 
@@ -10,13 +10,13 @@ const executiveLeadership2 = [
   {
     name: "PLTCOL PAUL BENEDICT R PARADO",
     position:
-      "Deputy Provincial Director for Administration/Assistant Project Supervisor",
+      "Deputy Provincial Director for Administration/Assistant Project Director",
     image: "/team/dpda.png",
   },
   {
     name: "PLTCOL JESSIE D BALINANG",
     position:
-      "Deputy Provincial Director for Operations/Assistant Project Supervisor",
+      "Deputy Provincial Director for Operations/Assistant Project Director",
     image: "/team/dpdo.png",
   },
 ];
@@ -25,30 +25,24 @@ const projectManagement = [
   {
     name: "PLTCOL JEPHRE S TACCAD",
     position:
-      "Chief, Provincial Operations and Management Unit/Project Manager",
+      "Chief, Provincial Operations and Management Unit/Logistics and Operations Support Officer",
     description: `Provides direct management and operational oversight for
-      Project M.O.B.I.L.I.S, ensuring successful planning,
+      Project P.A.T.R.O.L, ensuring successful planning,
       implementation, coordination, and continuous improvement of
       the system.`,
     image: "/team/c-pomu.png",
-  },
-  {
-    name: "PLT MARIBEL D BARROGA",
-    position: "PARMU-Supply/Finance Officer/Assistant Project Manager",
-    description: null,
-    image: "/team/supply-officer.png",
   },
 ];
 
 const developmentTeam = [
   {
     name: "PMSg Jefferson R Ulep",
-    position: "Project Team Leader/C, LES PNCO",
+    position: "C, LES PNCO/System Analyst",
     image: "/team/pmsg-ulep.png",
   },
   {
     name: "Pat Gerry Cris M Cariaga",
-    position: "System Developer/Asst. LES PNCO",
+    position: "Asst. LES PNCO/System Developer",
     image: "/team/pat-cariaga.png",
   },
 ];
@@ -79,7 +73,7 @@ export default function TeamSection() {
 
           <h2 className="mt-4 text-5xl font-bold text-slate-900">
             The People Behind
-            <span className="block text-blue-600">Project M.O.B.I.L.I.S</span>
+            <span className="block text-blue-600">Project P.A.T.R.O.L</span>
           </h2>
 
           <p className="mt-6 text-lg leading-8 text-slate-600">
@@ -120,7 +114,7 @@ export default function TeamSection() {
 
                     <p className="mt-6 leading-8 text-slate-600 dark:text-white">
                       Provides executive leadership, strategic guidance, and
-                      overall oversight for Project M.O.B.I.L.I.S, ensuring that
+                      overall oversight for Project P.A.T.R.O.L, ensuring that
                       the system aligns with the operational objectives and
                       digital transformation initiatives of the Ilocos Norte
                       Police Provincial Office.

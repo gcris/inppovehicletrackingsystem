@@ -15,6 +15,8 @@ import {
   RefreshCcw,
   Barcode,
   Check,
+  Route,
+  Clock,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -64,9 +66,17 @@ export default function AnalyticsPage() {
     total_kilometers: 0,
   });
 
+  const { unitId, isAdmin, profile } = useAuth();
+
+  const isAdminSafe = isAdmin ?? false;
+  const unitIdSafe = unitId !== null && unitId !== undefined ? unitId : null;
+
   const [searchTerm, setSearchTerm] = useState("");
   const [units, setUnits] = useState<Unit[]>([]);
-  const [selectedUnit, setSelectedUnit] = useState<string | null>(null);
+  // Non-admin users are locked to their own unit; admins start with "all".
+  const [selectedUnit, setSelectedUnit] = useState<string | null>(
+    unitIdSafe ?? null,
+  );
   const [selectedPatrolType, setSelectedPatrolType] = useState<string>("");
   const patrolTypes = [
     "Mobile Patrolling",
@@ -80,6 +90,7 @@ export default function AnalyticsPage() {
     "DODON",
     "Intel-Driven Operation",
     "Special Laws",
+    "Combat/Prophylactic Patrolling",
   ];
   const filteredPersonnel = personnelData.filter((person) => {
     const term = searchTerm.toLowerCase();
@@ -91,46 +102,69 @@ export default function AnalyticsPage() {
       person.viber_number?.toLowerCase().includes(term)
     );
   });
-  const { unitId, isAdmin } = useAuth();
+  const userUnitId: string | null = profile?.unit_id ?? null;
 
-  const isAdminSafe = isAdmin ?? false;
-  const unitIdSafe = unitId !== null && unitId !== undefined ? unitId : null;
-
-  const COLORS = [
-    "#2563eb",
-    "#16a34a",
-    "#f59e0b",
-    "#dc2626",
-    "#7c3aed",
-    "#0ea5e9",
-  ];
+  // Non-admin users can only ever see their own unit's data.
+  const effectiveUnit: string | null = isAdmin
+    ? selectedUnit && selectedUnit !== "all"
+      ? selectedUnit
+      : null
+    : userUnitId;
+  const visibleUnits = isAdminSafe
+    ? units
+    : units.filter((unit) => unit.id === unitIdSafe);
 
   useEffect(() => {
-    loadUnits();
-  }, []);
-
-  useEffect(() => {
-    loadAnalytics();
-  }, [selectedUnit, selectedPatrolType, dateFrom, dateTo]);
-
-  useEffect(() => {
-    if (selectedUnit && dateFrom && dateTo) {
-      fetchSchedules(selectedUnit, dateFrom, dateTo);
+    if (effectiveUnit && dateFrom && dateTo) {
+      fetchSchedules(effectiveUnit, dateFrom, dateTo);
     }
-  }, [selectedUnit, dateFrom, dateTo]);
+  }, [effectiveUnit, dateFrom, dateTo]);
+
+  const EMPTY_SUMMARY = {
+    total_personnel: 0,
+    total_patrol_hours: "00:00:00",
+    total_man_hours: 0,
+    total_kilometers: 0,
+  };
+
+  // YYYY-MM-DD in the browser's local time (Philippines = UTC+8).
+  // Using substring(0, 10) on the ISO string gives the UTC date, which puts
+  // patrols between 00:00 and 08:00 local time on the previous day.
+  const toLocalDateKey = (iso: string) => {
+    const d = new Date(iso);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  // ----------------------------------------------------------------------------
+  // UNITS (dropdown data)
+  // ----------------------------------------------------------------------------
 
   const loadUnits = async () => {
     try {
-      const { data: unitsData, error } = await supabase
+      let query = supabase
         .from("unit")
         .select("*")
         .order("unit_name", { ascending: true });
+
+      // Non-admins only see their own unit
+      if (!isAdmin && userUnitId) {
+        query = query.eq("id", userUnitId);
+      }
+
+      const { data: unitsData, error } = await query;
       if (error) throw error;
-      setUnits(unitsData);
+      setUnits(unitsData ?? []);
     } catch (error) {
       console.error("Error loading units:", error);
     }
   };
+
+  // ----------------------------------------------------------------------------
+  // SCHEDULES
+  // ----------------------------------------------------------------------------
 
   const fetchSchedules = async (
     unitId: string | null,
@@ -138,14 +172,7 @@ export default function AnalyticsPage() {
     dateTo: string,
   ) => {
     try {
-      if (!unitId) return [];
-
-      // Convert dates to the format needed for querying
-      // We need to get schedules that overlap with the date range
-      const startDate = new Date(dateFrom);
-      const endDate = new Date(dateTo);
-
-      const { data: schedulesData, error } = await supabase
+      let query = supabase
         .from("patrol_schedule")
         .select(
           `*,
@@ -163,6 +190,14 @@ export default function AnalyticsPage() {
         .order("date", { ascending: true })
         .order("time_from", { ascending: true });
 
+      // Only filter when a unit applies (non-admin, or admin picked a unit).
+      // ADJUST "unit_id" to the real column name in patrol_schedule.
+      if (unitId) {
+        query = query.eq("unit_id", unitId);
+      }
+
+      const { data: schedulesData, error } = await query;
+
       if (error) throw error;
       return schedulesData ?? [];
     } catch (error) {
@@ -171,32 +206,56 @@ export default function AnalyticsPage() {
     }
   };
 
+  // ----------------------------------------------------------------------------
+  // LOAD ANALYTICS
+  // ----------------------------------------------------------------------------
+
   const loadAnalytics = async () => {
     try {
       setLoading(true);
 
+      // Fail closed: a non-admin without a unit must never see everything.
+      if (!isAdmin && !userUnitId) {
+        setSummary(EMPTY_SUMMARY);
+        setPersonnelData([]);
+        setDailyTrend([]);
+        setPatrolTypeDistribution([]);
+        setHourlyTrend([]);
+        setVehicleUtilization([]);
+        setTopPersonnel([]);
+        return; // "finally" below still resets loading
+      }
+
+      const filterByUnit = !!effectiveUnit;
+
       let allData: PatrolLog[] = [];
       let pageNum = 1;
       let hasMore = true;
-      let totalCount = 0;
 
-      // Loop to fetch everything, bypassing the 1000 limit, max 10000 points to prevent browser crash
+      // Loop to fetch everything, bypassing the 1000-row limit
       while (hasMore) {
         const fromRange = (pageNum - 1) * 1000;
         const toRange = pageNum * 1000 - 1;
 
-        // Build the base query for patrol logs with personnel and vehicle details
-        let patrolLogsQuery = supabase.from("patrol_logs").select(`
+        // "!inner" makes the unit filter remove other units' logs.
+        // Admins viewing all units use a normal join so no logs are dropped.
+        const personnelJoin = filterByUnit
+          ? "personnel:personnel_id!inner"
+          : "personnel:personnel_id";
+
+        let patrolLogsQuery = supabase.from("patrol_logs").select(
+          `
           *,
-          personnel:personnel_id (
+          ${personnelJoin} (
             *,
             unit(*),
             rank(*)
           ),
           mobility_assets:vehicle_id (*)
-        `);
+        `,
+        );
 
-        // Apply date filters if provided
+        // Date filters (Philippine time)
         if (dateFrom) {
           const localStart = `${dateFrom}T00:00:00+08:00`;
           patrolLogsQuery = patrolLogsQuery.gte("captured_at", localStart);
@@ -206,15 +265,15 @@ export default function AnalyticsPage() {
           patrolLogsQuery = patrolLogsQuery.lte("captured_at", localEnd);
         }
 
-        // Apply unit filter if selected
-        if (selectedUnit) {
+        // Unit filter: admin = optional (dropdown), non-admin = always own unit
+        if (filterByUnit) {
           patrolLogsQuery = patrolLogsQuery.eq(
             "personnel.unit_id",
-            selectedUnit,
+            effectiveUnit,
           );
         }
 
-        // Apply patrol type filter if selected
+        // Patrol type filter
         if (selectedPatrolType) {
           patrolLogsQuery = patrolLogsQuery.eq("duty_type", selectedPatrolType);
         }
@@ -225,8 +284,7 @@ export default function AnalyticsPage() {
           '("EMERGENCY_SOS", "Intel-Driven Operation", "Special Laws")',
         );
 
-        // Execute the query
-        const { data, error, count } = await patrolLogsQuery
+        const { data, error } = await patrolLogsQuery
           .order("captured_at", { ascending: true })
           .range(fromRange, toRange);
 
@@ -235,14 +293,10 @@ export default function AnalyticsPage() {
           break;
         }
 
-        if (count !== null && count !== undefined && pageNum === 1) {
-          totalCount = count;
-        }
-
         if (data && data.length > 0) {
           allData = [...allData, ...data];
           pageNum++;
-          // If we got less than 1000, we've reached the end
+          // Fewer than 1000 rows means we reached the end
           if (data.length < 1000) {
             hasMore = false;
           }
@@ -251,16 +305,15 @@ export default function AnalyticsPage() {
         }
       }
 
-      // Fetch schedules if we have date range and unit
+      // Schedules: only need a date range. The unit filter is optional, so
+      // admins viewing all units now get schedule data too.
       let schedulesData: PatrolSchedule[] = [];
-      if (dateFrom && dateTo && selectedUnit) {
-        schedulesData = await fetchSchedules(selectedUnit, dateFrom, dateTo);
+      if (dateFrom && dateTo) {
+        schedulesData = await fetchSchedules(effectiveUnit, dateFrom, dateTo);
       }
 
-      // Calculate statistics using only patrol_logs data (which includes joined personnel/vehicle data)
       const stats = calculateStatistics(allData ?? [], schedulesData);
 
-      // Update state
       setSummary(stats.summary);
       setPersonnelData(stats.personnelData);
       setDailyTrend(stats.charts.dailyTrend);
@@ -275,21 +328,27 @@ export default function AnalyticsPage() {
     }
   };
 
-  // Helper function to calculate statistics from patrol_logs data (with joined personnel/vehicle data)
+  // Reload when any filter changes (adjust to your existing effects)
+  useEffect(() => {
+    loadUnits();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, userUnitId]);
+
+  useEffect(() => {
+    loadAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveUnit, dateFrom, dateTo, selectedPatrolType, isAdmin]);
+
+  // ----------------------------------------------------------------------------
+  // STATISTICS
+  // ----------------------------------------------------------------------------
+
   const calculateStatistics = (
     patrolLogs: any[],
     schedules: PatrolSchedule[],
   ) => {
-    // Filter out logs with invalid coordinates
-    // const validLogs = patrolLogs.filter((log) => {
-    //   const lat = Number(log.latitude);
-    //   const lng = Number(log.longitude);
-    //   return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
-    // });
-
-    const dailyTrendMap = new Map<string, number>();
     // ===========================================
-    // REBUILD PATROL SESSIONS
+    // REBUILD PATROL SESSIONS (10-minute gap rule)
     // ===========================================
 
     interface PatrolSession {
@@ -337,15 +396,11 @@ export default function AnalyticsPage() {
         patrolSessions.push({
           personnelId: first.personnel_id,
           dutyType: first.duty_type || "Unknown",
-
-          date: first.captured_at.substring(0, 10),
-
+          date: toLocalDateKey(first.captured_at),
           hour:
             new Date(first.captured_at).getHours().toString().padStart(2, "0") +
             ":00",
-
           minutes,
-
           kilometers: calculateDistance(sessionLogs),
         });
 
@@ -399,19 +454,18 @@ export default function AnalyticsPage() {
       };
 
       existing.sessions++;
-
       existing.patrolHours += session.minutes / 60;
-
       existing.manHours += session.minutes / 60;
-
       existing.kilometers += session.kilometers;
 
       dailyMap.set(session.date, existing);
     });
 
+    // Sort by the YYYY-MM-DD key BEFORE formatting the label
     const dailyTrend = Array.from(dailyMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, value]) => ({
-        date: new Date(date).toLocaleDateString("en-US", {
+        date: new Date(`${date}T00:00:00`).toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
         }),
@@ -419,8 +473,8 @@ export default function AnalyticsPage() {
         patrolHours: Number(value.patrolHours.toFixed(2)),
         manHours: Number(value.manHours.toFixed(2)),
         kilometers: Number(value.kilometers.toFixed(2)),
-      }))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      }));
+
     // ===========================================
     // HOURLY TREND
     // ===========================================
@@ -458,6 +512,7 @@ export default function AnalyticsPage() {
         kilometers: Number(value.kilometers.toFixed(2)),
       }))
       .sort((a, b) => a.hour.localeCompare(b.hour));
+
     // ===========================================
     // PATROL TYPE DISTRIBUTION
     // ===========================================
@@ -478,7 +533,6 @@ export default function AnalyticsPage() {
       }))
       .sort((a, b) => b.value - a.value);
 
-    // Calculate total kilometers using the same logic as in TrackingMapPage
     // ===========================================
     // SUMMARY VARIABLES
     // ===========================================
@@ -497,7 +551,7 @@ export default function AnalyticsPage() {
     const personnelMap = new Map<string, PersonnelStatistics>();
 
     // ===========================================
-    // Foot Patrolling
+    // FOOT PATROLLING
     // ===========================================
 
     const footLogs = patrolLogs.filter(
@@ -536,7 +590,6 @@ export default function AnalyticsPage() {
       const kilometers = calculateDistance(sortedLogs);
 
       totalPatrolMinutes += patrolMinutes;
-
       totalManMinutes += patrolMinutes;
 
       personnelMap.set(personId, {
@@ -614,25 +667,6 @@ export default function AnalyticsPage() {
         const assignments = schedule.schedule_assignments ?? [];
 
         totalManMinutes += patrolMinutes * assignments.length;
-
-        // assignments.forEach((assignment: any) => {
-        //   const person = assignment.personnel;
-
-        //   if (!person) return;
-
-        //   const existing = personnelMap.get(person.id);
-
-        //   if (existing) {
-        //     existing.patrolMinutes += patrolMinutes;
-        //     existing.kilometers += kilometers;
-        //   } else {
-        //     personnelMap.set(person.id, {
-        //       personnel: person,
-        //       patrolMinutes,
-        //       kilometers,
-        //     });
-        //   }
-        // });
       });
 
       // ===========================================
@@ -651,8 +685,8 @@ export default function AnalyticsPage() {
         vehiclePersonnelLogs[log.personnel.id].push(log);
       });
 
-      Object.entries(vehiclePersonnelLogs).forEach(([personId, logs]) => {
-        const person = logs[0].personnel;
+      Object.entries(vehiclePersonnelLogs).forEach(([personId, personLogs]) => {
+        const person = personLogs[0].personnel;
 
         const existing = personnelMap.get(personId);
 
@@ -663,7 +697,7 @@ export default function AnalyticsPage() {
           personnelMap.set(personId, existing);
         } else {
           personnelMap.set(personId, {
-            personnel: sortedLogs[0].personnel,
+            personnel: person, // was sortedLogs[0].personnel (wrong person)
             patrolMinutes,
             kilometers,
           });
@@ -711,7 +745,6 @@ export default function AnalyticsPage() {
     const patrolMinutes = Math.round(totalPatrolMinutes % 60);
 
     const totalManHours = Number((totalManMinutes / 60).toFixed(2));
-    4;
 
     return {
       summary: {
@@ -735,7 +768,10 @@ export default function AnalyticsPage() {
     };
   };
 
-  // Helper function to calculate distance (same as in TrackingMapPage)
+  // ----------------------------------------------------------------------------
+  // DISTANCE (same as TrackingMapPage)
+  // ----------------------------------------------------------------------------
+
   const calculateDistance = (logs: any[]) => {
     if (!logs || logs.length < 2) return 0;
 
@@ -769,13 +805,13 @@ export default function AnalyticsPage() {
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       const distance = EARTH_RADIUS_KM * c;
 
-      // Jitter Filter: Ignore tiny GPS variations below 5 meters to prevent "ghost mileage"
+      // Jitter filter: ignore GPS variations below 5 meters ("ghost mileage")
       if (distance > 0.005) {
         totalDistance += distance;
       }
     }
 
-    return parseFloat(totalDistance.toFixed(2)); // Returns total KM rounded to two decimal places
+    return parseFloat(totalDistance.toFixed(2)); // total km, two decimals
   };
 
   return (
@@ -821,7 +857,9 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div
+          className={`grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-${isAdminSafe ? "5" : "4"}`}
+        >
           {/* SEARCH */}
           <div className="xl:col-span-1">
             <label className="mb-1.5 block font-semibold text-slate-600 dark:text-slate-300">
@@ -855,24 +893,32 @@ export default function AnalyticsPage() {
             </select>
           </div>
 
-          {/* UNIT */}
-          <div>
-            <label className="mb-1.5 block font-semibold text-slate-600 dark:text-slate-300">
-              Unit / Station
-            </label>
-            <select
-              value={selectedUnit ?? ""}
-              onChange={(e) => setSelectedUnit(e.target.value || null)}
-              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-            >
-              <option value="">All Units / Stations</option>
-              {units.map((unit) => (
-                <option key={unit.id} value={unit.id}>
-                  {unit.unit_name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {isAdminSafe && (
+            <div>
+              <label className="mb-1.5 block font-semibold text-slate-600 dark:text-slate-300">
+                Unit/Station
+              </label>
+              <select
+                value={selectedUnit ?? ""}
+                onChange={(e) => setSelectedUnit(e.target.value || null)}
+                disabled={!isAdminSafe}
+                className={`h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white ${
+                  !isAdminSafe ? "cursor-not-allowed opacity-60" : ""
+                }`}
+              >
+                {isAdminSafe ? (
+                  <option value="">All Units/Stations</option>
+                ) : (
+                  <option value="">Your Unit</option>
+                )}
+                {visibleUnits.map((unit) => (
+                  <option key={unit.id} value={unit.id}>
+                    {unit.unit_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* DATE FROM */}
           <div>
@@ -944,7 +990,7 @@ export default function AnalyticsPage() {
                   </p>
                 </div>
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
-                  <RefreshCcw className="h-6 w-6" />
+                  <Clock className="h-6 w-6" />
                 </div>
               </div>
             </div>
@@ -982,7 +1028,7 @@ export default function AnalyticsPage() {
                   </p>
                 </div>
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
-                  <Barcode className="h-6 w-6" />
+                  <Route className="h-6 w-6" />
                 </div>
               </div>
             </div>

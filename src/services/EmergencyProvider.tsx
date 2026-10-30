@@ -9,6 +9,7 @@ import React, {
 
 import { PatrolLog, Personnel, supabase } from "../lib/supabase";
 import EmergencyModal from "../services/EmergencyModal";
+import { useAuth } from "../components/AuthProvider";
 
 type EmergencyContextType = {
   emergency: PatrolLog | null;
@@ -40,6 +41,7 @@ export const EmergencyProvider = ({ children }: Props) => {
   const [emergency, setEmergency] = useState<PatrolLog | null>(null);
   const [personnel, setPersonnel] = useState<Personnel | null>(null);
   const alarmRef = useRef<HTMLAudioElement | null>(null);
+  const { unitId, isAdmin } = useAuth();
 
   const clearEmergency = () => {
     if (alarmRef.current) {
@@ -117,11 +119,16 @@ export const EmergencyProvider = ({ children }: Props) => {
 
           if (log.duty_type !== "EMERGENCY_SOS") return;
 
-          const { data, error } = await supabase
+          let query = supabase
             .from("personnel")
             .select("*, rank(*)")
-            .eq("id", log.personnel_id)
-            .single();
+            .eq("id", log.personnel_id);
+
+          if (!isAdmin) {
+            query = query.eq("unit_id", unitId);
+          }
+
+          const { data, error } = await query.single();
           if (error) throw error;
 
           setPersonnel(data);

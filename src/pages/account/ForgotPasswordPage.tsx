@@ -21,6 +21,8 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setError(null);
 
+    console.log("handle Reset");
+
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
@@ -30,7 +32,7 @@ export default function ForgotPasswordPage() {
         // Log error for debugging but don't expose to user to prevent information leakage
         console.error("Password reset error:", error);
         // Always show success message to prevent email enumeration
-        setSuccess(true);
+        setSuccess(false);
       } else {
         setSuccess(true);
       }

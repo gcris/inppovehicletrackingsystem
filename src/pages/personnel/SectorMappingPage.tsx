@@ -144,12 +144,12 @@ type BarangayGeoJSON = {
 type MainCategory =
   | "PNP"
   | "Vital Installations"
-  | "Key Assets and Places of Public Assembly";
+  | "Key Assets and Places of Convergence";
 
 const GROUP_COLORS: Record<string, string> = {
   PNP: "#1E40AF",
   "Vital Installations": "#B45309",
-  "Key Assets and Places of Public Assembly": "#089b02",
+  "Key Assets and Places of Convergence": "#089b02",
   Others: "#089b02",
 };
 
@@ -167,10 +167,10 @@ const CATEGORY_GROUPS: Record<MainCategory, string[]> = {
     "Financial and Economic Key points",
     "Energy and Power Utilities",
     "Telecommunication and Broadcast Facilities",
-    "Fuel and Petroleum Storage",
+    "Fuel and Petroleum Facility",
     "Water and Sanitation Systems",
   ],
-  "Key Assets and Places of Public Assembly": [
+  "Key Assets and Places of Convergence": [
     "Commercial and Economic Hubs",
     "Educational Institutions",
     "Religious and Cultural Institutions",
@@ -212,7 +212,7 @@ const CATEGORIES: Record<string, { color: string }> = {
   "Telecommunication and Broadcast Facilities": {
     color: "#B45309",
   },
-  "Fuel and Petroleum Storage": {
+  "Fuel and Petroleum Facility": {
     color: "#B45309",
   },
   "Water and Sanitation Systems": {

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { supabase, Unit } from "../../lib/supabase";
+import { useAuth } from "../../components/AuthProvider";
 
 interface PhotoViewerItem {
   id: string;
@@ -189,6 +190,8 @@ export default function PatrolSummaryManagementPage() {
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
+  const { unitId, isAdmin } = useAuth();
+
   /*
    * ============================================================
    * LOAD UNITS
@@ -306,12 +309,17 @@ export default function PatrolSummaryManagementPage() {
           },
         );
 
-        if (selectedUnit !== "all") {
-          query = query.eq("unit_id", selectedUnit);
+        if (!isAdmin && unitId) {
+          query = query.eq("unit_id", unitId);
         }
+        else {
+          if (selectedUnit !== "all") {
+            query = query.eq("unit_id", selectedUnit);
+          }
 
-        if (personnelIds) {
-          query = query.in("personnel_id", personnelIds);
+          if (personnelIds) {
+            query = query.in("personnel_id", personnelIds);
+          }
         }
 
         const { from, to } = buildDateRange(dateFrom, dateTo);
@@ -501,7 +509,9 @@ export default function PatrolSummaryManagementPage() {
    */
 
   useEffect(() => {
-    loadUnits();
+    if (isAdmin) {
+      loadUnits();
+    }
   }, [loadUnits]);
 
   useEffect(() => {
@@ -878,7 +888,13 @@ export default function PatrolSummaryManagementPage() {
             FILTER BAR
             ====================================================== */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(260px,1.5fr)_minmax(190px,1fr)_170px_170px_auto]">
+          <div
+            className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${
+              isAdmin
+                ? "xl:grid-cols-[minmax(260px,1.5fr)_minmax(190px,1fr)_170px_170px_auto]"
+                : "xl:grid-cols-[minmax(260px,1.5fr)_170px_170px_auto]"
+            }`}
+          >
             {/* SEARCH */}
             <div className="relative">
               <Search
@@ -895,20 +911,21 @@ export default function PatrolSummaryManagementPage() {
               />
             </div>
 
-            {/* UNIT */}
-            <select
-              value={selectedUnit}
-              onChange={(event) => handleUnitChange(event.target.value)}
-              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 font-semibold outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-            >
-              <option value="all">All Units</option>
+            {isAdmin && (
+              <select
+                value={selectedUnit}
+                onChange={(event) => handleUnitChange(event.target.value)}
+                className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 font-semibold outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              >
+                <option value="all">All Units/Stations</option>
 
-              {units.map((unit) => (
-                <option key={unit.id} value={unit.id}>
-                  {getUnitName(unit)}
-                </option>
-              ))}
-            </select>
+                {units.map((unit) => (
+                  <option key={unit.id} value={unit.id}>
+                    {getUnitName(unit)}
+                  </option>
+                ))}
+              </select>
+            )}
 
             {/* FROM */}
             <div className="relative">

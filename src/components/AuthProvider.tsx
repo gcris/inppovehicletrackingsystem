@@ -21,8 +21,11 @@ interface AuthContextType {
   isApproved: boolean;
   isMfaVerified: boolean;
   isPnpIdExpires: boolean;
+  emailConfirmed: boolean;
 
   setIsMfaVerified: (verified: boolean) => void;
+
+  resendConfirmationEmail: (email: string) => Promise<{ error: Error | null }>;
 
   clearAuthCache: () => Promise<void>;
 
@@ -41,8 +44,11 @@ const AuthContext = createContext<AuthContextType>({
   isApproved: false,
   isMfaVerified: false,
   isPnpIdExpires: false,
+  emailConfirmed: false,
 
   setIsMfaVerified: () => {},
+
+  resendConfirmationEmail: async () => ({ error: null }),
 
   clearAuthCache: async () => {},
 
@@ -59,6 +65,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [initializing, setInitializing] = useState(true);
   const [isMfaVerified, setIsMfaVerifiedState] = useState(false);
   const [isPnpIdExpires, setIsPnpIdExpires] = useState(false);
+
+  /**
+   * Tracks whether the signed-in user's email address has been confirmed.
+   *
+   * This is the gate that prevents a user from reaching MFA enrollment
+   * (or any authenticated route) before they have verified their email.
+   */
+  const [emailConfirmed, setEmailConfirmed] = useState(false);
   /**
    * Tracks the currently loaded user.
    *
@@ -114,19 +128,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data, error } = await supabase
         .from("personnel")
-        .select("*, unit(*), rank(*)")
+        .select("*, unit:unit!personnel_unit_id_fkey(*), rank(*)")
         .eq("id", uid)
         .maybeSingle();
-
+      
       if (error) {
         if (mountedRef.current) {
           setProfile(null);
         }
 
+        console.log("Fetch Profile Error: ", error);
+
         return;
       }
 
+      console.log("Data: ", data);
+
       if (mountedRef.current) {
+        // const isValidUser = data?.role === "admin" || data?.role === "operation";
         if (data?.is_blocked) {
           await supabase.auth.signOut();
           window.location.href = "/login";
@@ -295,6 +314,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           setProfile(null);
           setIsMfaVerifiedState(false);
+          setEmailConfirmed(false);
 
           return;
         }
@@ -356,6 +376,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         setProfile(null);
         setIsMfaVerifiedState(false);
+        setEmailConfirmed(false);
 
         return;
       }
@@ -491,6 +512,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearAuthCache = useCallback(async () => {
     try {
+      if (user)
+      {
+        await supabase
+          .from("personnel")
+          .update({
+            mfa_enabled: true,
+            is_online: false,
+          })
+          .eq("id", user?.id);
+      }
       await supabase.auth.signOut();
     } catch (error) {
       console.warn("AUTH: Sign out during cache clear failed:", error);
@@ -526,6 +557,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   /**
    * ---------------------------------------------------------
+   * EMAIL CONFIRMATION RESEND
+   * ---------------------------------------------------------
+   *
+   * Re-sends the signup confirmation email to the given address.
+   * Used when a registered user never received (or lost) their
+   * confirmation link. The confirmation link returns the user
+   * to the login screen.
+   */
+  const resendConfirmationEmail = useCallback(
+    async (email: string) => {
+      try {
+        const { error } = await supabase.auth.resend({
+          type: "signup",
+          email,
+          options: {
+            emailRedirectTo: `${window.location.origin}/login`,
+          },
+        });
+
+        return { error: error ?? null };
+      } catch (error) {
+        console.error("AUTH: Resend confirmation email failed:", error);
+
+        return { error: error as Error };
+      }
+    },
+    [],
+  );
+
+  /**
+   * ---------------------------------------------------------
    * CONTEXT VALUE
    * ---------------------------------------------------------
    */
@@ -546,7 +608,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       isMfaVerified,
 
+      /**
+       * A user must confirm their email address before they are allowed
+       * to reach MFA enrollment or any authenticated route.
+       */
+      emailConfirmed: !!user?.email_confirmed_at,
+
       setIsMfaVerified: updateMfaVerification,
+
+      resendConfirmationEmail,
 
       clearAuthCache,
 
@@ -582,7 +652,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             {/* Centered Logo (Absolute) */}
             <img
-              src="/assets/inppo_logo.png"
+              src="/assets/app-logo.png"
               alt="Logo"
               className="absolute h-32 w-32 object-contain"
             />

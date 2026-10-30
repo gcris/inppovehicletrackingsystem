@@ -29,6 +29,7 @@ import {
   Siren,
   Motorbike,
   LucideIcon,
+  DroneIcon,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Link } from "react-router-dom";
@@ -48,6 +49,7 @@ export const dutyTypeIconMap: Record<string, LucideIcon> = {
   Checkpoint: ShieldCheck,
   "Simulation Exercise": Activity,
   "Special Event": Star,
+  "DODON": DroneIcon,
   EMERGENCY_SOS: Siren,
 };
 
@@ -241,6 +243,58 @@ function findPersonnel(
 
   return personnel[personnelId] || undefined;
 }
+
+type MarkerStatus = "emergency" | "offline" | "moving" | "stationary";
+
+function getMarkerStatus(log: PatrolLog): MarkerStatus {
+  const dutyType = (log.duty_type || "").toUpperCase();
+
+  const isEmergency =
+    dutyType === "EMERGENCY_SOS" || dutyType === "DISTRESS_SIGNAL";
+
+  if (isEmergency) {
+    return "emergency";
+  }
+
+  const lastUpdated = new Date(log.captured_at).getTime();
+  const isStale =
+    !Number.isFinite(lastUpdated) || Date.now() - lastUpdated > 5 * 60 * 1000;
+
+  if (isStale) {
+    return "offline";
+  }
+
+  const speed = Number(log.speed ?? 0);
+
+  if (speed >= 1.0) {
+    return "moving";
+  }
+
+  return "stationary";
+}
+
+const markerColorMap = {
+  emergency: {
+    border: "#DC2626",
+    background: "#FEE2E2",
+    icon: "#DC2626",
+  },
+  offline: {
+    border: "#64748B",
+    background: "#E2E8F0",
+    icon: "#64748B",
+  },
+  moving: {
+    border: "#16A34A",
+    background: "#DCFCE7",
+    icon: "#16A34A",
+  },
+  stationary: {
+    border: "#F59E0B",
+    background: "#FEF3C7",
+    icon: "#D97706",
+  },
+};
 
 const TrackingMarkers = React.memo(function TrackingMarkers({
   vehicles,
@@ -436,14 +490,10 @@ const TrackingMarkers = React.memo(function TrackingMarkers({
 
         const position = getOffsetPosition(lat, lng, index, sortedGroup.length);
 
-        const lastUpdated = new Date(log.captured_at);
+        const markerStatus = getMarkerStatus(log);
+        const markerColors = markerColorMap[markerStatus];
 
-        const isStale = Date.now() - lastUpdated.getTime() > 5 * 60 * 1000;
-
-        const dutyType = log.duty_type || "MOBILE_PATROL";
-
-        const isEmergency =
-          dutyType === "EMERGENCY_SOS" || dutyType === "DISTRESS_SIGNAL";
+        const isEmergency = markerStatus === "emergency";
 
         let entry = markersRef.current.get(trackingKey);
 
@@ -677,25 +727,19 @@ const TrackingMarkers = React.memo(function TrackingMarkers({
            APPLY STATUS
         ====================================================== */
 
-        if (isStale) {
-          entry.element.classList.add(
-            "border-slate-400",
-            "bg-white",
-            "text-slate-400",
-          );
-        } else if (isEmergency) {
-          entry.element.classList.add(
-            "border-red-600",
-            "bg-red-50",
-            "text-red-600",
-          );
-        } else {
-          entry.element.classList.add(
-            "border-slate-700",
-            "bg-white",
-            "text-slate-700",
-          );
-        }
+        entry.element.style.border = `2px solid ${markerColors.border}`;
+        entry.element.style.backgroundColor = markerColors.background;
+        entry.element.style.color = markerColors.icon;
+
+        entry.element.style.boxShadow = isEmergency
+          ? "0 0 0 4px rgba(220, 38, 38, 0.20), 0 4px 8px rgba(0,0,0,0.25)"
+          : "0 2px 6px rgba(0,0,0,0.25)";
+
+        entry.marker.zIndex = isEmergency
+          ? 200
+          : markerStatus === "moving"
+            ? 150
+            : 100;
 
         /* ======================================================
            UPDATE ICON
@@ -984,7 +1028,14 @@ const TrackingInfoWindow = React.memo(function TrackingInfoWindow({
        STATUS
     ========================================================== */
 
-  const statusText = isStale ? "No Movement" : log.status;
+  const markerStatus = getMarkerStatus(log);
+
+  const statusText = {
+    emergency: "EMERGENCY",
+    offline: "OFFLINE",
+    moving: "MOVING",
+    stationary: "NOT MOVING",
+  }[markerStatus];
 
   /* ==========================================================
        HISTORY TARGET

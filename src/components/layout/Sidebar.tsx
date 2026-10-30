@@ -26,7 +26,7 @@ type MenuItem = {
 export const Sidebar = () => {
   const { isCollapsed, toggleSidebar } = useSidebar();
   const location = useLocation();
-  const { profile } = useAuth();
+  const { profile, isAdmin } = useAuth();
 
   const profileRole = profile?.role;
 
@@ -108,7 +108,7 @@ export const Sidebar = () => {
         />
       ),
       label: "Mobility Assets",
-      for: ["admin"],
+      for: ["operation", "admin"],
     },
     {
       href: "/calendar",
@@ -123,15 +123,16 @@ export const Sidebar = () => {
   // Define settings items (the ones after the separator in App.tsx)
   const settingsItems: MenuItem[] = [
     {
+      href: isAdmin ? "#" : "/analytics",
       label: "Analytics",
       icon: <BarChart3 className="w-7 h-7" />,
       for: ["operation", "admin"],
-      children: [
+      children: isAdmin ? [
         {
           href: "/analytics-station",
           icon: <BarChart3 className="w-5 h-5" />,
           label: "Analytics by Station",
-          for: ["operation", "admin"],
+          for: ["admin"],
         },
         {
           href: "/analytics",
@@ -139,7 +140,7 @@ export const Sidebar = () => {
           label: "Analytics by Personnel",
           for: ["operation", "admin"],
         },
-      ],
+      ] : [],
     },
     {
       href: "/patrol-summary",
@@ -160,7 +161,7 @@ export const Sidebar = () => {
       for: ["admin"],
     },
     {
-      href: "/mobilis-aboutus",
+      href: "/aboutus",
       icon: <Info className="w-7 h-7" />,
       label: "About Us",
       for: ["all"],

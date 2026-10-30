@@ -3,6 +3,7 @@ import {
   Activity,
   Bike,
   Car,
+  DroneIcon,
   Footprints,
   LucideIcon,
   Motorbike,
@@ -27,6 +28,7 @@ export const dutyTypeIconMap: Record<string, LucideIcon> = {
   Checkpoint: ShieldCheck,
   "Simulation Exercise": Activity,
   "Special Event": Star,
+  "DODON": DroneIcon,
   EMERGENCY_SOS: Siren,
 };
 

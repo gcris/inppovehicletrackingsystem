@@ -21,6 +21,7 @@ import {
   Motorbike,
   Star,
   Drone,
+  MountainIcon,
 } from "lucide-react";
 import { format, startOfDay, endOfDay } from "date-fns";
 import { Link } from "react-router-dom";
@@ -123,6 +124,11 @@ type DashboardData = {
     personnel: number;
   };
 
+  prophylactic: {
+    scheduled: number;
+    personnel: number;
+  };
+
   totalVehicles: number;
   mobilePatrolVehicles: number;
   motorcycleVehicles: number;
@@ -191,6 +197,11 @@ const initialData: DashboardData = {
   },
 
   specialLaws: {
+    scheduled: 0,
+    personnel: 0,
+  },
+
+  prophylactic: {
     scheduled: 0,
     personnel: 0,
   },
@@ -510,6 +521,7 @@ export default function DashboardPage() {
         if (!isAdmin && unitId) {
           calendarQuery = calendarQuery.eq("unit_id", unitId);
         } else {
+          console.log("selectedUnit: ", selectedUnit);
           if (selectedUnit !== "all") {
             calendarQuery = calendarQuery.eq("unit_id", selectedUnit);
           }
@@ -749,6 +761,11 @@ export default function DashboardPage() {
           personnel: getPatrolPersonnel("Special Laws"),
         };
 
+        const prophylactic = {
+          scheduled: getScheduleCount("Combat/Prophylactic Patrolling"),
+          personnel: getPatrolPersonnel("Combat/Prophylactic Patrolling"),
+        };
+
         /*
         |--------------------------------------------------------------------------
         | VEHICLE COUNTS
@@ -798,6 +815,7 @@ export default function DashboardPage() {
           dodon,
           intelDrivenOperation,
           specialLaws,
+          prophylactic,
 
           totalVehicles,
           mobilePatrolVehicles,
@@ -898,40 +916,41 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Right Section: Dropdown + Refresh Button grouped together */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <select
-            value={selectedUnit}
-            onChange={(e) => {
-              if (isAdmin) {
-                setSelectedUnit(e.target.value);
-              }
-            }}
-            disabled={!isAdmin}
-            className={`border border-slate-400 dark:border-slate-600 rounded-xl px-4 py-2.5 font-bold bg-slate-50 text-slate-900 dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none ${
-              !isAdmin ? "opacity-50 cursor-not-allowed" : ""
-            }`}
-          >
-            <option value="all">All Units/Stations</option>
+        {isAdmin && (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <select
+              value={selectedUnit}
+              onChange={(e) => {
+                if (isAdmin) {
+                  setSelectedUnit(e.target.value);
+                }
+              }}
+              disabled={!isAdmin}
+              className={`border border-slate-400 dark:border-slate-600 rounded-xl px-4 py-2.5 font-bold bg-slate-50 text-slate-900 dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none ${
+                !isAdmin ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+            >
+              <option value="all">All Units/Stations</option>
 
-            {units.map((unit) => (
-              <option key={unit.id} value={unit.id}>
-                {unit.unit_name}
-              </option>
-            ))}
-          </select>
+              {units.map((unit) => (
+                <option key={unit.id} value={unit.id}>
+                  {unit.unit_name}
+                </option>
+              ))}
+            </select>
 
-          <button
-            onClick={() => fetchDashboardData(true)}
-            disabled={refreshing}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            <RefreshCw
-              className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`}
-            />
-            Refresh
-          </button>
-        </div>
+            <button
+              onClick={() => fetchDashboardData(true)}
+              disabled={refreshing}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              <RefreshCw
+                className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`}
+              />
+              Refresh
+            </button>
+          </div>
+        )}
       </div>
 
       {/* =========================================================
@@ -1164,6 +1183,13 @@ export default function DashboardPage() {
             personnel={data.specialLaws.personnel}
             scheduled={data.specialLaws.scheduled}
             icon={CheckCircle2}
+          />
+
+          <PatrolCard
+            label="Combat/Prophylactic Patrolling"
+            personnel={data.prophylactic.personnel}
+            scheduled={data.prophylactic.scheduled}
+            icon={MountainIcon}
           />
         </div>
       </DashboardSection>

@@ -17,6 +17,7 @@ import RegisterPage from "./pages/account/RegisterPage";
 import ForgotPasswordPage from "./pages/account/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/account/ResetPasswordPage";
 import AccountPage from "./pages/account/AccountPage";
+import EmailConfirmationSuccessPage from "./pages/account/EmailConfirmationSuccessPage";
 import { EmergencyProvider } from "./services/EmergencyProvider";
 import AnalyticsPerPersonnelPage from "./pages/reports/AnalyticsPerPersonnelPage";
 import { AlertCircle, LogOut, User } from "lucide-react";
@@ -30,10 +31,11 @@ import SectorMappingPage from "./pages/personnel/SectorMappingPage";
 import PatrolSummaryManagementPage from "./pages/reports/PatrolSummaryManagementPage";
 import StrategicLocationsPage from "./pages/admin/StrategicLocationsPage";
 import AnalyticsByStationPage from "./pages/reports/AnalyticsByStationPage";
+import AboutSection from "./pages/landing/mobility/AboutUsPage";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: "admin" | "user" | "supply" | null;
+  requiredRole?: "admin" | "user" | "operation" | null;
 }
 
 function ProtectedRoute({
@@ -46,15 +48,25 @@ function ProtectedRoute({
     isApproved,
     clearAuthCache,
     isMfaVerified,
+    emailConfirmed,
     role,
     isPnpIdExpires,
   } = useAuth();
+
   if (loading) return null;
 
   if (!user) return <Navigate to="/login" replace />;
 
   // Enforce MFA verification - if not verified, redirect to login (which handles MFA setup)
   if (!isMfaVerified) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // A user must confirm their email address before they are allowed
+  // to reach any authenticated route, including the MFA enrollment
+  // screen. Unconfirmed users are sent back to login, which shows a
+  // prompt to verify their email instead of starting MFA setup.
+  if (!emailConfirmed) {
     return <Navigate to="/login" replace />;
   }
 
@@ -143,7 +155,7 @@ function ProtectedRoute({
 }
 
 function Layout() {
-  // useInactivityLogout(true);
+  useInactivityLogout(true);
 
   const { user, profile, isAdmin, clearAuthCache } = useAuth();
   const theme = useTheme();
@@ -272,24 +284,24 @@ function Layout() {
                 element={<PatrolSummaryManagementPage />}
               />
               <Route path="/calendar" element={<CalendarPage />} />
+              <Route path="/personnel" element={<PersonnelPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route
+                path="/analytics-per-personnel/:id"
+                element={<AnalyticsPerPersonnelPage />}
+              />
+              <Route path="/account" element={<AccountPage />} />
+              <Route path="/aboutus" element={<AboutSection />} />
+              <Route path="*" element={<PageNotFound />} />
               {isAdmin && (
                 <>
-                  <Route path="/personnel" element={<PersonnelPage />} />
-                  <Route path="/analytics" element={<AnalyticsPage />} />
                   <Route
                     path="/analytics-station"
                     element={<AnalyticsByStationPage />}
                   />
-                  <Route
-                    path="/analytics-per-personnel/:id"
-                    element={<AnalyticsPerPersonnelPage />}
-                  />
                   <Route path="/users" element={<UserManagementPage />} />
                 </>
               )}
-
-              <Route path="/account" element={<AccountPage />} />
-              <Route path="*" element={<PageNotFound />} />
             </Routes>
           </div>
         </div>
@@ -309,6 +321,7 @@ export default function App() {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/email-confirmed" element={<EmailConfirmationSuccessPage />} />
 
             {/* Landing Page */}
             {/* <Route path="/mobility" element={<MobilityLandingPage />} />

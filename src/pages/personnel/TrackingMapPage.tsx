@@ -497,7 +497,7 @@ export default function TrackingMapPage() {
 
       const { data, error } = await supabase
         .from("mobility_assets")
-        .select("*, unit(*)")
+        .select("*, unit:unit!vehicles_unit_id_fkey(*)")
         .eq("id", targetId)
         .single();
 
@@ -519,7 +519,7 @@ export default function TrackingMapPage() {
 
       const { data: pData, error: pError } = await supabase
         .from("personnel")
-        .select("*, unit(*), rank(*)")
+        .select("*, unit:unit!personnel_unit_id_fkey(*), rank(*)")
         .eq("id", targetId)
         .single();
 
@@ -547,7 +547,7 @@ export default function TrackingMapPage() {
         const selectQuery = `
           *,
           mobility_assets(*),
-          unit(*),
+          unit:unit!personnel_unit_id_fkey(*),
           schedule_assignments(
             *,
             personnel:personnel_id(

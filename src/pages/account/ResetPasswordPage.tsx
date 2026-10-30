@@ -10,6 +10,7 @@ import {
   Eye,
 } from "lucide-react";
 import MfaVerificationForm from "../../components/auth/MfaVerificationForm";
+import { useAuth } from "../../components/AuthProvider";
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -26,6 +27,7 @@ export default function ResetPasswordPage() {
   const [mfaCode, setMfaCode] = useState("");
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     const initialize = async () => {
@@ -40,6 +42,8 @@ export default function ResetPasswordPage() {
 
       const { data: aalData } =
         await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      
+      console.log(aalData);
 
       if (aalData?.currentLevel === "aal1") {
         const { data: factors, error } = await supabase.auth.mfa.listFactors();
@@ -168,6 +172,17 @@ export default function ResetPasswordPage() {
       setSuccess(true);
 
       setTimeout(async () => {
+        if (user)
+        {
+          await supabase
+            .from("personnel")
+            .update({
+              mfa_enabled: true,
+              is_online: false,
+            })
+            .eq("id", user?.id);
+        }
+        
         await supabase.auth.signOut();
 
         navigate("/login", {
@@ -214,7 +229,7 @@ export default function ResetPasswordPage() {
                 {error && (
                   <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3">
                     <AlertCircle className="w-5 h-5 shrink-0 text-red-500" />
-                    <p>{error}</p>
+                    <p className="text-black">{error}</p>
                   </div>
                 )}
 
@@ -229,7 +244,7 @@ export default function ResetPasswordPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full pl-12 pr-4 py-4 rounded-xl bg-slate-100"
+                      className="w-full pl-12 pr-4 py-4 rounded-xl bg-slate-100 text-black"
                     />
 
                     <button
@@ -257,7 +272,7 @@ export default function ResetPasswordPage() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full pl-12 pr-4 py-4 rounded-xl bg-slate-100"
+                      className="w-full pl-12 pr-4 py-4 rounded-xl bg-slate-100 text-black"
                     />
 
                     <button

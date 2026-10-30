@@ -16,8 +16,9 @@ import {
 } from "lucide-react";
 import { type Personnel, supabase, type Unit } from "../../lib/supabase";
 import { useAuth } from "../../components/AuthProvider";
-import UserDetailsModal from "./UserDetailsModal";
+import EditUserModal from "./EditUserModal";
 import { FaCheck, FaEye, FaInfo, FaUserEdit } from "react-icons/fa";
+import UserDetailsModal from "./UserDetailsModal";
 
 export default function UserManagementPage() {
   const { profile } = useAuth();
@@ -53,8 +54,7 @@ export default function UserManagementPage() {
         `,
         )
         .eq("has_account", true)
-        .eq("role", "operation")
-        .eq("role", "user")
+        .or("role.eq.operation,role.eq.user,role.eq.supply")
         .order("fullname");
 
       if (error) throw error;
@@ -451,7 +451,7 @@ export default function UserManagementPage() {
             <table className="min-w-full">
               <thead className="bg-slate-100 dark:bg-slate-800">
                 <tr>
-                  <th className="px-5 py-3 text-left">No.</th>
+                  <th className="px-5 py-3 text-left">Actions</th>
 
                   <th className="px-5 py-3 text-left">Badge</th>
 
@@ -466,8 +466,6 @@ export default function UserManagementPage() {
                   </th>
 
                   <th className="px-5 py-3 text-left">MFA Status</th>
-
-                  <th className="px-5 py-3 text-left">Actions</th>
                 </tr>
               </thead>
 
@@ -477,7 +475,79 @@ export default function UserManagementPage() {
                     key={user.id}
                     className="border-t border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                   >
-                    <td className="px-5 py-4">{index + 1}</td>
+                    <td className="px-5 py-4">
+                      <div className="flex flex-wrap gap-2">
+                        {/* View */}
+                        <button
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setShowViewModal(true);
+                          }}
+                          className="cursor-pointer rounded-lg border p-2 border-blue-600 text-blue-600"
+                        >
+                          <FaEye className="h-5 w-5" />
+                        </button>
+
+                        {/* Edit */}
+                        <button
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setShowEditModal(true);
+                          }}
+                          className="cursor-pointer rounded-lg border p-2 border-orange-600 text-orange-600"
+                        >
+                          <FaUserEdit className="h-5 w-5" />
+                        </button>
+
+                        {/* Approve */}
+                        {!user.is_approved && (
+                          <button
+                            onClick={() => approveUser(user)}
+                            className="cursor-pointer rounded-lg border p-2 border-green-600 text-green-600"
+                          >
+                            <FaCheck className="h-5 w-5" />
+                          </button>
+                        )}
+
+                        {/* Block / Unblock */}
+                        <button
+                          onClick={() => blockUser(user, !user.is_blocked)}
+                          className={`cursor-pointer rounded-lg border p-2
+                            ${
+                              user.is_blocked
+                                ? "border-green-600 text-green-600"
+                                : "border-red-600 text-red-600"
+                            }
+                        `}
+                        >
+                          {user.is_blocked ? (
+                            <ThumbsUp className="h-5 w-5" />
+                          ) : (
+                            <ThumbsDown className="h-5 w-5" />
+                          )}
+                        </button>
+
+                        {/* Reset MFA */}
+                        {user.mfa_enabled && (
+                          <button
+                            onClick={() => resetMFA(user.id)}
+                            className="
+                            rounded-lg
+                            bg-purple-600
+                            px-3
+                            py-2
+                            font-medium
+                            text-white
+                            transition
+                            hover:bg-purple-700
+                            cursor-pointer
+                        "
+                          >
+                            Reset MFA
+                          </button>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-5 py-4">{user.badge_number}</td>
 
                     <td className="px-5 py-4">
@@ -514,89 +584,16 @@ export default function UserManagementPage() {
                       )}
                     </td>
 
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4 whitespace-nowrap">
                       {!user.mfa_enabled ? (
-                        <span className="rounded-full bg-red-100 px-3 py-1 text-red-700">
+                        <span className="inline-flex items-center whitespace-nowrap rounded-full bg-red-100 px-3 py-1 else font-semibold text-red-700 dark:bg-red-500/15 dark:text-red-300">
                           MFA disabled
                         </span>
                       ) : (
-                        <span className="rounded-full bg-green-100 px-3 py-1 text-green-700">
+                        <span className="inline-flex items-center whitespace-nowrap rounded-full bg-green-100 px-3 py-1 else font-semibold text-green-700 dark:bg-green-500/15 dark:text-green-300">
                           MFA enabled
                         </span>
                       )}
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <div className="flex flex-wrap gap-2">
-                        {/* View */}
-                        <button
-                          onClick={() => {
-                            setSelectedUser(user);
-                            setShowViewModal(true);
-                          }}
-                          className="rounded-lg border p-2 border-blue-600 text-blue-600"
-                        >
-                          <FaEye className="h-5 w-5" />
-                        </button>
-
-                        {/* Edit */}
-                        <button
-                          onClick={() => {
-                            setSelectedUser(user);
-                            setShowEditModal(true);
-                          }}
-                          className="rounded-lg border p-2 border-orange-600 text-orange-600"
-                        >
-                          <FaUserEdit className="h-5 w-5" />
-                        </button>
-
-                        {/* Approve */}
-                        {!user.is_approved && (
-                          <button
-                            onClick={() => approveUser(user)}
-                            className="rounded-lg border p-2 border-green-600 text-green-600"
-                          >
-                            <FaCheck className="h-5 w-5" />
-                          </button>
-                        )}
-
-                        {/* Block / Unblock */}
-                        <button
-                          onClick={() => blockUser(user, !user.is_blocked)}
-                          className={`rounded-lg border p-2
-                            ${
-                              user.is_blocked
-                                ? "border-green-600 text-green-600"
-                                : "border-red-600 text-red-600"
-                            }
-                        `}
-                        >
-                          {user.is_blocked ? (
-                            <ThumbsUp className="h-5 w-5" />
-                          ) : (
-                            <ThumbsDown className="h-5 w-5" />
-                          )}
-                        </button>
-
-                        {/* Reset MFA */}
-                        {user.mfa_enabled && (
-                          <button
-                            onClick={() => resetMFA(user.id)}
-                            className="
-                            rounded-lg
-                            bg-purple-600
-                            px-3
-                            py-2
-                            font-medium
-                            text-white
-                            transition
-                            hover:bg-purple-700
-                        "
-                          >
-                            Reset MFA
-                          </button>
-                        )}
-                      </div>
                     </td>
                   </tr>
                 ))}
@@ -611,6 +608,20 @@ export default function UserManagementPage() {
         user={selectedUser}
         onClose={() => {
           setShowViewModal(false);
+          setSelectedUser(null);
+        }}
+      />
+
+      <EditUserModal
+        open={showEditModal}
+        user={selectedUser}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedUser(null);
+        }}
+        onSave={async () => {
+          await fetchUsers();
+          setShowEditModal(false);
           setSelectedUser(null);
         }}
       />

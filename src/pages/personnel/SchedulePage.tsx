@@ -33,6 +33,7 @@ import {
   Check,
   UserPlus,
   Shield,
+  MountainIcon,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -113,6 +114,12 @@ const dutyStyles: Record<
     icon: CalendarIcon,
     className:
       "bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-900/20 dark:text-pink-300 dark:border-pink-800",
+  },
+
+  "Combat/Prophylactic Patrolling": {
+    icon: MountainIcon,
+    className:
+      "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800",
   },
 
   "Remain in Office": {
@@ -485,14 +492,14 @@ export default function SchedulePage() {
         const { error: scheduleError } = await supabase
           .from("patrol_schedule")
           .update({
-            unit_id: formData.unit_id,
+            unit_id: formData.unit_id || null,
             date: formData.date,
             time_from: formData.time_from,
             time_to: formData.time_to,
-            sector_id: formData.sector_id,
+            sector_id: formData.sector_id || null,
             mobility_id: formData.mobility_id || null,
             patrol_type: formData.patrol_type,
-            location: formData.location.trim() || null,
+            location: formData.location || null,
           })
           .eq("id", editScheduleId);
 
@@ -556,7 +563,14 @@ export default function SchedulePage() {
       closeModal();
       await fetchSchedules();
     } catch (err: any) {
-      console.error(err);
+      console.error("========== PATROL SCHEDULE ERROR ==========");
+      console.error("Error code:", err.code);
+      console.error("Error message:", err.message);
+      console.error("Error details:", err.details);
+      console.error("Error hint:", err.hint);
+      console.error("Full error object:", JSON.stringify(err, null, 2));
+      // console.error("Submitted payload:", JSON.stringify(payload, null, 2));
+      console.error("===========================================");
       setError(err.message || "An unexpected error occurred.");
     } finally {
       setIsSubmitting(false);
@@ -969,7 +983,7 @@ export default function SchedulePage() {
                   </th>
 
                   <th className="px-5 py-3 text-left text-slate-800 dark:text-slate-200 ">
-                    Sector
+                    Sector/Event Name/Location
                   </th>
 
                   <th className="px-5 py-3 text-left text-slate-800 dark:text-slate-200 ">
@@ -1080,6 +1094,7 @@ export default function SchedulePage() {
                             Sector {schedule.sector?.sector}
                           </button>
                         </div>
+                        {schedule.location && <div>{schedule.location}</div>}
                       </td>
 
                       {/* PERSONNEL */}
@@ -1324,6 +1339,9 @@ export default function SchedulePage() {
                           Intel-Driven Operation
                         </option>
                         <option value="Special Laws">Special Laws</option>
+                        <option value="Combat/Prophylactic Patrolling">
+                          Combat/Prophylactic Patrolling
+                        </option>
                       </select>
                     </div>
                   </div>
@@ -1619,7 +1637,9 @@ export default function SchedulePage() {
                           htmlFor="patrol-location"
                           className="font-black text-slate-500"
                         >
-                          Patrol Location
+                          {formData.patrol_type === "Special Event"
+                            ? "Event Name and Location"
+                            : "Patrol Location"}
                         </label>
                       </div>
 
@@ -1650,12 +1670,6 @@ export default function SchedulePage() {
                           <option key={barangay} value={barangay} />
                         ))}
                       </datalist>
-
-                      <p className="mt-1 text-xs text-slate-500">
-                        Suggestions come from the selected sector's barangays.
-                        You can also enter a specific sitio, street, or
-                        landmark.
-                      </p>
                     </div>
                   </>
                 )}

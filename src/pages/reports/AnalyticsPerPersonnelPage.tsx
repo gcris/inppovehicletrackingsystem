@@ -94,7 +94,7 @@ export default function AnalyticsPerPersonnelPage() {
         .select(
           `
               *,
-              unit(*),
+              unit:unit!personnel_unit_id_fkey(*),
               rank(*)
             `,
         )

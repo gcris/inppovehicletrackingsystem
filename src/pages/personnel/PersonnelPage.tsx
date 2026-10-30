@@ -99,6 +99,8 @@ export default function PersonnelPage() {
       viber_number: "",
       designation: "",
       duty_status: "Active Duty",
+      ds_to: "",
+      augmented_to: "",
       remarks: "",
       unit_id: isAdmin ? "" : unitId || "",
       createAuth: false,
@@ -501,6 +503,8 @@ export default function PersonnelPage() {
         viber_number: editingPerson.viber_number || "",
         designation: editingPerson.designation || "",
         duty_status: editingPerson.duty_status || "Active Duty",
+        ds_to: editingPerson.ds_to || "",
+        augmented_to: editingPerson.augmented_to || "",
         remarks: editingPerson.remarks || "",
         unit_id: editingPerson.unit_id || "",
         createAuth: false,
@@ -611,6 +615,8 @@ export default function PersonnelPage() {
             remarks:
               formData.duty_status === "Others" ? formData.remarks.trim() : "",
             unit_id: formData.unit_id || null,
+            ds_to: formData.ds_to || null,
+            augmented_to: formData.augmented_to || null,
           })
           .eq("id", editingPerson.id);
 
@@ -668,6 +674,8 @@ export default function PersonnelPage() {
             remarks:
               formData.duty_status === "Others" ? formData.remarks.trim() : "",
             unit_id: formData.unit_id || null,
+            ds_to: formData.ds_to || null,
+            augmented_to: formData.augmented_to || null,
 
             // No approval workflow.
             is_approved: true,
@@ -694,6 +702,8 @@ export default function PersonnelPage() {
           remarks:
             formData.duty_status === "Others" ? formData.remarks.trim() : "",
           unit_id: formData.unit_id || null,
+          ds_to: formData.ds_to || null,
+          augmented_to: formData.augmented_to || null,
 
           // Kept true for compatibility with existing schema.
           is_approved: true,
@@ -760,89 +770,91 @@ export default function PersonnelPage() {
       {/* HEADER */}
       {/* ====================================================== */}
 
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="relative shrink-0">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20">
-              <Users className="w-7 h-7" />
+      <div className="space-y-4">
+        {/* ===== TOP: PAGE TITLE ===== */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative shrink-0">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20">
+                <Users className="h-7 w-7" />
+              </div>
+
+              <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-emerald-500 dark:border-slate-950">
+                <Check className="h-3 w-3 text-white" />
+              </div>
             </div>
 
-            <div className="absolute -right-1 -bottom-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 border-2 border-white dark:border-slate-950">
-              <Check className="w-3 h-3 text-white" />
+            <div>
+              <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                Personnel Directory
+              </h1>
+
+              <p className="mt-0.5 text-slate-500 dark:text-slate-400">
+                Manage officers, ranks, and unit assignments
+              </p>
             </div>
           </div>
 
-          <div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-              Personnel Directory
-            </h1>
-
-            <p className="mt-0.5 text-slate-500 dark:text-slate-400">
-              Manage officers, ranks, and unit assignments
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           {/* NEW */}
-
           <button
             onClick={openAddModal}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-sm transition-all"
+            className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 font-bold text-white shadow-sm transition-all hover:bg-blue-700"
           >
-            <Users className="w-4 h-4" />
+            <Users className="h-4 w-4" />
             New
           </button>
+        </div>
 
-          {/* SEARCH */}
+        {/* ===== BOTTOM: FILTERS ===== */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(240px,1.5fr)_minmax(200px,1fr)_auto]">
+            {/* SEARCH */}
+            <div className="relative sm:col-span-2 lg:col-span-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search personnel..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+            </div>
 
-            <input
-              type="text"
-              placeholder="Search personnel..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full sm:w-64 bg-slate-50 dark:bg-slate-800 border rounded-xl py-3 pl-10 pr-3 font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none"
-            />
+            {/* UNIT */}
+            <select
+              value={selectedUnit}
+              onChange={(e) => {
+                if (isAdmin) {
+                  setSelectedUnit(e.target.value);
+                }
+              }}
+              disabled={!isAdmin}
+              className={`h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white ${
+                !isAdmin ? "cursor-not-allowed opacity-50" : ""
+              }`}
+            >
+              <option value="all">All Units/Stations</option>
+
+              {units.map((unit) => (
+                <option key={unit.id} value={unit.id}>
+                  {unit.unit_name}
+                </option>
+              ))}
+            </select>
+
+            {/* REFRESH */}
+            <button
+              onClick={() => fetchPersonnel(true)}
+              disabled={refreshing}
+              title="Refresh"
+              className="flex h-11 items-center justify-center rounded-xl bg-slate-100 px-4 transition hover:bg-slate-200 disabled:opacity-60 dark:bg-slate-800 dark:hover:bg-slate-700 sm:col-span-2 lg:col-span-1 lg:w-11 lg:px-0"
+            >
+              <RefreshCw
+                className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`}
+              />
+            </button>
           </div>
-
-          {/* UNIT */}
-
-          <select
-            value={selectedUnit}
-            onChange={(e) => {
-              if (isAdmin) {
-                setSelectedUnit(e.target.value);
-              }
-            }}
-            disabled={!isAdmin}
-            className={`bg-slate-50 dark:bg-slate-800 border rounded-xl p-3 font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 outline-none ${
-              !isAdmin ? "opacity-50 cursor-not-allowed" : ""
-            }`}
-          >
-            <option value="all">All Units/Stations</option>
-
-            {units.map((unit) => (
-              <option key={unit.id} value={unit.id}>
-                {unit.unit_name}
-              </option>
-            ))}
-          </select>
-
-          {/* REFRESH */}
-
-          <button
-            onClick={() => fetchPersonnel(true)}
-            disabled={refreshing}
-            title="Refresh"
-            className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition"
-          >
-            <RefreshCw
-              className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`}
-            />
-          </button>
         </div>
       </div>
 
@@ -1484,6 +1496,60 @@ export default function PersonnelPage() {
                 </select>
               </div>
 
+              {/* DS TO */}
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-200">
+                  DS To (Detail Station)
+                </label>
+
+                <select
+                  value={formData.ds_to}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      ds_to: e.target.value,
+                    })
+                  }
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 font-bold outline-none"
+                >
+                  <option value="">Select DS To</option>
+
+                  {units.map((unit) => (
+                    <option key={unit.id} value={unit.id}>
+                      {unit.unit_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Augmented To */}
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-200">
+                  Augmented To
+                </label>
+
+                <select
+                  value={formData.augmented_to}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      augmented_to: e.target.value,
+                    })
+                  }
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 font-bold outline-none"
+                >
+                  <option value="">Select Augmented Unit</option>
+
+                  {units.map((unit) => (
+                    <option key={unit.id} value={unit.id}>
+                      {unit.unit_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* DESIGNATION */}
 
               <div>
@@ -1559,6 +1625,8 @@ export default function PersonnelPage() {
                   className="w-full mt-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 font-bold outline-none"
                 >
                   <option value="Active Duty">Active Duty</option>
+                  <option value="Detached Service">Detached Service</option>
+                  <option value="Under schooling">Under Schooling</option>
                   <option value="Mandatory Leave">Mandatory Leave</option>
                   <option value="Vacation Leave">Vacation Leave</option>
                   <option value="Sick Leave">Sick Leave</option>
@@ -1566,7 +1634,6 @@ export default function PersonnelPage() {
                   <option value="Paternity Leave">Paternity Leave</option>
                   <option value="Study Leave">Study Leave</option>
                   <option value="Emergency Leave">Emergency Leave</option>
-                  <option value="Detached Service">Detached Service</option>
                   <option value="Suspended">Suspended</option>
                   <option value="AWOL">AWOL</option>
                   <option value="Non-Duty Status">Non-Duty Status</option>

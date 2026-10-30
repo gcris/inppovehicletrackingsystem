@@ -97,10 +97,10 @@ export function useVehicleRealtime() {
         // LOAD LATEST LOGS FIRST
         // =====================================================
 
-        const tenDaysAgo = new Date();
+        const twoDaysAgo = new Date();
 
-        tenDaysAgo.setDate(
-          tenDaysAgo.getDate() - 10,
+        twoDaysAgo.setDate(
+          twoDaysAgo.getDate() - 2,
         );
 
         const {
@@ -121,7 +121,7 @@ export function useVehicleRealtime() {
           )
           .gt(
             "captured_at",
-            tenDaysAgo.toISOString(),
+            twoDaysAgo.toISOString(),
           );
 
         if (logError) throw logError;
@@ -155,7 +155,7 @@ export function useVehicleRealtime() {
             error: personnelError,
           } = await supabase
             .from("personnel")
-            .select("*, rank(*), unit(*)")
+            .select("*, rank(*), unit:unit!personnel_unit_id_fkey(*)")
             .in("id", personnelIds);
 
           if (personnelError) {
@@ -435,7 +435,7 @@ export function useVehicleRealtime() {
               error,
             } = await supabase
               .from("personnel")
-              .select("*, unit(*)")
+              .select("*, unit:unit!personnel_unit_id_fkey(*)")
               .eq(
                 "id",
                 log.personnel_id,

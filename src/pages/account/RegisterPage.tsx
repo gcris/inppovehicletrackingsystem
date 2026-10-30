@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { supabase, Unit, Rank, Designation } from "../../lib/supabase";
 import {
   Lock,
@@ -20,7 +20,14 @@ import {
   linkAuthUserToPersonnel,
 } from "../../lib/authService";
 import { useTheme, useThemeActions } from "../../components/ThemeProvider";
+import { useAuth } from "../../components/AuthProvider";
 import { FaInfo, FaInfoCircle } from "react-icons/fa";
+
+/**
+ * PNP ID card numbers follow the format: two digits, "E", then seven digits.
+ * Example: 12E3456789
+ */
+// const ID_REGEX = /^\d{2}E\d{7}$/;
 
 type PersonnelData = {
   id: string;
@@ -77,6 +84,23 @@ export default function RegisterPage() {
   const [ranksLoading, setRanksLoading] = useState(true);
   type PersonnelDataFormErrors = Partial<Record<keyof PersonnelData, string>>;
   const [formErrors, setFormErrors] = useState<PersonnelDataFormErrors>({});
+
+  const [searchParams] = useSearchParams();
+  const [queryMode, setQueryMode] = useState("");
+  const { resendConfirmationEmail } = useAuth();
+  const [resendState, setResendState] = useState<
+    "idle" | "sending" | "sent" | "error"
+  >("idle");
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    // 1. Get the parameter value
+    const mode = searchParams.get('mode');
+
+    if (mode && mode === "mobile") {
+      setQueryMode(mode);
+    }
+  }, [searchParams]);
 
   // Inside your component function (e.g., PersonnelRegistration):
   useEffect(() => {
@@ -199,6 +223,9 @@ export default function RegisterPage() {
 
     if (!formData.id_card_number) {
       newErrors.id_card_number = "PNP ID Card Number is required.";
+    // } else if (!ID_REGEX.test(formData.id_card_number)) {
+    //   newErrors.id_card_number =
+    //     "Invalid PNP ID format. Expected format: 12E3456789 (2 digits, 'E', 7 digits).";
     }
 
     if (!formData.rankId) {
@@ -262,7 +289,6 @@ export default function RegisterPage() {
         // Check that the personnel data matches what the user entered
         if (
           personnel.rank_id !== formData.rankId ||
-          personnel.fullname.trim() !== formData.fullname.trim() ||
           personnel.unit_id !== formData.unitId
         ) {
           setError(
@@ -273,10 +299,18 @@ export default function RegisterPage() {
         }
 
         // Step 2: Create Supabase Auth user
+        //
+        // With email confirmation enabled, Supabase sends a confirmation
+        // link to this address. Point it back at the login screen so the
+        // user lands where they can sign in once their email is confirmed.
+        console.log("window.location.origin: ", window.location.origin);
         const { data: authData, error: signUpError } =
           await supabase.auth.signUp({
             email: formData.email,
             password: formData.password,
+            options: {
+              emailRedirectTo: "https://project-patrol.ilocosnorteppo.com/email-confirmed",
+            },
           });
 
         if (signUpError) throw signUpError;
@@ -304,11 +338,6 @@ export default function RegisterPage() {
         // Step 4: Registration successful
         setSuccess(true);
         setLoading(false);
-
-        // Auto-redirect to login after 3 seconds
-        setTimeout(() => {
-          navigate("/login", { replace: true });
-        }, 3000);
       } catch (err: any) {
         console.error("Registration error:", err);
         setError(
@@ -320,6 +349,39 @@ export default function RegisterPage() {
     },
     [formData, navigate],
   );
+
+  const handleResendConfirmation = async () => {
+    if (!formData.email.trim()) return;
+
+    setResendState("sending");
+    setResendMessage(null);
+
+    try {
+      const { error } = await resendConfirmationEmail(formData.email.trim());
+
+      if (error) {
+        setResendState("error");
+        setResendMessage(
+          error.message ||
+            "Could not resend the confirmation email. Please try again later.",
+        );
+        return;
+      }
+
+      setResendState("sent");
+      setResendMessage(
+        "Confirmation email resent. Please check your inbox (and spam folder).",
+      );
+    } catch (err: any) {
+      console.error("Resend confirmation failed:", err);
+
+      setResendState("error");
+      setResendMessage(
+        err?.message ||
+          "Could not resend the confirmation email. Please try again later.",
+      );
+    }
+  };
 
   if (success) {
     return (
@@ -335,15 +397,54 @@ export default function RegisterPage() {
           </h2>
 
           <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium">
-            Registration successful. Redirecting to login...
+            Registration successful. {queryMode && queryMode === "mobile" ? "Please log in your account." : "Redirecting to login..."}
           </p>
 
-          <Link
-            to="/login"
-            className="flex items-center justify-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl font-black hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none w-fit"
-          >
-            Go to Login
-          </Link>
+          <p className="text-slate-500 dark:text-slate-400 mb-6 font-medium">
+            Check your inbox and confirm your email address before signing in.
+          </p>
+
+          {/* Resend confirmation email */}
+          <div className="w-full mb-6 space-y-3">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+              Didn't receive the email?
+            </label>
+            <button
+              type="button"
+              onClick={handleResendConfirmation}
+              disabled={resendState === "sending"}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {resendState === "sending" ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                "Resend confirmation email"
+              )}
+            </button>
+            {resendMessage && (
+              <p
+                className={`text-sm font-medium ${
+                  resendState === "error"
+                    ? "text-red-500"
+                    : "text-green-600 dark:text-green-500"
+                }`}
+              >
+                {resendMessage}
+              </p>
+            )}
+          </div>
+
+          {!queryMode && queryMode !== "mobile" && (
+            <Link
+              to="/login"
+              className="flex items-center justify-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl font-black hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none w-fit"
+            >
+              Go to Login
+            </Link>
+          )}
         </div>
       </div>
     );
@@ -498,7 +599,7 @@ export default function RegisterPage() {
                             email: e.target.value.trim(),
                           })
                         }
-                        placeholder="name@department.gov"
+                        placeholder="name@gmail.com"
                         className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
                     ${
                       formErrors.email
@@ -734,7 +835,7 @@ export default function RegisterPage() {
                             id_card_number: e.target.value.trim(),
                           })
                         }
-                        placeholder="Enter PNP ID Card Number"
+                        placeholder="e.g. 12E3456789"
                         className={`w-full rounded-xl bg-white border dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white
                     ${
                       formErrors.id_card_number
@@ -795,6 +896,9 @@ export default function RegisterPage() {
                     <div className="space-y-2">
                       <label className="block font-medium text-slate-700 dark:text-slate-200">
                         Full Name
+                        <span className="ml-1 text-sm font-normal text-slate-500 dark:text-slate-400">
+                          (First, Middle, Last)
+                        </span>
                       </label>
 
                       <input
@@ -968,33 +1072,34 @@ export default function RegisterPage() {
                 {/* ===================================================== */}
 
                 <div className="sticky bottom-0 mt-10 border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-2 py-5">
-                  <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                    {/* Cancel */}
-                    <button
-                      type="button"
-                      onClick={() => navigate("/login", { replace: true })}
-                      className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-6 py-3 text-base font-medium text-slate-700 transition-all hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                    >
-                      Cancel
-                    </button>
-
-                    {/* Register */}
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-8 py-3 text-base font-semibold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          Registering...
-                        </>
-                      ) : (
-                        "Register Account"
+                    <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                      {!queryMode && (
+                        <button
+                          type="button"
+                          onClick={() => navigate("/login", { replace: true })}
+                          className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-6 py-3 text-base font-medium text-slate-700 transition-all hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        >
+                          Cancel
+                        </button>
                       )}
-                    </button>
+
+                      {/* Register */}
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-8 py-3 text-base font-semibold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {loading ? (
+                          <>
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                            Registering...
+                          </>
+                        ) : (
+                          "Register Account"
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </div>
               </form>
             </div>
           </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link, Navigate } from "react-router-dom";
-import { supabase } from "../../lib/supabase";
+import { supabase, supabaseAdmin } from "../../lib/supabase";
 import {
   Shield,
   Lock,
@@ -9,11 +9,6 @@ import {
   Loader2,
   ChevronRight,
   QrCode,
-  Fingerprint,
-  ShieldCheck,
-  MapPinned,
-  Radio,
-  BarChart3,
   EyeOff,
   Eye,
   Sun,
@@ -32,8 +27,14 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { user, profile, isMfaVerified, setIsMfaVerified, clearAuthCache } =
-    useAuth();
+  const {
+    user,
+    profile,
+    isMfaVerified,
+    setIsMfaVerified,
+    resendConfirmationEmail,
+    clearAuthCache,
+  } = useAuth();
 
   useEffect(() => {
     if (user && isMfaVerified) {
@@ -41,85 +42,23 @@ export default function LoginPage() {
     }
   }, [user, isMfaVerified, navigate]);
 
-  useEffect(() => {
-    const detectActiveSession = async () => {
-      // If MFA is already verified or bypassed, don't run active session enrolments
-      if (isMfaVerified) {
-        return;
-      }
-      try {
-        let loggedInEmail = "";
-        const {
-          data: { session: activeSession },
-        } = await supabase.auth.getSession();
-        if (activeSession?.user) {
-          const { data: mfaData } =
-            await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-          loggedInEmail = activeSession?.user.email || "";
-          if (mfaData?.currentLevel === "aal2") {
-            setIsMfaVerified(true);
-            return;
-          }
-
-          // User is signed in but at aal1 (needs MFA verification)
-          const { data: factorsData } = await supabase.auth.mfa.listFactors();
-          const factors = factorsData?.all || [];
-          const totpFactor = factors.find(
-            (f: any) => f.factor_type === "totp" && f.status === "verified",
-          );
-          if (totpFactor) {
-            setMfaFactorId(totpFactor.id);
-          } else {
-            // Unenroll any existing unverified totp factors to get a fresh QR code
-            const unverifiedFactors = factors.filter(
-              (f: any) => f.factor_type === "totp" && f.status === "unverified",
-            );
-            for (const uf of unverifiedFactors) {
-              try {
-                await supabase.auth.mfa.unenroll({ factorId: uf.id });
-              } catch (unenrollErr) {
-                console.warn(
-                  "Could not unenroll unverified factor on active session detection:",
-                  unenrollErr,
-                );
-              }
-            }
-
-            // Need to enroll them if they haven't enrolled yet
-            const { data: factorData } = await supabase.auth.mfa.enroll({
-              factorType: "totp",
-              issuer: "INPPO",
-              friendlyName: `Project MOBILIS`,
-            });
-
-            if (factorData) {
-              const localSecret = factorData.totp.secret;
-              const customLabel = `INPPO: Project MOBILIS(${loggedInEmail})`;
-              const customUri = `otpauth://totp/${loggedInEmail}?secret=${localSecret}&issuer=${customLabel}&algorithm=SHA1&digits=6&period=30`;
-
-              setMfaFactorId(factorData.id);
-
-              setUnenrolledMfaData({
-                id: factorData.id,
-                qrCodeUrl: customUri,
-              });
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Detecting active session failed:", err);
-      }
-    };
-
-    detectActiveSession();
-  }, []);
-
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
   const [mfaCode, setMfaCode] = useState("");
   const [unenrolledMfaData, setUnenrolledMfaData] = useState<{
     id: string;
     qrCodeUrl: string;
   } | null>(null);
+
+  /**
+   * True when the signed-in user's email address has not been confirmed
+   * yet. While this is true the user cannot reach MFA enrollment and is
+   * instead shown a screen with a "Resend confirmation email" button.
+   */
+  const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
+  const [resendState, setResendState] = useState<
+    "idle" | "sending" | "sent" | "error"
+  >("idle");
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
 
   const theme = useTheme();
   const { toggleTheme } = useThemeActions();
@@ -130,13 +69,24 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data: signInData, error } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
       if (error) {
         setError(error.message);
+        setLoading(false);
+        return;
+      }
+
+      // A user must confirm their email address before they are
+      // allowed to set up MFA. If the email is not confirmed, stop
+      // here and show the confirmation screen instead of starting
+      // MFA enrollment.
+      if (!signInData?.session?.user?.email_confirmed_at) {
+        setEmailNotConfirmed(true);
         setLoading(false);
         return;
       }
@@ -171,7 +121,7 @@ export default function LoginPage() {
           await supabase.auth.mfa.enroll({
             factorType: "totp",
             issuer: "INPPO",
-            friendlyName: "Project MOBILIS",
+            friendlyName: "Project PATROL",
           });
         if (enrollError) {
           setError(
@@ -180,7 +130,7 @@ export default function LoginPage() {
           );
         } else if (factorData) {
           const localSecret = factorData.totp.secret;
-          const customLabel = `INPPO: Project MOBILIS(${email})`;
+          const customLabel = `INPPO: Project PATROL`;
           const customUri = `otpauth://totp/${email}?secret=${localSecret}&issuer=${customLabel}&algorithm=SHA1&digits=6&period=30`;
 
           setMfaFactorId(factorData.id);
@@ -196,6 +146,39 @@ export default function LoginPage() {
       setError(err?.message || "Login failed due to a network error.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!email.trim()) return;
+
+    setResendState("sending");
+    setResendMessage(null);
+
+    try {
+      const { error } = await resendConfirmationEmail(email.trim());
+
+      if (error) {
+        setResendState("error");
+        setResendMessage(
+          error.message ||
+            "Could not resend the confirmation email. Please try again later.",
+        );
+        return;
+      }
+
+      setResendState("sent");
+      setResendMessage(
+        "Confirmation email resent. Please check your inbox (and spam folder).",
+      );
+    } catch (err: any) {
+      console.error("Resend confirmation failed:", err);
+
+      setResendState("error");
+      setResendMessage(
+        err?.message ||
+          "Could not resend the confirmation email. Please try again later.",
+      );
     }
   };
 
@@ -223,6 +206,7 @@ export default function LoginPage() {
         .from("personnel")
         .update({
           mfa_enabled: true,
+          is_online: true,
         })
         .eq("id", user?.id); // or session?.user.id
 
@@ -338,6 +322,7 @@ export default function LoginPage() {
                         <button
                           type="button"
                           onClick={() => {
+                            setMfaFactorId(null);
                             setUnenrolledMfaData(null);
                             setMfaCode("");
                             clearAuthCache();
@@ -353,7 +338,7 @@ export default function LoginPage() {
               </div>
             )}
 
-            {mfaFactorId && (
+            {mfaFactorId && !unenrolledMfaData && (
               <MfaVerificationForm
                 mfaCode={mfaCode}
                 setMfaCode={setMfaCode}
@@ -368,7 +353,81 @@ export default function LoginPage() {
               />
             )}
 
-            {!unenrolledMfaData && !mfaFactorId && (
+            {emailNotConfirmed && (
+              <div className="rounded-[36px] border border-white/30 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl shadow-2xl relative">
+                {/* Theme Button inside Confirmation Box */}
+                <div className="absolute top-6 right-6 z-10">
+                  <button
+                    onClick={toggleTheme}
+                    className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm"
+                    title={`Switch to ${theme === "light" ? "Dark" : "Light"} Mode`}
+                  >
+                    {theme === "light" ? (
+                      <Moon className="h-5 w-5" />
+                    ) : (
+                      <Sun className="h-5 w-5" />
+                    )}
+                  </button>
+                </div>
+
+                <div className="p-10">
+                  <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <Mail className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+                  </div>
+
+                  <h2 className="text-2xl font-black text-center text-slate-900 dark:text-white mb-2">
+                    Confirm your email address
+                  </h2>
+                  <p className="font-bold text-center text-slate-600 dark:text-slate-400 mb-6">
+                    We sent a confirmation link to{" "}
+                    <span className="text-slate-900 dark:text-white">
+                      {email}
+                    </span>
+                    . Open the email and click the link to activate your
+                    account.
+                  </p>
+
+                  {resendMessage && (
+                    <div
+                      className={`mb-6 p-4 rounded-2xl border text-sm font-medium ${
+                        resendState === "error"
+                          ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400"
+                          : "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-300"
+                      }`}
+                    >
+                      {resendMessage}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleResendConfirmation}
+                    disabled={resendState === "sending"}
+                    className="w-full h-14 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    {resendState === "sending" ? (
+                      <Loader2 className="animate-spin w-5 h-5" />
+                    ) : (
+                      "Resend confirmation email"
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmailNotConfirmed(false);
+                      setResendState("idle");
+                      setResendMessage(null);
+                    }}
+                    className="w-full mt-3 text-center text-slate-600 hover:text-slate-900 dark:hover:text-slate-200 text-sm font-medium"
+                  >
+                    Back to sign in
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!unenrolledMfaData && !mfaFactorId && !emailNotConfirmed && (
               <>
                 {/* Card with relative positioning */}
                 <div className="rounded-[36px] border border-white/30 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl shadow-2xl relative">
@@ -403,10 +462,11 @@ export default function LoginPage() {
                       </h2>
 
                       <p className="text-xl text-slate-700 dark:text-slate-200 mt-1">
-                        Project J.O.E.M.A.R
+                        Project P.A.T.R.O.L
                       </p>
                       <p className="text-slate-700 dark:text-slate-200 mt-1">
-                        Joint Operations, Enforcement, Monitoring, and Response
+                        Personnel App Tracking and Real-Time OnLine Deployment
+                        Monitoring
                       </p>
                     </div>
 
@@ -432,7 +492,7 @@ export default function LoginPage() {
                           <input
                             required
                             type="email"
-                            placeholder="name@pnp.gov.ph"
+                            placeholder="name@gmail.com"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             className="w-full h-14 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 pl-12 pr-4 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"

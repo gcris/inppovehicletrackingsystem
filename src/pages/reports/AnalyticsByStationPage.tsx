@@ -704,34 +704,7 @@ const AnalyticsByStationPage: React.FC = () => {
 
           <div>
             <label className={`mb-1.5 block font-medium ${mutedTextClass}`}>
-              Station / Unit
-            </label>
-            <select
-              value={isAdmin ? selectedUnit : unitId || ""}
-              onChange={(event) => setSelectedUnit(event.target.value)}
-              disabled={!isAdmin}
-              className={`w-full rounded-lg border px-3 py-2.5 outline-none focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-70 ${inputClass}`}
-            >
-              {isAdmin && <option value="">All Stations</option>}
-              {!isAdmin && (
-                <option value={unitId || ""}>
-                  {units.find((unit) => unit.id === unitId)?.unit_name ||
-                    "Assigned Station"}
-                </option>
-              )}
-              {units
-                .filter((unit) => isAdmin || unit.id === unitId)
-                .map((unit) => (
-                  <option key={unit.id} value={unit.id}>
-                    {unit.unit_name}
-                  </option>
-                ))}
-            </select>
-          </div>
-
-          <div>
-            <label className={`mb-1.5 block font-medium ${mutedTextClass}`}>
-              Patrol Type
+              Patrol Activity
             </label>
             <select
               value={selectedPatrolType}
@@ -747,8 +720,40 @@ const AnalyticsByStationPage: React.FC = () => {
               <option value="Checkpoint">Checkpoint</option>
               <option value="Simulation">Simulation</option>
               <option value="Special Event">Special Event</option>
+              <option value="Combat/Prophylactic Patrolling">
+                Combat/Prophylactic Patrolling
+              </option>
             </select>
           </div>
+
+          {isAdmin && (
+            <div>
+              <label className={`mb-1.5 block font-medium ${mutedTextClass}`}>
+                Unit/Station
+              </label>
+              <select
+                value={isAdmin ? selectedUnit : unitId || ""}
+                onChange={(event) => setSelectedUnit(event.target.value)}
+                disabled={!isAdmin}
+                className={`w-full rounded-lg border px-3 py-2.5 outline-none focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-70 ${inputClass}`}
+              >
+                {isAdmin && <option value="">All Units/Stations</option>}
+                {!isAdmin && (
+                  <option value={unitId || ""}>
+                    {units.find((unit) => unit.id === unitId)?.unit_name ||
+                      "Assigned Station"}
+                  </option>
+                )}
+                {units
+                  .filter((unit) => isAdmin || unit.id === unitId)
+                  .map((unit) => (
+                    <option key={unit.id} value={unit.id}>
+                      {unit.unit_name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className={`mb-1.5 block font-medium ${mutedTextClass}`}>

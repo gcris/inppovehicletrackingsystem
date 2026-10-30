@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || "";
 const supabaseAnonKey =
   (import.meta as any).env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+const supabaseServiceRoleKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind4cWJuZ21mb3ZncXB5Ym9yaXJ1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDA1MTIwNywiZXhwIjoyMDk1NjI3MjA3fQ.ryKi99eK7QGFsEe3LRkhp67HT4pJtUQ165OivJW10jk";
 
 export const isMock = supabaseUrl === "" ||
   supabaseUrl === "your-project-url" ||
@@ -29,6 +30,14 @@ export const supabase = createClient(
     },
   },
 );
+
+export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false,
+  },
+});
 
 export type MobilityAsset = {
   id: string;
@@ -192,6 +201,9 @@ export type Personnel = {
   drivers_license_restrictions: string[] | null;
   drivers_license_transmission: "MANUAL" | "AUTOMATIC" | "BOTH" | null;
   drivers_license_photo_path?: string | null;
+
+  ds_to: string;
+  augmented_to: string;
 };
 
 export type Sector = {
