@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { supabase, type PatrolLog, type Personnel } from "../../lib/supabase";
+import React, { useState, useEffect, useRef } from "react";
+import { supabase, type Personnel } from "../../lib/supabase";
 import { useParams } from "react-router-dom";
 import {
   Activity,
@@ -19,6 +19,14 @@ type DutyTypeStat = {
   duty_type: string;
   patrol_minutes: number;
   kilometer_patrolled: number;
+  duration_hours: number;
+};
+
+/** One row returned by the SQL function analytics_personnel_duty_stats. */
+type DutyTypeRow = {
+  duty_type: string;
+  patrol_minutes: number;
+  kilometers: number;
   duration_hours: number;
 };
 
@@ -45,6 +53,59 @@ const formatDuration = (totalSeconds: number) => {
 
 const formatMinutes = (minutes: number) => formatDuration(minutes * 60);
 
+/**
+ * PERF: the database groups the officer's logs by duty type and calculates
+ * patrol minutes and distance (see analytics_personnel_duty_stats.sql).
+ * The browser receives a handful of rows instead of every GPS log.
+ */
+async function fetchDutyTypeStats(
+  personnelId: string,
+  dateFrom: string,
+  dateTo: string,
+): Promise<DutyTypeStat[]> {
+  const { data, error } = await supabase.rpc("analytics_personnel_duty_stats", {
+    p_personnel: personnelId,
+    p_from: dateFrom,
+    p_to: dateTo,
+  });
+
+  if (error) throw error;
+
+  return ((data ?? []) as DutyTypeRow[])
+    .map((row) => {
+      const special = SPECIAL_DUTY_TYPES.includes(row.duty_type);
+
+      return {
+        duty_type: row.duty_type,
+        patrol_minutes: special ? 0 : Number(row.patrol_minutes ?? 0),
+        kilometer_patrolled: special
+          ? 0
+          : Number(Number(row.kilometers ?? 0).toFixed(2)),
+        duration_hours: special ? Number(row.duration_hours ?? 0) : 0,
+      };
+    })
+    .sort((a, b) => a.duty_type.localeCompare(b.duty_type));
+}
+
+/** Only the columns the page displays. */
+async function fetchPersonnel(personnelId: string): Promise<Personnel> {
+  const { data, error } = await supabase
+    .from("personnel")
+    .select(
+      `
+        id, fullname, badge_number, designation, phone_number, viber_number,
+        unit:unit!personnel_unit_id_fkey(unit_name),
+        rank(rank_name)
+      `,
+    )
+    .eq("id", personnelId)
+    .single();
+
+  if (error) throw error;
+
+  return data as unknown as Personnel;
+}
+
 export default function AnalyticsPerPersonnelPage() {
   const { id } = useParams();
 
@@ -60,6 +121,10 @@ export default function AnalyticsPerPersonnelPage() {
 
   const [dutyTypeStats, setDutyTypeStats] = useState<DutyTypeStat[]>([]);
 
+  // Ignores the result of a load that was replaced by a newer one
+  // (e.g. "Apply" clicked twice quickly).
+  const requestIdRef = useRef(0);
+
   useEffect(() => {
     if (id) {
       void loadPersonnelAnalytics();
@@ -68,7 +133,7 @@ export default function AnalyticsPerPersonnelPage() {
       setErrorMessage("No personnel ID was provided.");
     }
     // Load initially when the personnel ID changes.
-    // Date filters are applied when Refresh is clicked.
+    // Date filters are applied when Apply is clicked.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -77,8 +142,12 @@ export default function AnalyticsPerPersonnelPage() {
 
     if (dateFrom && dateTo && dateFrom > dateTo) {
       setErrorMessage("The start date must not be after the end date.");
+      setLoading(false);
       return;
     }
+
+    const requestId = ++requestIdRef.current;
+    const isCurrent = () => requestId === requestIdRef.current;
 
     if (hasLoaded) {
       setRefreshing(true);
@@ -89,221 +158,38 @@ export default function AnalyticsPerPersonnelPage() {
     setErrorMessage("");
 
     try {
-      const { data: personnel, error: personnelError } = await supabase
-        .from("personnel")
-        .select(
-          `
-              *,
-              unit:unit!personnel_unit_id_fkey(*),
-              rank(*)
-            `,
-        )
-        .eq("id", id)
-        .single();
+      // The officer's profile does not depend on the dates: only fetch it
+      // when it is not already loaded. Profile and statistics load together.
+      const needsProfile = personnelData?.id !== id;
 
-      if (personnelError) throw personnelError;
+      const [personnel, stats] = await Promise.all([
+        needsProfile ? fetchPersonnel(id) : Promise.resolve(personnelData),
+        fetchDutyTypeStats(id, dateFrom, dateTo),
+      ]);
 
-      setPersonnelData(personnel as Personnel);
+      if (!isCurrent()) return;
 
-      let page = 0;
-      let hasMore = true;
-      const allLogs: PatrolLog[] = [];
-
-      while (hasMore) {
-        let query = supabase
-          .from("patrol_logs")
-          .select(
-            `
-              *,
-              personnel:personnel_id(
-                *,
-                unit(*),
-                rank(*)
-              ),
-              mobility_assets:vehicle_id(*)
-            `,
-          )
-          .eq("personnel_id", id)
-          .order("captured_at", { ascending: true })
-          .range(page * 1000, page * 1000 + 999);
-
-        if (dateFrom) {
-          query = query.gte("captured_at", `${dateFrom}T00:00:00+08:00`);
-        }
-
-        if (dateTo) {
-          query = query.lte("captured_at", `${dateTo}T23:59:59.999+08:00`);
-        }
-
-        query = query.neq("duty_type", "EMERGENCY_SOS");
-
-        const { data, error } = await query;
-
-        if (error) throw error;
-
-        if (!data || data.length === 0) {
-          hasMore = false;
-          break;
-        }
-
-        allLogs.push(...(data as PatrolLog[]));
-
-        if (data.length < 1000) {
-          hasMore = false;
-        } else {
-          page++;
-        }
-      }
-
-      setDutyTypeStats(calculateStatisticsByDutyType(allLogs));
+      setPersonnelData(personnel);
+      setDutyTypeStats(stats);
       setHasLoaded(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error loading personnel analytics:", error);
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Unable to load personnel analytics.",
-      );
+
+      if (isCurrent()) {
+        const message: string = error?.message ?? "";
+
+        setErrorMessage(
+          message.includes("statement timeout")
+            ? "The query took too long. Try a shorter date range."
+            : message || "Unable to load personnel analytics.",
+        );
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  const calculateStatisticsByDutyType = (logs: PatrolLog[]): DutyTypeStat[] => {
-    const grouped: Record<string, PatrolLog[]> = {};
-
-    logs.forEach((log) => {
-      const dutyType = log.duty_type || "Unknown";
-
-      if (!grouped[dutyType]) {
-        grouped[dutyType] = [];
-      }
-
-      grouped[dutyType].push(log);
-    });
-
-    return Object.entries(grouped)
-      .map(([dutyType, dutyLogs]) => {
-        if (SPECIAL_DUTY_TYPES.includes(dutyType)) {
-          return {
-            duty_type: dutyType,
-            patrol_minutes: 0,
-            kilometer_patrolled: 0,
-            duration_hours: calculateDurationFromLogs(dutyLogs),
-          };
-        }
-
-        const { patrolMinutes, totalKilometers } =
-          calculatePatrolHoursAndDistance(dutyLogs);
-
-        return {
-          duty_type: dutyType,
-          patrol_minutes: patrolMinutes,
-          kilometer_patrolled: Number(totalKilometers.toFixed(2)),
-          duration_hours: 0,
-        };
-      })
-      .sort((a, b) => a.duty_type.localeCompare(b.duty_type));
-  };
-
-  const calculatePatrolHoursAndDistance = (logs: PatrolLog[]) => {
-    if (logs.length < 2) {
-      return { patrolMinutes: 0, totalKilometers: 0 };
-    }
-
-    const sortedLogs = [...logs].sort(
-      (a, b) =>
-        new Date(a.captured_at).getTime() - new Date(b.captured_at).getTime(),
-    );
-
-    let totalMinutes = 0;
-
-    for (let i = 0; i < sortedLogs.length - 1; i++) {
-      const current = new Date(sortedLogs[i].captured_at).getTime();
-
-      const next = new Date(sortedLogs[i + 1].captured_at).getTime();
-
-      const gapMinutes = (next - current) / 60000;
-
-      // Exclude intervals longer than 30 minutes.
-      if (gapMinutes > 0 && gapMinutes <= 30) {
-        totalMinutes += gapMinutes;
+      if (isCurrent()) {
+        setLoading(false);
+        setRefreshing(false);
       }
     }
-
-    return {
-      patrolMinutes: totalMinutes,
-      totalKilometers: calculateDistance(sortedLogs),
-    };
-  };
-
-  const calculateDistance = (logs: PatrolLog[]) => {
-    if (logs.length < 2) return 0;
-
-    const EARTH_RADIUS = 6371;
-    const toRadians = (deg: number) => deg * (Math.PI / 180);
-
-    let distance = 0;
-
-    for (let i = 0; i < logs.length - 1; i++) {
-      const start = logs[i];
-      const end = logs[i + 1];
-
-      if (
-        start.latitude == null ||
-        start.longitude == null ||
-        end.latitude == null ||
-        end.longitude == null
-      ) {
-        continue;
-      }
-
-      const gapMinutes =
-        (new Date(end.captured_at).getTime() -
-          new Date(start.captured_at).getTime()) /
-        60000;
-
-      // Avoid connecting distant points across long recording gaps.
-      if (gapMinutes <= 0 || gapMinutes > 30) continue;
-
-      const dLat = toRadians(end.latitude - start.latitude);
-      const dLon = toRadians(end.longitude - start.longitude);
-
-      const a =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(toRadians(start.latitude)) *
-          Math.cos(toRadians(end.latitude)) *
-          Math.sin(dLon / 2) ** 2;
-
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-      const segmentDistance = EARTH_RADIUS * c;
-
-      // Ignore GPS jitter below 5 meters.
-      if (segmentDistance > 0.005) {
-        distance += segmentDistance;
-      }
-    }
-
-    return distance;
-  };
-
-  const calculateDurationFromLogs = (logs: PatrolLog[]) => {
-    if (logs.length < 2) return 0;
-
-    const sortedLogs = [...logs].sort(
-      (a, b) =>
-        new Date(a.captured_at).getTime() - new Date(b.captured_at).getTime(),
-    );
-
-    const start = new Date(sortedLogs[0].captured_at).getTime();
-
-    const end = new Date(
-      sortedLogs[sortedLogs.length - 1].captured_at,
-    ).getTime();
-
-    return Math.max(0, (end - start) / 3600000);
   };
 
   const totalPatrolMinutes = dutyTypeStats.reduce(
@@ -316,11 +202,6 @@ export default function AnalyticsPerPersonnelPage() {
 
   const totalKilometers = dutyTypeStats.reduce(
     (sum, item) => sum + item.kilometer_patrolled,
-    0,
-  );
-
-  const totalSpecialDutyHours = dutyTypeStats.reduce(
-    (sum, item) => sum + item.duration_hours,
     0,
   );
 

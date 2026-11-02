@@ -91,7 +91,7 @@ export default function EditUserModal({ open, onClose, user, onSave }: Props) {
           designation: formData.designation,
           duty_status: formData.duty_status,
         })
-        .eq("id", user.id);
+        .eq("user_id", user.id);
 
       if (updateError) throw updateError;
 

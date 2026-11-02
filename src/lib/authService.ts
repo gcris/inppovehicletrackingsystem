@@ -1,7 +1,8 @@
 import { supabase } from "./supabase";
 
 export interface Personnel {
-  id: string | null; // foreign key to auth.users
+  id: string; // Personnel UUID
+  user_id: string | null; // foreign key to auth.users
   badge_number: string | null;
   fullname: string;
   designation: string | null;
@@ -19,7 +20,7 @@ export const validatePersonnelForRegistration = async (badgeNumber: string) => {
   const { data, error } = await supabase
     .from("personnel")
     .select(
-      "id, badge_number, fullname, designation, unit_id, rank_id, photo_url",
+      "id, user_id, badge_number, fullname, designation, unit_id, rank_id, photo_url",
     )
     .eq("badge_number", badgeNumber)
     .single();
@@ -59,13 +60,6 @@ export const validatePersonnelForRegistration = async (badgeNumber: string) => {
     };
   }
 
-  if (!personnel.designation || personnel.designation.trim() === "") {
-    return {
-      personnel: null,
-      error: "Personnel record is incomplete: designation is missing.",
-    };
-  }
-
   if (!personnel.unit_id || personnel.unit_id.trim() === "") {
     return {
       personnel: null,
@@ -81,8 +75,8 @@ export const validatePersonnelForRegistration = async (badgeNumber: string) => {
   }
 
   // Check if already linked to an auth user
-  if (personnel.id !== null) {
-    const { data: user } = await supabase.auth.admin.getUserById(personnel.id);
+  if (personnel.user_id !== null) {
+    const { data: user } = await supabase.auth.admin.getUserById(personnel.user_id);
     if (user.user) {
       return {
         personnel: null,
@@ -114,22 +108,25 @@ export const linkAuthUserToPersonnel = async (
   id_card_number: string,
   date_issued: string,
   expiration_date: string,
+  designation?: string,
 ) => {
   const { error } = await supabase
     .from("personnel")
     .update({
-      id: authUserId, // This is the foreign key to auth.users
+      user_id: authUserId, // Store the auth.users(id) in user_id
       photo_url: photoUrl,
       phone_number: phone_number,
       viber_number: viber_number,
       id_card_number: id_card_number,
       date_issued: date_issued,
       expiration_date: expiration_date,
+      designation: designation,
       role: "user",
     })
     .eq("badge_number", badgeNumber)
     .eq("rank_id", rankId)
-    .eq("unit_id", unitId);
+    .eq("unit_id", unitId)
+    .is("user_id", null);
 
   return { error };
 };

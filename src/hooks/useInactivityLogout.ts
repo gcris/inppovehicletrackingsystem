@@ -18,7 +18,7 @@ export function useInactivityLogout(enabled = true) {
                     mfa_enabled: true,
                     is_online: false,
                 })
-                .eq("id", user?.id);
+                .eq("user_id", user?.id);
             
             await supabase.auth.signOut();
         };

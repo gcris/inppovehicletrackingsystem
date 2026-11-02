@@ -1,12 +1,87 @@
-import { useVehicleRealtime } from "../../hooks/useVehicleRealtime";
-import TrackingMap from "../../components/TrackingMap";
-import TrackingSidebar from "../../components/TrackingSidebar";
+import { useCallback, useEffect, useState } from "react";
 
-import { Check, Map, Map as MapIcon } from "lucide-react";
+import { useVehicleRealtime } from "../../hooks/useVehicleRealtime";
+import TrackingMap, { getMarkerStatus } from "../../components/TrackingMap";
+import TrackingSidebar from "../../components/TrackingSidebar";
+import { dutyTypeIconMap } from "../../components/TrackingSidebar";
+import { supabase, type Unit } from "../../lib/supabase";
+
+import { Check, Map } from "lucide-react";
 import { useMemo } from "react";
+
+/**
+ * Maps each display label to the set of raw `duty_type` values
+ * that can appear in patrol logs (both the icon-map key and its
+ * underscore-formatted variant, e.g. "Checkpoint" / "CHECKPOINT").
+ */
+function buildCategoryFilterKeys(): Record<string, Set<string>> {
+  const map: Record<string, Set<string>> = {};
+
+  Object.keys(dutyTypeIconMap).forEach((key) => {
+    const display = key === "EMERGENCY_SOS" ? "DISTRESS SIGNAL" : key;
+
+    if (!map[display]) map[display] = new Set();
+
+    map[display].add(key);
+
+    const formatted = key
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ");
+
+    map[display].add(formatted);
+  });
+
+  return map;
+}
 
 export default function LiveMapPage() {
   const { vehicles, logs, personnel } = useVehicleRealtime();
+
+  /**
+   * Set of patrol categories (by display label) the user has
+   * checked. An empty set means "show every category".
+   */
+  const [activeCategories, setActiveCategories] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  /**
+   * Set of marker statuses (by display label) the user has checked.
+   * Empty set means "show every status".
+   */
+  const [activeStatuses, setActiveStatuses] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const [activeUnit, setActiveUnit] = useState<string | null>(null);
+  const [units, setUnits] = useState<Unit[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchUnits = async () => {
+      const { data, error } = await supabase
+        .from("unit")
+        .select("*")
+        .order("unit_name", { ascending: true });
+
+      if (!error && data && !cancelled) {
+        setUnits(data);
+      }
+    };
+
+    void fetchUnits();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const categoryFilterKeys = useMemo(
+    () => buildCategoryFilterKeys(),
+    [],
+  );
 
   const dutyTypeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -19,6 +94,135 @@ export default function LiveMapPage() {
 
     return counts;
   }, [logs]);
+
+  /**
+   * Toggles a patrol category on/off.
+   *
+   * `__CLEAR_ALL__` resets the set to empty.
+   */
+  const handleCategoryToggle = useCallback(
+    (displayLabel: string) => {
+      setActiveCategories((prev) => {
+        if (displayLabel === "__CLEAR_ALL__") {
+          return new Set();
+        }
+
+        const next = new Set(prev);
+
+        if (next.has(displayLabel)) {
+          next.delete(displayLabel);
+        } else {
+          next.add(displayLabel);
+        }
+
+        return next;
+      });
+    },
+    [],
+  );
+
+  /**
+   * Toggles a marker status on/off.
+   *
+   * `__CLEAR_STATUSES__` resets the set to empty.
+   */
+  const handleStatusToggle = useCallback((label: string) => {
+    setActiveStatuses((prev) => {
+      if (label === "__CLEAR_STATUSES__") {
+        return new Set();
+      }
+
+      const next = new Set(prev);
+
+      if (next.has(label)) {
+        next.delete(label);
+      } else {
+        next.add(label);
+      }
+
+      return next;
+    });
+  }, []);
+
+  /**
+   * Filter the live logs by the active patrol categories AND statuses.
+   *
+   * When no category/status is selected, all logs are passed through
+   * unchanged so the map behaves exactly as before.
+   * When one or more categories are selected, only logs whose
+   * `duty_type` matches one of the selected categories are kept.
+   * When one or more statuses are selected, only logs whose marker
+   * status matches at least one selected status are kept.
+   */
+  const filteredLogs = useMemo(() => {
+    const hasCategoryFilter = activeCategories.size > 0;
+    const hasStatusFilter = activeStatuses.size > 0;
+
+    if (!hasCategoryFilter && !hasStatusFilter) return logs;
+
+    const filtered: Record<string, typeof logs[string]> = {};
+
+    Object.entries(logs).forEach(([trackingKey, log]) => {
+      /*
+       * Category filter.
+       *
+       * If categories are active, the log's duty_type must match
+       * at least one active category (by expanding underscores to
+       * title-case, e.g. "CHECKPOINT" → "Checkpoint").
+       */
+      if (hasCategoryFilter) {
+        if (!log.duty_type) return;
+
+        const keys = categoryFilterKeys[log.duty_type];
+
+        if (!keys) return;
+
+        let matchesCategory = false;
+
+        for (const category of activeCategories) {
+          if (keys.has(category)) {
+            matchesCategory = true;
+
+            break;
+          }
+        }
+
+        if (!matchesCategory) return;
+      }
+
+      /*
+       * Status filter.
+       *
+       * If statuses are active, the log's computed marker status
+       * must match at least one active status label (mapped to the
+       * enum string, e.g. "Moving" → "moving").
+       */
+      if (hasStatusFilter) {
+        const statusLabel = getMarkerStatus(log);
+
+        let matchesStatus = false;
+
+        for (const status of activeStatuses) {
+          /*
+           * The sidebar display labels are title-cased (e.g.
+           * "Moving"), while getMarkerStatus returns lowercase
+           * strings ("moving").
+           */
+          if (status.toLowerCase() === statusLabel) {
+            matchesStatus = true;
+
+            break;
+          }
+        }
+
+        if (!matchesStatus) return;
+      }
+
+      filtered[trackingKey] = log;
+    });
+
+    return filtered;
+  }, [logs, activeCategories, activeStatuses, categoryFilterKeys]);
 
   return (
     <div className="flex flex-col gap-6 h-full min-h-[750px] pb-6">
@@ -57,8 +261,9 @@ export default function LiveMapPage() {
           <div className="flex-1 relative mt-2 min-h-[400px]">
             <TrackingMap
               vehicles={vehicles}
-              logs={logs}
+              logs={filteredLogs}
               personnel={personnel}
+              unitFilter={activeUnit}
             />
           </div>
         </div>
@@ -67,7 +272,16 @@ export default function LiveMapPage() {
             SIDEBAR
         ============================================================== */}
 
-        <TrackingSidebar dutyTypeCounts={dutyTypeCounts} />
+        <TrackingSidebar
+          dutyTypeCounts={dutyTypeCounts}
+          onCategoryClick={handleCategoryToggle}
+          activeCategories={activeCategories}
+          onStatusClick={handleStatusToggle}
+          activeStatuses={activeStatuses}
+          units={units}
+          activeUnit={activeUnit}
+          onUnitChange={setActiveUnit}
+        />
       </div>
     </div>
   );

@@ -331,6 +331,7 @@ export default function RegisterPage() {
           formData.id_card_number,
           formData.date_issued,
           formData.expiration_date,
+          formData.designation,
         );
 
         if (linkError) throw linkError;

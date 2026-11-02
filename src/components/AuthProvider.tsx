@@ -129,7 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase
         .from("personnel")
         .select("*, unit:unit!personnel_unit_id_fkey(*), rank(*)")
-        .eq("id", uid)
+        .eq("user_id", uid)
         .maybeSingle();
       
       if (error) {
@@ -142,10 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      console.log("Data: ", data);
-
       if (mountedRef.current) {
-        // const isValidUser = data?.role === "admin" || data?.role === "operation";
         if (data?.is_blocked) {
           await supabase.auth.signOut();
           window.location.href = "/login";
@@ -520,7 +517,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             mfa_enabled: true,
             is_online: false,
           })
-          .eq("id", user?.id);
+          .eq("user_id", user?.id);
       }
       await supabase.auth.signOut();
     } catch (error) {

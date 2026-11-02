@@ -1,22 +1,22 @@
-import React, { useState, useEffect } from "react";
-import {
-  supabase,
-  Unit,
-  PatrolLog,
-  Personnel,
-  PatrolSchedule,
-} from "../../lib/supabase";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { supabase, Unit, PatrolSchedule } from "../../lib/supabase";
 import { useAuth } from "../../components/AuthProvider";
 import {
   BarChart3,
   FileText,
-  Phone,
-  MessageCircle,
   RefreshCcw,
-  Barcode,
   Check,
   Route,
   Clock,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -30,41 +30,379 @@ import {
 import { useTheme } from "../../components/ThemeProvider";
 import { Link } from "react-router-dom";
 
+/* ============================================================================
+   CONSTANTS
+============================================================================ */
+
+const PERSONNEL_CHUNK = 100; // ids per .in() request (keeps URLs short)
+
+const patrolTypes = [
+  "Mobile Patrolling",
+  "Foot Patrolling",
+  "TMRU Patrolling",
+  "Bike Patrolling",
+  "Seaborne Patrolling",
+  "Checkpoint",
+  "Simulation Exercise",
+  "Special Event",
+  "DODON",
+  "Intel-Driven Operation",
+  "Special Laws",
+  "Combat/Prophylactic Patrolling",
+];
+
+const EMPTY_SUMMARY = {
+  total_personnel: 0,
+  total_patrol_hours: "00:00:00",
+  total_man_hours: 0,
+  total_kilometers: 0,
+};
+
+/* ============================================================================
+   TYPES
+============================================================================ */
+
+/** Shape returned by the SQL function analytics_patrol_stats. */
+interface PatrolStats {
+  daily: { day: string; sessions: number; hours: number; km: number }[];
+  hourly: { hour: number; sessions: number; hours: number; km: number }[];
+  foot: { personnel_id: string; patrol_minutes: number; km: number }[];
+  vehicles: {
+    vehicle_id: string;
+    patrols: number;
+    km: number;
+    gap_minutes: number;
+    personnel_ids: string[];
+  }[];
+}
+
+/* ============================================================================
+   HELPERS
+============================================================================ */
+
+const getLocalDateString = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const formatHHMMSS = (totalMinutes: number) => {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = Math.round(totalMinutes % 60);
+  return `${hours.toString().padStart(2, "0")}:${minutes
+    .toString()
+    .padStart(2, "0")}:00`;
+};
+
+const round2 = (value: number) => Number(Number(value ?? 0).toFixed(2));
+
+/**
+ * Parses a "HH:MM:SS" string into total minutes for sorting purposes.
+ */
+function parseHHMMSSMinutes(value: string | null | undefined): number {
+  if (!value) return 0;
+  const parts = value.split(":");
+  if (parts.length !== 3) return 0;
+  const hours = parseInt(parts[0], 10) || 0;
+  const minutes = parseInt(parts[1], 10) || 0;
+  return hours * 60 + minutes;
+}
+
+function groupBy<T>(
+  items: T[],
+  keyFn: (item: T) => string | null | undefined,
+): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+
+  for (const item of items) {
+    const key = keyFn(item);
+    if (!key) continue;
+
+    const group = map.get(key);
+    if (group) {
+      group.push(item);
+    } else {
+      map.set(key, [item]);
+    }
+  }
+
+  return map;
+}
+
+function scheduleMinutes(schedule: PatrolSchedule): number {
+  const start = new Date(`${schedule.date}T${schedule.time_from}`);
+  const end = new Date(`${schedule.date}T${schedule.time_to}`);
+
+  if (end < start) {
+    end.setDate(end.getDate() + 1);
+  }
+
+  return (end.getTime() - start.getTime()) / 60000;
+}
+
+/* ============================================================================
+   DATA FETCHING
+============================================================================ */
+
+/**
+ * PERF: the database does the heavy work (sessions, distances, patrol minutes)
+ * and returns only summary rows. See analytics_patrol_stats.sql.
+ */
+async function fetchPatrolStats(
+  unit: string | null,
+  dateFrom: string,
+  dateTo: string,
+  dutyType: string,
+): Promise<PatrolStats> {
+  const { data, error } = await supabase.rpc("analytics_patrol_stats", {
+    p_from: dateFrom,
+    p_to: dateTo,
+    p_unit: unit,
+    p_duty_type: dutyType || null,
+  });
+
+  if (error) throw error;
+
+  const stats = (data ?? {}) as Partial<PatrolStats>;
+
+  return {
+    daily: stats.daily ?? [],
+    hourly: stats.hourly ?? [],
+    foot: stats.foot ?? [],
+    vehicles: stats.vehicles ?? [],
+  };
+}
+
+/**
+ * Schedules are only used for their date/time window, vehicle and the number
+ * of assigned personnel, so only those columns are requested.
+ */
+async function fetchSchedules(
+  unitId: string | null,
+  dateFrom: string,
+  dateTo: string,
+): Promise<PatrolSchedule[]> {
+  try {
+    let query: any = supabase
+      .from("patrol_schedule")
+      .select(
+        "id, date, time_from, time_to, mobility_id, schedule_assignments(personnel_id)",
+      )
+      .gte("date", dateFrom)
+      .lte("date", dateTo)
+      .order("date", { ascending: true })
+      .order("time_from", { ascending: true });
+
+    // ADJUST "unit_id" to the real column name in patrol_schedule.
+    if (unitId) {
+      query = query.eq("unit_id", unitId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+    return (data ?? []) as unknown as PatrolSchedule[];
+  } catch (error) {
+    console.error("Error fetching schedules:", error);
+    return [];
+  }
+}
+
+/** Loads details only for the personnel that appear in the statistics. */
+async function fetchPersonnelMap(ids: string[]): Promise<Map<string, any>> {
+  const map = new Map<string, any>();
+
+  if (ids.length === 0) return map;
+
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += PERSONNEL_CHUNK) {
+    chunks.push(ids.slice(i, i + PERSONNEL_CHUNK));
+  }
+
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      supabase
+        .from("personnel")
+        .select(
+          "id, badge_number, fullname, designation, phone_number, viber_number, unit_id, rank(id, rank_name)",
+        )
+        .in("id", chunk),
+    ),
+  );
+
+  for (const result of results) {
+    if (result.error) throw result.error;
+    (result.data ?? []).forEach((person: any) => map.set(person.id, person));
+  }
+
+  return map;
+}
+
+/* ============================================================================
+   BUILD THE PAGE DATA (small: a few dozen rows)
+============================================================================ */
+
+function buildStatistics(
+  stats: PatrolStats,
+  schedules: PatrolSchedule[],
+  personnelMap: Map<string, any>,
+) {
+  /* ---------------------------------------------------------------------
+     TRENDS
+  --------------------------------------------------------------------- */
+
+  const dailyTrend = stats.daily.map((row) => ({
+    date: new Date(`${row.day}T00:00:00`).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    }),
+    sessions: Number(row.sessions),
+    patrolHours: round2(row.hours),
+    manHours: round2(row.hours),
+    kilometers: round2(row.km),
+  }));
+
+  const hourlyTrend = stats.hourly.map((row) => ({
+    hour: `${String(row.hour).padStart(2, "0")}:00`,
+    sessions: Number(row.sessions),
+    patrolHours: round2(row.hours),
+    manHours: round2(row.hours),
+    kilometers: round2(row.km),
+  }));
+
+  /* ---------------------------------------------------------------------
+     TOTALS + PER-PERSONNEL STATS
+  --------------------------------------------------------------------- */
+
+  let totalKilometers = 0;
+  let totalPatrolMinutes = 0;
+  let totalManMinutes = 0;
+
+  const personnelStats = new Map<
+    string,
+    { patrolMinutes: number; kilometers: number }
+  >();
+
+  const addPersonnel = (id: string, minutes: number, km: number) => {
+    const existing = personnelStats.get(id);
+
+    if (existing) {
+      existing.patrolMinutes += minutes;
+      existing.kilometers += km;
+    } else {
+      personnelStats.set(id, { patrolMinutes: minutes, kilometers: km });
+    }
+  };
+
+  // ---- Foot patrolling ----
+  stats.foot.forEach((row) => {
+    const minutes = Number(row.patrol_minutes ?? 0);
+    const km = Number(row.km ?? 0);
+
+    totalPatrolMinutes += minutes;
+    totalManMinutes += minutes;
+    totalKilometers += km;
+
+    addPersonnel(row.personnel_id, minutes, km);
+  });
+
+  // ---- Vehicle patrolling ----
+  const schedulesByVehicle = groupBy(
+    schedules,
+    (schedule) => (schedule as any).mobility_id,
+  );
+
+  stats.vehicles.forEach((row) => {
+    const km = Number(row.km ?? 0);
+    const matchedSchedules = schedulesByVehicle.get(row.vehicle_id) ?? [];
+
+    let patrolMinutes = 0;
+
+    if (matchedSchedules.length > 0) {
+      matchedSchedules.forEach((schedule) => {
+        const minutes = scheduleMinutes(schedule);
+        const assignedCount = schedule.schedule_assignments?.length ?? 0;
+
+        patrolMinutes += minutes;
+        // Man-minutes per schedule = its own duration x its own crew size.
+        totalManMinutes += minutes * assignedCount;
+      });
+    } else {
+      patrolMinutes = Number(row.gap_minutes ?? 0);
+    }
+
+    totalPatrolMinutes += patrolMinutes;
+    totalKilometers += km;
+
+    // Everyone seen in this vehicle's logs shares its stats.
+    (row.personnel_ids ?? []).forEach((personId) => {
+      addPersonnel(personId, patrolMinutes, km);
+    });
+  });
+
+  /* ---------------------------------------------------------------------
+     PERSONNEL LIST + SUMMARY
+  --------------------------------------------------------------------- */
+
+  const personnelData: any[] = [];
+
+  personnelStats.forEach((value, personId) => {
+    const person = personnelMap.get(personId);
+
+    if (!person) return;
+
+    personnelData.push({
+      ...person,
+      patrol_hours: formatHHMMSS(value.patrolMinutes),
+      kilometer_patrolled: value.kilometers.toFixed(2),
+    });
+  });
+
+  personnelData.sort((a, b) =>
+    (a.fullname || "").localeCompare(b.fullname || ""),
+  );
+
+  return {
+    summary: {
+      total_personnel: personnelData.length,
+      total_patrol_hours: formatHHMMSS(totalPatrolMinutes),
+      total_man_hours: Number((totalManMinutes / 60).toFixed(2)),
+      total_kilometers: Number(totalKilometers.toFixed(2)),
+    },
+    personnelData,
+    dailyTrend,
+    hourlyTrend,
+  };
+}
+
+/* ============================================================================
+   PAGE
+============================================================================ */
+
 export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
-
-  const getLocalDateString = () => {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-
-    return `${year}-${month}-${day}`;
-  };
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [dateFrom, setDateFrom] = useState(getLocalDateString);
   const [dateTo, setDateTo] = useState(getLocalDateString);
 
   const [personnelData, setPersonnelData] = useState<any[]>([]);
   const [dailyTrend, setDailyTrend] = useState<any[]>([]);
-  const [patrolTypeDistribution, setPatrolTypeDistribution] = useState<any[]>(
-    [],
-  );
   const [hourlyTrend, setHourlyTrend] = useState<any[]>([]);
-  const [vehicleUtilization, setVehicleUtilization] = useState<any[]>([]);
-  const [topPersonnel, setTopPersonnel] = useState<any[]>([]);
-  const [schedules, setSchedules] = useState<PatrolSchedule[]>([]);
   const [trendType, setTrendType] = useState<"daily" | "hourly">("daily");
   const [trendMetric, setTrendMetric] = useState<
     "sessions" | "patrolHours" | "manHours" | "kilometers"
   >("sessions");
   const theme = useTheme();
-  const [summary, setSummary] = useState({
-    total_personnel: 0,
-    total_patrol_hours: "00:00:00",
-    total_man_hours: 0,
-    total_kilometers: 0,
-  });
+  const [summary, setSummary] = useState(EMPTY_SUMMARY);
+
+  const [sortColumn, setSortColumn] = useState<
+    "patrol_hours" | "kilometer_patrolled" | "fullname" | "badge_number"
+  >("kilometer_patrolled");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   const { unitId, isAdmin, profile } = useAuth();
 
@@ -78,30 +416,7 @@ export default function AnalyticsPage() {
     unitIdSafe ?? null,
   );
   const [selectedPatrolType, setSelectedPatrolType] = useState<string>("");
-  const patrolTypes = [
-    "Mobile Patrolling",
-    "Foot Patrolling",
-    "TMRU Patrolling",
-    "Bike Patrolling",
-    "Seaborne Patrolling",
-    "Checkpoint",
-    "Simulation Exercise",
-    "Special Event",
-    "DODON",
-    "Intel-Driven Operation",
-    "Special Laws",
-    "Combat/Prophylactic Patrolling",
-  ];
-  const filteredPersonnel = personnelData.filter((person) => {
-    const term = searchTerm.toLowerCase();
-    return (
-      person.badge_number?.toLowerCase().includes(term) ||
-      person.fullname?.toLowerCase().includes(term) ||
-      person.rank?.rank_name?.toLowerCase().includes(term) ||
-      person.phone_number?.toLowerCase().includes(term) ||
-      person.viber_number?.toLowerCase().includes(term)
-    );
-  });
+
   const userUnitId: string | null = profile?.unit_id ?? null;
 
   // Non-admin users can only ever see their own unit's data.
@@ -110,37 +425,76 @@ export default function AnalyticsPage() {
       ? selectedUnit
       : null
     : userUnitId;
+
   const visibleUnits = isAdminSafe
     ? units
     : units.filter((unit) => unit.id === unitIdSafe);
 
-  useEffect(() => {
-    if (effectiveUnit && dateFrom && dateTo) {
-      fetchSchedules(effectiveUnit, dateFrom, dateTo);
-    }
-  }, [effectiveUnit, dateFrom, dateTo]);
+  const filteredPersonnel = useMemo(() => {
+    const term = searchTerm.toLowerCase();
 
-  const EMPTY_SUMMARY = {
-    total_personnel: 0,
-    total_patrol_hours: "00:00:00",
-    total_man_hours: 0,
-    total_kilometers: 0,
+    let filtered = !term
+      ? personnelData
+      : personnelData.filter(
+          (person) =>
+            person.badge_number?.toLowerCase().includes(term) ||
+            person.fullname?.toLowerCase().includes(term) ||
+            person.rank?.rank_name?.toLowerCase().includes(term) ||
+            person.phone_number?.toLowerCase().includes(term) ||
+            person.viber_number?.toLowerCase().includes(term),
+        );
+
+    // Apply sorting
+    filtered = [...filtered].sort((a, b) => {
+      let aVal: number | string;
+      let bVal: number | string;
+
+      if (sortColumn === "patrol_hours") {
+        // patrol_hours is "HH:MM:SS" — convert to minutes for comparison
+        aVal = parseHHMMSSMinutes(a.patrol_hours);
+        bVal = parseHHMMSSMinutes(b.patrol_hours);
+      } else if (sortColumn === "kilometer_patrolled") {
+        aVal = Number(a.kilometer_patrolled ?? 0);
+        bVal = Number(b.kilometer_patrolled ?? 0);
+      } else {
+        aVal = String(a[sortColumn] ?? "").toLowerCase();
+        bVal = String(b[sortColumn] ?? "").toLowerCase();
+      }
+
+      if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [personnelData, searchTerm, sortColumn, sortDirection]);
+
+  // Tailwind only generates classes it can find as complete strings.
+  const filterGridCols = isAdminSafe ? "xl:grid-cols-5" : "xl:grid-cols-4";
+
+  const handleSort = useCallback((column: typeof sortColumn) => {
+    setSortColumn((prev) => {
+      if (prev === column) {
+        setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setSortDirection("asc");
+      return column;
+    });
+  }, []);
+
+  const getSortIcon = (column: typeof sortColumn) => {
+    if (sortColumn !== column) return <ArrowUpDown className="w-4 h-4 opacity-40" />;
+    return sortDirection === "asc" ? (
+      <ArrowUp className="w-4 h-4" />
+    ) : (
+      <ArrowDown className="w-4 h-4" />
+    );
   };
 
-  // YYYY-MM-DD in the browser's local time (Philippines = UTC+8).
-  // Using substring(0, 10) on the ISO string gives the UTC date, which puts
-  // patrols between 00:00 and 08:00 local time on the previous day.
-  const toLocalDateKey = (iso: string) => {
-    const d = new Date(iso);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  };
-
-  // ----------------------------------------------------------------------------
-  // UNITS (dropdown data)
-  // ----------------------------------------------------------------------------
+  /* --------------------------------------------------------------------------
+     UNITS (dropdown data)
+  -------------------------------------------------------------------------- */
 
   const loadUnits = async () => {
     try {
@@ -162,657 +516,114 @@ export default function AnalyticsPage() {
     }
   };
 
-  // ----------------------------------------------------------------------------
-  // SCHEDULES
-  // ----------------------------------------------------------------------------
+  /* --------------------------------------------------------------------------
+     LOAD ANALYTICS
+  -------------------------------------------------------------------------- */
 
-  const fetchSchedules = async (
-    unitId: string | null,
-    dateFrom: string,
-    dateTo: string,
-  ) => {
+  // Used to ignore results from a load that was superseded by a newer one
+  // (e.g. the user changed a filter while the previous load was running).
+  const requestIdRef = useRef(0);
+
+  const loadAnalytics = useCallback(async () => {
+    console.log("[analytics] start", { isAdmin, userUnitId, effectiveUnit, dateFrom, dateTo });
+
+    const requestId = ++requestIdRef.current;
+    const isCurrent = () => requestId === requestIdRef.current;
+
+    setLoading(true);
+    setErrorMessage(null);
+
     try {
-      let query = supabase
-        .from("patrol_schedule")
-        .select(
-          `*,
-          schedule_assignments(
-            personnel_id,
-            personnel:personnel_id(
-              *,
-              rank(*),
-              unit(*)
-            )
-          )`,
-        )
-        .gte("date", dateFrom)
-        .lte("date", dateTo)
-        .order("date", { ascending: true })
-        .order("time_from", { ascending: true });
-
-      // Only filter when a unit applies (non-admin, or admin picked a unit).
-      // ADJUST "unit_id" to the real column name in patrol_schedule.
-      if (unitId) {
-        query = query.eq("unit_id", unitId);
-      }
-
-      const { data: schedulesData, error } = await query;
-
-      if (error) throw error;
-      return schedulesData ?? [];
-    } catch (error) {
-      console.error("Error fetching schedules:", error);
-      return [];
-    }
-  };
-
-  // ----------------------------------------------------------------------------
-  // LOAD ANALYTICS
-  // ----------------------------------------------------------------------------
-
-  const loadAnalytics = async () => {
-    try {
-      setLoading(true);
-
       // Fail closed: a non-admin without a unit must never see everything.
       if (!isAdmin && !userUnitId) {
         setSummary(EMPTY_SUMMARY);
         setPersonnelData([]);
         setDailyTrend([]);
-        setPatrolTypeDistribution([]);
         setHourlyTrend([]);
-        setVehicleUtilization([]);
-        setTopPersonnel([]);
-        return; // "finally" below still resets loading
+        return;
       }
 
-      const filterByUnit = !!effectiveUnit;
-
-      let allData: PatrolLog[] = [];
-      let pageNum = 1;
-      let hasMore = true;
-
-      // Loop to fetch everything, bypassing the 1000-row limit
-      while (hasMore) {
-        const fromRange = (pageNum - 1) * 1000;
-        const toRange = pageNum * 1000 - 1;
-
-        // "!inner" makes the unit filter remove other units' logs.
-        // Admins viewing all units use a normal join so no logs are dropped.
-        const personnelJoin = filterByUnit
-          ? "personnel:personnel_id!inner"
-          : "personnel:personnel_id";
-
-        let patrolLogsQuery = supabase.from("patrol_logs").select(
-          `
-          *,
-          ${personnelJoin} (
-            *,
-            unit(*),
-            rank(*)
-          ),
-          mobility_assets:vehicle_id (*)
-        `,
-        );
-
-        // Date filters (Philippine time)
-        if (dateFrom) {
-          const localStart = `${dateFrom}T00:00:00+08:00`;
-          patrolLogsQuery = patrolLogsQuery.gte("captured_at", localStart);
-        }
-        if (dateTo) {
-          const localEnd = `${dateTo}T23:59:59.999+08:00`;
-          patrolLogsQuery = patrolLogsQuery.lte("captured_at", localEnd);
-        }
-
-        // Unit filter: admin = optional (dropdown), non-admin = always own unit
-        if (filterByUnit) {
-          patrolLogsQuery = patrolLogsQuery.eq(
-            "personnel.unit_id",
-            effectiveUnit,
-          );
-        }
-
-        // Patrol type filter
-        if (selectedPatrolType) {
-          patrolLogsQuery = patrolLogsQuery.eq("duty_type", selectedPatrolType);
-        }
-
-        patrolLogsQuery = patrolLogsQuery.not(
-          "duty_type",
-          "in",
-          '("EMERGENCY_SOS", "Intel-Driven Operation", "Special Laws")',
-        );
-
-        const { data, error } = await patrolLogsQuery
-          .order("captured_at", { ascending: true })
-          .range(fromRange, toRange);
-
-        if (error) {
-          console.error("Error fetching history logs:", error.message);
-          break;
-        }
-
-        if (data && data.length > 0) {
-          allData = [...allData, ...data];
-          pageNum++;
-          // Fewer than 1000 rows means we reached the end
-          if (data.length < 1000) {
-            hasMore = false;
-          }
-        } else {
-          hasMore = false;
-        }
+      if (!dateFrom || !dateTo) {
+        return;
       }
 
-      // Schedules: only need a date range. The unit filter is optional, so
-      // admins viewing all units now get schedule data too.
-      let schedulesData: PatrolSchedule[] = [];
-      if (dateFrom && dateTo) {
-        schedulesData = await fetchSchedules(effectiveUnit, dateFrom, dateTo);
-      }
+      console.log("[analytics] sending requests");
+      // Statistics and schedules do not depend on each other: load together.
+      const [stats, schedulesData] = await Promise.all([
+        fetchPatrolStats(effectiveUnit, dateFrom, dateTo, selectedPatrolType),
+        fetchSchedules(effectiveUnit, dateFrom, dateTo),
+      ]);
+      console.log("[analytics] data received");
 
-      const stats = calculateStatistics(allData ?? [], schedulesData);
+      if (!isCurrent()) return;
 
-      setSummary(stats.summary);
-      setPersonnelData(stats.personnelData);
-      setDailyTrend(stats.charts.dailyTrend);
-      setPatrolTypeDistribution(stats.charts.patrolTypeDistribution);
-      setHourlyTrend(stats.charts.hourlyTrend);
-      setVehicleUtilization(stats.charts.vehicleUtilization);
-      setTopPersonnel(stats.charts.topPersonnel);
-    } catch (err) {
+      // Fetch details only for the people who appear in the statistics.
+      const personnelIds = Array.from(
+        new Set([
+          ...stats.foot.map((row) => row.personnel_id),
+          ...stats.vehicles.flatMap((row) => row.personnel_ids ?? []),
+        ]),
+      );
+
+      const personnelMap = await fetchPersonnelMap(personnelIds);
+
+      if (!isCurrent()) return;
+
+      const result = buildStatistics(stats, schedulesData, personnelMap);
+
+      setSummary(result.summary);
+      setPersonnelData(result.personnelData);
+      setDailyTrend(result.dailyTrend);
+      setHourlyTrend(result.hourlyTrend);
+    } catch (err: any) {
       console.error("Error loading analytics:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  // Reload when any filter changes (adjust to your existing effects)
+      if (isCurrent()) {
+        const message: string = err?.message ?? "";
+
+        setErrorMessage(
+          message.includes("statement timeout")
+            ? "The query took too long. Try a shorter date range or select a unit."
+            : message || "Failed to load analytics.",
+        );
+      }
+    } finally {
+      if (isCurrent()) {
+        setLoading(false);
+      }
+    }
+  }, [
+    isAdmin,
+    userUnitId,
+    effectiveUnit,
+    dateFrom,
+    dateTo,
+    selectedPatrolType,
+  ]);
+
   useEffect(() => {
     loadUnits();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, userUnitId]);
 
+  // Keep a ref to the latest loadAnalytics so the mount-only effect
+  // always calls the version that matches the current filter values.
+  const loadAnalyticsRef = useRef(loadAnalytics);
+
   useEffect(() => {
-    loadAnalytics();
+    loadAnalyticsRef.current = loadAnalytics;
+  }, [loadAnalytics]);
+
+  // Load data once on mount. Filter changes do NOT trigger a reload;
+  // the user must click the Refresh button to re-fetch.
+  useEffect(() => {
+    loadAnalyticsRef.current();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveUnit, dateFrom, dateTo, selectedPatrolType, isAdmin]);
-
-  // ----------------------------------------------------------------------------
-  // STATISTICS
-  // ----------------------------------------------------------------------------
-
-  const calculateStatistics = (
-    patrolLogs: any[],
-    schedules: PatrolSchedule[],
-  ) => {
-    // ===========================================
-    // REBUILD PATROL SESSIONS (10-minute gap rule)
-    // ===========================================
-
-    interface PatrolSession {
-      personnelId: string;
-      dutyType: string;
-      date: string;
-      hour: string;
-      minutes: number;
-      kilometers: number;
-    }
-
-    const patrolSessions: PatrolSession[] = [];
-
-    const logsByPersonnel: Record<string, any[]> = {};
-
-    patrolLogs.forEach((log) => {
-      if (!log.personnel_id) return;
-
-      if (!logsByPersonnel[log.personnel_id]) {
-        logsByPersonnel[log.personnel_id] = [];
-      }
-
-      logsByPersonnel[log.personnel_id].push(log);
-    });
-
-    Object.values(logsByPersonnel).forEach((logs) => {
-      const sortedLogs = [...logs].sort(
-        (a, b) =>
-          new Date(a.captured_at).getTime() - new Date(b.captured_at).getTime(),
-      );
-
-      let sessionLogs: any[] = [];
-
-      const finalizeSession = () => {
-        if (sessionLogs.length === 0) return;
-
-        const first = sessionLogs[0];
-        const last = sessionLogs[sessionLogs.length - 1];
-
-        const minutes =
-          (new Date(last.captured_at).getTime() -
-            new Date(first.captured_at).getTime()) /
-          60000;
-
-        patrolSessions.push({
-          personnelId: first.personnel_id,
-          dutyType: first.duty_type || "Unknown",
-          date: toLocalDateKey(first.captured_at),
-          hour:
-            new Date(first.captured_at).getHours().toString().padStart(2, "0") +
-            ":00",
-          minutes,
-          kilometers: calculateDistance(sessionLogs),
-        });
-
-        sessionLogs = [];
-      };
-
-      sortedLogs.forEach((log) => {
-        if (sessionLogs.length === 0) {
-          sessionLogs.push(log);
-          return;
-        }
-
-        const previous = sessionLogs[sessionLogs.length - 1];
-
-        const gap =
-          (new Date(log.captured_at).getTime() -
-            new Date(previous.captured_at).getTime()) /
-          60000;
-
-        if (gap <= 10) {
-          sessionLogs.push(log);
-        } else {
-          finalizeSession();
-          sessionLogs.push(log);
-        }
-      });
-
-      finalizeSession();
-    });
-
-    // ===========================================
-    // DAILY TREND
-    // ===========================================
-
-    const dailyMap = new Map<
-      string,
-      {
-        sessions: number;
-        patrolHours: number;
-        manHours: number;
-        kilometers: number;
-      }
-    >();
-
-    patrolSessions.forEach((session) => {
-      const existing = dailyMap.get(session.date) ?? {
-        sessions: 0,
-        patrolHours: 0,
-        manHours: 0,
-        kilometers: 0,
-      };
-
-      existing.sessions++;
-      existing.patrolHours += session.minutes / 60;
-      existing.manHours += session.minutes / 60;
-      existing.kilometers += session.kilometers;
-
-      dailyMap.set(session.date, existing);
-    });
-
-    // Sort by the YYYY-MM-DD key BEFORE formatting the label
-    const dailyTrend = Array.from(dailyMap.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, value]) => ({
-        date: new Date(`${date}T00:00:00`).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        }),
-        sessions: value.sessions,
-        patrolHours: Number(value.patrolHours.toFixed(2)),
-        manHours: Number(value.manHours.toFixed(2)),
-        kilometers: Number(value.kilometers.toFixed(2)),
-      }));
-
-    // ===========================================
-    // HOURLY TREND
-    // ===========================================
-
-    const hourlyMap = new Map<
-      string,
-      {
-        sessions: number;
-        patrolHours: number;
-        manHours: number;
-        kilometers: number;
-      }
-    >();
-
-    patrolSessions.forEach((session) => {
-      const existing = hourlyMap.get(session.hour) ?? {
-        sessions: 0,
-        patrolHours: 0,
-        manHours: 0,
-        kilometers: 0,
-      };
-      existing.sessions++;
-      existing.patrolHours += session.minutes / 60;
-      existing.manHours += session.minutes / 60;
-      existing.kilometers += session.kilometers;
-      hourlyMap.set(session.hour, existing);
-    });
-
-    const hourlyTrend = Array.from(hourlyMap.entries())
-      .map(([hour, value]) => ({
-        hour,
-        sessions: value.sessions,
-        patrolHours: Number(value.patrolHours.toFixed(2)),
-        manHours: Number(value.manHours.toFixed(2)),
-        kilometers: Number(value.kilometers.toFixed(2)),
-      }))
-      .sort((a, b) => a.hour.localeCompare(b.hour));
-
-    // ===========================================
-    // PATROL TYPE DISTRIBUTION
-    // ===========================================
-
-    const patrolTypeMap = new Map<string, number>();
-
-    patrolSessions.forEach((session) => {
-      patrolTypeMap.set(
-        session.dutyType,
-        (patrolTypeMap.get(session.dutyType) ?? 0) + 1,
-      );
-    });
-
-    const patrolTypeDistribution = Array.from(patrolTypeMap.entries())
-      .map(([name, value]) => ({
-        name,
-        value,
-      }))
-      .sort((a, b) => b.value - a.value);
-
-    // ===========================================
-    // SUMMARY VARIABLES
-    // ===========================================
-
-    const totalKilometers = calculateDistance(patrolLogs);
-
-    let totalPatrolMinutes = 0;
-    let totalManMinutes = 0;
-
-    interface PersonnelStatistics {
-      personnel: any;
-      patrolMinutes: number;
-      kilometers: number;
-    }
-
-    const personnelMap = new Map<string, PersonnelStatistics>();
-
-    // ===========================================
-    // FOOT PATROLLING
-    // ===========================================
-
-    const footLogs = patrolLogs.filter(
-      (log) => !log.vehicle_id && log.personnel?.id,
-    );
-
-    const footLogsByPersonnel: Record<string, any[]> = {};
-
-    footLogs.forEach((log) => {
-      if (!footLogsByPersonnel[log.personnel.id]) {
-        footLogsByPersonnel[log.personnel.id] = [];
-      }
-
-      footLogsByPersonnel[log.personnel.id].push(log);
-    });
-
-    Object.entries(footLogsByPersonnel).forEach(([personId, logs]) => {
-      const sortedLogs = [...logs].sort(
-        (a, b) =>
-          new Date(a.captured_at).getTime() - new Date(b.captured_at).getTime(),
-      );
-
-      let patrolMinutes = 0;
-
-      for (let i = 0; i < sortedLogs.length - 1; i++) {
-        const gap =
-          (new Date(sortedLogs[i + 1].captured_at).getTime() -
-            new Date(sortedLogs[i].captured_at).getTime()) /
-          60000;
-
-        if (gap < 30) {
-          patrolMinutes += gap;
-        }
-      }
-
-      const kilometers = calculateDistance(sortedLogs);
-
-      totalPatrolMinutes += patrolMinutes;
-      totalManMinutes += patrolMinutes;
-
-      personnelMap.set(personId, {
-        personnel: sortedLogs[0].personnel,
-        patrolMinutes,
-        kilometers,
-      });
-    });
-
-    // ===========================================
-    // VEHICLE PATROL
-    // ===========================================
-
-    const vehicleLogs = patrolLogs.filter((log) => !!log.vehicle_id);
-
-    const vehicleLogsByVehicle: Record<string, any[]> = {};
-
-    vehicleLogs.forEach((log) => {
-      if (!vehicleLogsByVehicle[log.vehicle_id]) {
-        vehicleLogsByVehicle[log.vehicle_id] = [];
-      }
-
-      vehicleLogsByVehicle[log.vehicle_id].push(log);
-    });
-
-    const vehicleUtilization = [] as any;
-
-    Object.entries(vehicleLogsByVehicle).forEach(([vehicleId, logs]) => {
-      const sortedLogs = [...logs].sort(
-        (a, b) =>
-          new Date(a.captured_at).getTime() - new Date(b.captured_at).getTime(),
-      );
-
-      const kilometers = calculateDistance(sortedLogs);
-
-      let patrolMinutes = 0;
-
-      const matchedSchedules = schedules.filter(
-        (s) => s.mobility_id === vehicleId,
-      );
-
-      if (matchedSchedules.length > 0) {
-        matchedSchedules.forEach((schedule) => {
-          const start = new Date(`${schedule.date}T${schedule.time_from}`);
-          const end = new Date(`${schedule.date}T${schedule.time_to}`);
-
-          if (end < start) {
-            end.setDate(end.getDate() + 1);
-          }
-
-          patrolMinutes += (end.getTime() - start.getTime()) / 60000;
-        });
-      } else {
-        for (let i = 0; i < sortedLogs.length - 1; i++) {
-          const gap =
-            (new Date(sortedLogs[i + 1].captured_at).getTime() -
-              new Date(sortedLogs[i].captured_at).getTime()) /
-            60000;
-
-          if (gap < 30) {
-            patrolMinutes += gap;
-          }
-        }
-      }
-
-      totalPatrolMinutes += patrolMinutes;
-
-      vehicleUtilization.push({
-        vehicleId,
-        patrols: logs.length,
-        kilometers,
-      });
-
-      matchedSchedules.forEach((schedule) => {
-        const assignments = schedule.schedule_assignments ?? [];
-
-        totalManMinutes += patrolMinutes * assignments.length;
-      });
-
-      // ===========================================
-      // BUILD PERSONNEL STATS FROM VEHICLE LOGS
-      // ===========================================
-
-      const vehiclePersonnelLogs: Record<string, any[]> = {};
-
-      sortedLogs.forEach((log) => {
-        if (!log.personnel?.id) return;
-
-        if (!vehiclePersonnelLogs[log.personnel.id]) {
-          vehiclePersonnelLogs[log.personnel.id] = [];
-        }
-
-        vehiclePersonnelLogs[log.personnel.id].push(log);
-      });
-
-      Object.entries(vehiclePersonnelLogs).forEach(([personId, personLogs]) => {
-        const person = personLogs[0].personnel;
-
-        const existing = personnelMap.get(personId);
-
-        if (existing) {
-          existing.patrolMinutes += patrolMinutes;
-          existing.kilometers += kilometers;
-
-          personnelMap.set(personId, existing);
-        } else {
-          personnelMap.set(personId, {
-            personnel: person, // was sortedLogs[0].personnel (wrong person)
-            patrolMinutes,
-            kilometers,
-          });
-        }
-      });
-    });
-
-    // ===========================================
-    // BUILD PERSONNEL LIST
-    // ===========================================
-
-    const personnelWithStats = Array.from(personnelMap.values())
-      .map((entry) => {
-        const hours = Math.floor(entry.patrolMinutes / 60);
-        const minutes = Math.round(entry.patrolMinutes % 60);
-
-        return {
-          ...entry.personnel,
-          patrol_hours: `${hours.toString().padStart(2, "0")}:${minutes
-            .toString()
-            .padStart(2, "0")}:00`,
-          kilometer_patrolled: entry.kilometers.toFixed(2),
-        };
-      })
-      .sort((a, b) => (a.fullname || "").localeCompare(b.fullname || ""));
-
-    // ===========================================
-    // TOP PERSONNEL
-    // ===========================================
-
-    const topPersonnel = [...personnelWithStats]
-      .sort(
-        (a, b) =>
-          parseFloat(b.kilometer_patrolled) - parseFloat(a.kilometer_patrolled),
-      )
-      .slice(0, 10);
-
-    // ===========================================
-    // SUMMARY
-    // ===========================================
-
-    const totalPersonnel = personnelWithStats.length;
-
-    const patrolHours = Math.floor(totalPatrolMinutes / 60);
-    const patrolMinutes = Math.round(totalPatrolMinutes % 60);
-
-    const totalManHours = Number((totalManMinutes / 60).toFixed(2));
-
-    return {
-      summary: {
-        total_personnel: totalPersonnel,
-        total_patrol_hours: `${patrolHours
-          .toString()
-          .padStart(2, "0")}:${patrolMinutes.toString().padStart(2, "0")}:00`,
-        total_man_hours: totalManHours,
-        total_kilometers: Number(totalKilometers.toFixed(2)),
-      },
-
-      personnelData: personnelWithStats,
-
-      charts: {
-        dailyTrend,
-        hourlyTrend,
-        patrolTypeDistribution,
-        vehicleUtilization,
-        topPersonnel,
-      },
-    };
-  };
-
-  // ----------------------------------------------------------------------------
-  // DISTANCE (same as TrackingMapPage)
-  // ----------------------------------------------------------------------------
-
-  const calculateDistance = (logs: any[]) => {
-    if (!logs || logs.length < 2) return 0;
-
-    const EARTH_RADIUS_KM = 6371;
-    const deg2rad = (deg: any) => deg * (Math.PI / 180);
-    let totalDistance = 0;
-
-    for (let i = 0; i < logs.length - 1; i++) {
-      const current = logs[i];
-      const next = logs[i + 1];
-
-      // Ensure coordinates are not null/corrupted
-      if (
-        !current.latitude ||
-        !current.longitude ||
-        !next.latitude ||
-        !next.longitude
-      )
-        continue;
-
-      const dLat = deg2rad(next.latitude - current.latitude);
-      const dLng = deg2rad(next.longitude - current.longitude);
-
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(deg2rad(current.latitude)) *
-          Math.cos(deg2rad(next.latitude)) *
-          Math.sin(dLng / 2) *
-          Math.sin(dLng / 2);
-
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const distance = EARTH_RADIUS_KM * c;
-
-      // Jitter filter: ignore GPS variations below 5 meters ("ghost mileage")
-      if (distance > 0.005) {
-        totalDistance += distance;
-      }
-    }
-
-    return parseFloat(totalDistance.toFixed(2)); // total km, two decimals
-  };
+  }, []);
+
+  /* --------------------------------------------------------------------------
+     RENDER
+  -------------------------------------------------------------------------- */
 
   return (
     <div className="min-h-full space-y-6 pb-8">
@@ -858,7 +669,7 @@ export default function AnalyticsPage() {
         </div>
 
         <div
-          className={`grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-${isAdminSafe ? "5" : "4"}`}
+          className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${filterGridCols}`}
         >
           {/* SEARCH */}
           <div className="xl:col-span-1">
@@ -901,16 +712,9 @@ export default function AnalyticsPage() {
               <select
                 value={selectedUnit ?? ""}
                 onChange={(e) => setSelectedUnit(e.target.value || null)}
-                disabled={!isAdminSafe}
-                className={`h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white ${
-                  !isAdminSafe ? "cursor-not-allowed opacity-60" : ""
-                }`}
+                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               >
-                {isAdminSafe ? (
-                  <option value="">All Units/Stations</option>
-                ) : (
-                  <option value="">Your Unit</option>
-                )}
+                <option value="">All Units/Stations</option>
                 {visibleUnits.map((unit) => (
                   <option key={unit.id} value={unit.id}>
                     {unit.unit_name}
@@ -949,6 +753,12 @@ export default function AnalyticsPage() {
           </div>
         </div>
       </section>
+
+      {errorMessage && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300">
+          {errorMessage}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -1226,17 +1036,41 @@ export default function AnalyticsPage() {
                     <th className="px-5 py-3.5 text-slate-500 dark:text-slate-400">
                       #
                     </th>
-                    <th className="px-5 py-3.5 text-slate-500 dark:text-slate-400">
-                      Badge Number
+                    <th
+                      className="px-5 py-3.5 text-slate-500 dark:text-slate-400 cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      onClick={() => handleSort("badge_number")}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        Badge Number
+                        {getSortIcon("badge_number")}
+                      </div>
                     </th>
-                    <th className="px-5 py-3.5 text-slate-500 dark:text-slate-400">
-                      Rank / Name
+                    <th
+                      className="px-5 py-3.5 text-slate-500 dark:text-slate-400 cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      onClick={() => handleSort("fullname")}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        Rank / Name
+                        {getSortIcon("fullname")}
+                      </div>
                     </th>
-                    <th className="px-5 py-3.5 text-center text-slate-500 dark:text-slate-400">
-                      Patrol Hours
+                    <th
+                      className="px-5 py-3.5 text-center text-slate-500 dark:text-slate-400 cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      onClick={() => handleSort("patrol_hours")}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        Patrol Hours
+                        {getSortIcon("patrol_hours")}
+                      </div>
                     </th>
-                    <th className="px-5 py-3.5 text-center text-slate-500 dark:text-slate-400">
-                      Kilometers
+                    <th
+                      className="px-5 py-3.5 text-center text-slate-500 dark:text-slate-400 cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      onClick={() => handleSort("kilometer_patrolled")}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        Kilometers
+                        {getSortIcon("kilometer_patrolled")}
+                      </div>
                     </th>
                     <th className="px-5 py-3.5 text-right text-slate-500 dark:text-slate-400">
                       Action

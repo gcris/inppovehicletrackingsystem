@@ -97,11 +97,8 @@ export function useVehicleRealtime() {
         // LOAD LATEST LOGS FIRST
         // =====================================================
 
-        const twoDaysAgo = new Date();
-
-        twoDaysAgo.setDate(
-          twoDaysAgo.getDate() - 2,
-        );
+        const threeHoursAgo = new Date();
+        threeHoursAgo.setHours(threeHoursAgo.getHours() - 3);
 
         const {
           data: logData,
@@ -121,7 +118,7 @@ export function useVehicleRealtime() {
           )
           .gt(
             "captured_at",
-            twoDaysAgo.toISOString(),
+            threeHoursAgo.toISOString(),
           );
 
         if (logError) throw logError;

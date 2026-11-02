@@ -30,11 +30,13 @@ import {
   Motorbike,
   LucideIcon,
   DroneIcon,
+  PhoneCall,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Link } from "react-router-dom";
 
 import { MobilityAsset, PatrolLog, Personnel } from "../lib/supabase";
+import { FaViber } from "react-icons/fa";
 
 /* ============================================================
    DUTY TYPE ICONS
@@ -86,6 +88,11 @@ interface MapProps {
   vehicles: Record<string, MobilityAsset>;
   logs: Record<string, PatrolLog>;
   personnel: Record<string, Personnel>;
+  /**
+   * When set, only trackers belonging to this unit are shown.
+   * `null` / `undefined` shows all units.
+   */
+  unitFilter?: string | null;
 }
 
 interface Position {
@@ -244,9 +251,33 @@ function findPersonnel(
   return personnel[personnelId] || undefined;
 }
 
-type MarkerStatus = "emergency" | "offline" | "moving" | "stationary";
+/**
+ * Resolves the unit that owns a tracking log.
+ *
+ * Vehicle patrols are owned by the vehicle's unit.
+ * Personnel-only patrols are owned by the officer's unit.
+ *
+ * Returns `null` when the unit cannot be determined.
+ */
+function resolveLogUnitId(
+  log: PatrolLog,
+  vehicles: Record<string, MobilityAsset>,
+  personnel: Record<string, Personnel>,
+): string | null {
+  if (log.vehicle_id) {
+    return vehicles[log.vehicle_id]?.unit_id ?? null;
+  }
 
-function getMarkerStatus(log: PatrolLog): MarkerStatus {
+  if (log.personnel_id) {
+    return personnel[log.personnel_id]?.unit_id ?? null;
+  }
+
+  return null;
+}
+
+export type MarkerStatus = "emergency" | "offline" | "moving" | "stationary";
+
+export function getMarkerStatus(log: PatrolLog): MarkerStatus {
   const dutyType = (log.duty_type || "").toUpperCase();
 
   const isEmergency =
@@ -301,6 +332,7 @@ const TrackingMarkers = React.memo(function TrackingMarkers({
   logs,
   personnel,
   onSelect,
+  unitFilter,
 }: MapProps & {
   onSelect: (marker: SelectedMarker) => void;
 }) {
@@ -362,6 +394,25 @@ const TrackingMarkers = React.memo(function TrackingMarkers({
         return;
       }
 
+      /*
+       * Unit filter.
+       *
+       * When a unit is selected, only trackers that belong to
+       * that unit are rendered. Logs whose owning unit cannot
+       * be resolved are excluded.
+       *
+       * `vehicles` and `personnel` are read from the closure
+       * (not refs) so that the filter stays consistent with the
+       * data actually rendered.
+       */
+      if (unitFilter) {
+        const logUnitId = resolveLogUnitId(log, vehicles, personnel);
+
+        if (logUnitId !== unitFilter) {
+          return;
+        }
+      }
+
       const lat = Number(log.latitude);
       const lng = Number(log.longitude);
 
@@ -377,7 +428,7 @@ const TrackingMarkers = React.memo(function TrackingMarkers({
     });
 
     return items;
-  }, [logs]);
+  }, [logs, vehicles, personnel, unitFilter]);
 
   /* ============================================================
      GROUP TRACKERS BY LOCATION
@@ -815,7 +866,12 @@ const TrackingMarkers = React.memo(function TrackingMarkers({
    MAIN TRACKING MAP
 ============================================================ */
 
-function TrackingMap({ vehicles, logs, personnel }: MapProps) {
+function TrackingMap({
+  vehicles,
+  logs,
+  personnel,
+  unitFilter,
+}: MapProps) {
   const [selectedMarker, setSelectedMarker] = useState<SelectedMarker | null>(
     null,
   );
@@ -834,6 +890,12 @@ function TrackingMap({ vehicles, logs, personnel }: MapProps) {
   const zoomRef = useRef<number>(DEFAULT_ZOOM);
 
   const mapRef = useRef<google.maps.Map | null>(null);
+
+  /**
+   * Tracks the last unit filter so we can auto-fit the camera
+   * when the user selects a unit.
+   */
+  const lastUnitFilterRef = useRef<string | null | undefined>(undefined);
 
   /* ============================================================
      LOAD GOOGLE MAPS API
@@ -868,6 +930,81 @@ function TrackingMap({ vehicles, logs, personnel }: MapProps) {
   }, [isLoaded]);
 
   const isApiReady = isLoaded && isMarkerLibraryReady;
+
+  /* ============================================================
+     AUTO-FIT CAMERA WHEN UNIT CHANGES
+  ============================================================ */
+
+  useEffect(() => {
+    if (!mapRef.current || !window.google?.maps) {
+      return;
+    }
+
+    /*
+     * Only auto-fit when the unit filter actually changes.
+     *
+     * We intentionally ignore realtime log updates so the
+     * camera does not jump while the user is panning/zooming.
+     */
+    if (lastUnitFilterRef.current === unitFilter) {
+      return;
+    }
+
+    lastUnitFilterRef.current = unitFilter;
+
+    /*
+     * Collect positions of all visible trackers that belong to
+     * the selected unit.
+     *
+     * When no unit is selected, fall back to the default center.
+     */
+    if (!unitFilter) {
+      mapRef.current.setCenter(DEFAULT_CENTER);
+
+      mapRef.current.setZoom(DEFAULT_ZOOM);
+
+      return;
+    }
+
+    const positions: Position[] = [];
+
+    Object.values(logs).forEach((log) => {
+      const logUnitId = resolveLogUnitId(log, vehicles, personnel);
+
+      if (logUnitId !== unitFilter) {
+        return;
+      }
+
+      const lat = Number(log.latitude);
+      const lng = Number(log.longitude);
+
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        positions.push({ lat, lng });
+      }
+    });
+
+    if (positions.length === 0) {
+      return;
+    }
+
+    const bounds = new window.google.maps.LatLngBounds();
+
+    positions.forEach((position) => bounds.extend(position));
+
+    requestAnimationFrame(() => {
+      if (!mapRef.current) {
+        return;
+      }
+
+      if (positions.length === 1) {
+        mapRef.current.setCenter(positions[0]);
+
+        mapRef.current.setZoom(15);
+      } else {
+        mapRef.current.fitBounds(bounds, 60);
+      }
+    });
+  }, [logs, vehicles, personnel, unitFilter]);
 
   /* ============================================================
      MAP LOAD
@@ -948,6 +1085,7 @@ function TrackingMap({ vehicles, logs, personnel }: MapProps) {
           vehicles={vehicles}
           logs={logs}
           personnel={personnel}
+          unitFilter={unitFilter}
           onSelect={handleSelectMarker}
         />
 
@@ -1014,6 +1152,9 @@ const TrackingInfoWindow = React.memo(function TrackingInfoWindow({
 
   const displayName =
     vehicle?.plate_number || personnelDisplayName || "Unknown Asset";
+  
+  const contactNo = personnelInfo?.phone_number;
+  const viberNo = personnelInfo?.viber_number;
 
   /* ==========================================================
        UNIT
@@ -1034,7 +1175,7 @@ const TrackingInfoWindow = React.memo(function TrackingInfoWindow({
     emergency: "EMERGENCY",
     offline: "OFFLINE",
     moving: "MOVING",
-    stationary: "NOT MOVING",
+    stationary: "STATIONARY",
   }[markerStatus];
 
   /* ==========================================================
@@ -1098,24 +1239,18 @@ const TrackingInfoWindow = React.memo(function TrackingInfoWindow({
 
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2 text-slate-500">
-              <Navigation className="h-4 w-4 shrink-0" />
-              <span className="font-medium">Current Speed</span>
+              <PhoneCall className="h-4 w-4 shrink-0" />
+              <span className="font-medium">Phone No.</span>
             </div>
-            <span className="shrink-0 font-black">
-              {Number(log.speed ?? 0).toFixed(1)} km/h
-            </span>
+            <span className="shrink-0 font-black">{contactNo}</span>
           </div>
 
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2 text-slate-500">
-              <Network className="h-4 w-4 shrink-0" />
-              <span className="font-medium">Network Signal</span>
+              <FaViber className="h-4 w-4 shrink-0" />
+              <span className="font-medium">Viber No.</span>
             </div>
-            <span className="shrink-0 font-black">
-              {log.network_signal > 5
-                ? log.network_signal
-                : `${log.network_signal}/4`}
-            </span>
+            <span className="shrink-0 font-black">{viberNo}</span>
           </div>
 
           <div className="flex items-center justify-between gap-4">
@@ -1141,6 +1276,8 @@ const TrackingInfoWindow = React.memo(function TrackingInfoWindow({
         {historyId && (
           <Link
             to={`/trackingmap/${historyId}`}
+            target="_blank"
+            rel="noopener noreferrer"
             className="mt-4 flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-blue-700 active:bg-blue-800"
           >
             View History Replay

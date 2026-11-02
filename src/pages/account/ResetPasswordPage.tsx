@@ -12,6 +12,15 @@ import {
 import MfaVerificationForm from "../../components/auth/MfaVerificationForm";
 import { useAuth } from "../../components/AuthProvider";
 
+export const getDeviceType = () => {
+  const userAgent = navigator.userAgent;
+
+  if (/Android/i.test(userAgent)) return "Android";
+  if (/iPhone|iPad|iPod/i.test(userAgent)) return "iOS";
+
+  return "Desktop";
+};
+
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
 
@@ -28,6 +37,11 @@ export default function ResetPasswordPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const { user } = useAuth();
+  const [deviceType, setDeviceType] = useState("");
+
+  useEffect(() => {
+    setDeviceType(getDeviceType());
+  }, []);
 
   useEffect(() => {
     const initialize = async () => {
@@ -171,24 +185,25 @@ export default function ResetPasswordPage() {
 
       setSuccess(true);
 
-      setTimeout(async () => {
-        if (user)
-        {
-          await supabase
-            .from("personnel")
-            .update({
-              mfa_enabled: true,
-              is_online: false,
-            })
-            .eq("id", user?.id);
-        }
-        
-        await supabase.auth.signOut();
+      if (user) {
+        await supabase
+          .from("personnel")
+          .update({
+            mfa_enabled: true,
+            is_online: false,
+          })
+          .eq("user_id", user?.id);
+      }
 
-        navigate("/login", {
-          replace: true,
-        });
-      }, 3000);
+      await supabase.auth.signOut();
+
+      if (deviceType !== "Android" && deviceType !== "iOS") {
+        setTimeout(async () => {
+          navigate("/login", {
+            replace: true,
+          });
+        }, 3000);
+      }
     } catch (err: any) {
       setError(err.message ?? "Failed to update password.");
     } finally {
@@ -219,7 +234,7 @@ export default function ResetPasswordPage() {
 
               <h2 className="text-2xl font-bold">Password Updated</h2>
 
-              <p className="mt-3 text-slate-500">Redirecting to login...</p>
+              <p className="mt-3 text-slate-500">You may now log in with your new password.</p>
             </div>
           ) : (
             <>

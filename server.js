@@ -11,7 +11,7 @@ dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const supabaseUrl = process.env.VITE_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.SERVICE_ROLE_KEY || "";
+const supabaseAnonKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || "";
 
 async function startServer() {
   const app = express();

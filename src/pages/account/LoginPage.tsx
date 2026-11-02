@@ -208,7 +208,7 @@ export default function LoginPage() {
           mfa_enabled: true,
           is_online: true,
         })
-        .eq("id", user?.id); // or session?.user.id
+        .eq("user_id", user?.id); // or session?.user.id
 
       if (updateError) throw updateError;
 

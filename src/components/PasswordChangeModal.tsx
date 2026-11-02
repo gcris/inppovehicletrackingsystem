@@ -33,7 +33,7 @@ export function PasswordChangeModal({
   const [mfaChallenge, setMfaChallenge] = useState(false);
   const [mfaFactorId, setMfaFactorId] = useState("");
   const [mfaCode, setMfaCode] = useState("");
-  const { setIsMfaVerified, clearAuthCache } = useAuth();
+  const { user, setIsMfaVerified, clearAuthCache } = useAuth();
 
   // Add this helper inside your component
   const updatePassword = useCallback(async () => {
@@ -270,13 +270,20 @@ export function PasswordChangeModal({
             </button>
             <button
               type="button"
-              onClick={handleVerify}
+              onClick={() => {
+                if (user && user.id) {
+                  handleVerify();
+                } else {
+                  setError("User information not found. Please log in again.");
+                }
+              }}
               disabled={
                 loading ||
                 !currentPassword.trim() ||
                 !newPassword ||
                 newPassword.length < 8 ||
-                newPassword !== confirmPassword
+                newPassword !== confirmPassword ||
+                !user?.id
               }
               className="ml-3 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
             >

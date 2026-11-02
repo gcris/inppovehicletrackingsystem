@@ -10,6 +10,9 @@ import {
   Clock3,
   Route,
   Gauge,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import {
   Bar,
@@ -265,6 +268,11 @@ const AnalyticsByStationPage: React.FC = () => {
   const [trendMetric, setTrendMetric] = useState<
     "sessions" | "patrolHours" | "manHours" | "kilometers"
   >("sessions");
+
+  const [sortColumn, setSortColumn] = useState<
+    "personnel_deployed" | "sessions" | "patrol_minutes" | "man_minutes" | "kilometers" | "unit_name"
+  >("kilometers");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -572,12 +580,30 @@ const AnalyticsByStationPage: React.FC = () => {
   const filteredStations = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
-    if (!term) return stationData;
+    let filtered = !term
+      ? stationData
+      : stationData.filter((station) =>
+          station.unit_name.toLowerCase().includes(term),
+        );
 
-    return stationData.filter((station) =>
-      station.unit_name.toLowerCase().includes(term),
-    );
-  }, [stationData, searchTerm]);
+    // Apply sorting
+    filtered = [...filtered].sort((a, b) => {
+      let aVal: number | string = a[sortColumn as keyof StationAnalytics];
+      let bVal: number | string = b[sortColumn as keyof StationAnalytics];
+
+      // Handle string comparison for unit_name
+      if (sortColumn === "unit_name") {
+        aVal = String(aVal).toLowerCase();
+        bVal = String(bVal).toLowerCase();
+      }
+
+      if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [stationData, searchTerm, sortColumn, sortDirection]);
 
   const summary = useMemo(() => {
     return filteredStations.reduce(
@@ -615,6 +641,26 @@ const AnalyticsByStationPage: React.FC = () => {
     return [hours, minutes, seconds]
       .map((value) => String(value).padStart(2, "0"))
       .join(":");
+  };
+
+  const handleSort = useCallback((column: typeof sortColumn) => {
+    setSortColumn((prev) => {
+      if (prev === column) {
+        setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setSortDirection("asc");
+      return column;
+    });
+  }, []);
+
+  const getSortIcon = (column: typeof sortColumn) => {
+    if (sortColumn !== column) return <ArrowUpDown className="w-4 h-4 opacity-40" />;
+    return sortDirection === "asc" ? (
+      <ArrowUp className="w-4 h-4" />
+    ) : (
+      <ArrowDown className="w-4 h-4" />
+    );
   };
 
   const stationChartData = useMemo(
@@ -1012,21 +1058,59 @@ const AnalyticsByStationPage: React.FC = () => {
             <thead className={tableHeaderClass}>
               <tr>
                 <th className="px-4 py-3 font-semibold">#</th>
-                <th className="px-4 py-3 font-semibold">Station / Unit</th>
-                <th className="px-4 py-3 text-center font-semibold">
-                  Personnel Deployed
+                <th
+                  className="px-4 py-3 font-semibold cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  onClick={() => handleSort("unit_name")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Station / Unit
+                    {getSortIcon("unit_name")}
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-center font-semibold">
-                  Patrol Sessions
+                <th
+                  className="px-4 py-3 text-center font-semibold cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  onClick={() => handleSort("personnel_deployed")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Personnel Deployed
+                    {getSortIcon("personnel_deployed")}
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-center font-semibold">
-                  Patrol Hours
+                <th
+                  className="px-4 py-3 text-center font-semibold cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  onClick={() => handleSort("sessions")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Patrol Sessions
+                    {getSortIcon("sessions")}
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-center font-semibold">
-                  Man-Hours
+                <th
+                  className="px-4 py-3 text-center font-semibold cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  onClick={() => handleSort("patrol_minutes")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Patrol Hours
+                    {getSortIcon("patrol_minutes")}
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-center font-semibold">
-                  Kilometers
+                <th
+                  className="px-4 py-3 text-center font-semibold cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  onClick={() => handleSort("man_minutes")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Man-Hours
+                    {getSortIcon("man_minutes")}
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 text-center font-semibold cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  onClick={() => handleSort("kilometers")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Kilometers
+                    {getSortIcon("kilometers")}
+                  </div>
                 </th>
               </tr>
             </thead>

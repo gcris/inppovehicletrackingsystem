@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || "";
 const supabaseAnonKey =
   (import.meta as any).env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
-const supabaseServiceRoleKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind4cWJuZ21mb3ZncXB5Ym9yaXJ1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDA1MTIwNywiZXhwIjoyMDk1NjI3MjA3fQ.ryKi99eK7QGFsEe3LRkhp67HT4pJtUQ165OivJW10jk";
+const supabaseServiceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || "";
 
 export const isMock = supabaseUrl === "" ||
   supabaseUrl === "your-project-url" ||
@@ -28,6 +28,9 @@ export const supabase = createClient(
     global: {
       fetch: customFetch,
     },
+    db: {
+      timeout: 30000,
+    },
   },
 );
 
@@ -36,6 +39,9 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,
+  },
+  db: {
+    timeout: 30000,
   },
 });
 
@@ -167,6 +173,7 @@ export type Rank = {
 
 export type Personnel = {
   id: string;
+  user_id: string | null;
   badge_number: string | null;
   rank_id: string | null;
   rank?: Rank;
@@ -174,7 +181,7 @@ export type Personnel = {
   unit_id: string;
   unit?: Unit;
   is_approved: boolean;
-  role: "operation" | "admin";
+  role: "operation" | "admin" | "user";
   email: string | null;
   phone_number: string | null;
   viber_number: string | null;

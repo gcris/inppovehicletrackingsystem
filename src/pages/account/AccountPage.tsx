@@ -217,7 +217,7 @@ export default function AccountPage() {
           designation: trimmedData.designation,
           photo_url: photoUrlToSave,
         })
-        .eq("id", user.id);
+        .eq("user_id", user.id);
 
       if (updateError) throw updateError;
 

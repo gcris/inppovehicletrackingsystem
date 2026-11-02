@@ -25,7 +25,7 @@ import CalendarPage from "./pages/personnel/CalendarPage";
 import PageNotFound from "./pages/PageNotFound";
 import UserManagementPage from "./pages/admin/UserManagementPage";
 import { Sidebar } from "./components/layout/Sidebar";
-import { useInactivityLogout } from "./hooks/useInactivityLogout";
+// import { useInactivityLogout } from "./hooks/useInactivityLogout";
 import MobilityAssetsPage from "./pages/mobility/MobilityAssetsPage";
 import SectorMappingPage from "./pages/personnel/SectorMappingPage";
 import PatrolSummaryManagementPage from "./pages/reports/PatrolSummaryManagementPage";
@@ -68,6 +68,32 @@ function ProtectedRoute({
   // prompt to verify their email instead of starting MFA setup.
   if (!emailConfirmed) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (role !== "operation" && role !== "admin") {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-8 border border-slate-100 dark:border-slate-800">
+          <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="w-10 h-10 text-amber-600 dark:text-amber-500" />
+          </div>
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">
+            Use your mobile application
+          </h2>
+          <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium">
+            You may close this web site and open the installed Project PATROL mobile application
+            in your android phone.
+          </p>
+          <button
+            onClick={clearAuthCache}
+            className="flex items-center justify-center gap-2 w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (!isApproved && !loading) {
@@ -155,7 +181,7 @@ function ProtectedRoute({
 }
 
 function Layout() {
-  useInactivityLogout(true);
+  // useInactivityLogout(true);
 
   const { user, profile, isAdmin, clearAuthCache } = useAuth();
   const theme = useTheme();
